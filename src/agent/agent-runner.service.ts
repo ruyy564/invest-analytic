@@ -18,7 +18,7 @@ import { NO_TOOLS_ANSWER } from './prompts/off-topic.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
 import type { AgentStateType } from './graph/state.js';
-import { RunCollector, buildTraceUrl } from '../observability/run-collector.js';
+import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../observability/run-collector.js';
 
 /** Лимит шагов графа (учитывает шаги цикла «модель ⇄ инструменты»). */
 export const RUN_RECURSION_LIMIT = 12;
@@ -88,8 +88,7 @@ export class AgentRunnerService {
     if (!graph) {
       return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'portfolio', partial: true };
     }
-    const collector = new RunCollector();
-    const config = { ...this.configFor(sessionId), callbacks: [collector] };
+    const config = { ...this.configFor(sessionId) };
     this.registry.beginRun(sessionId);
 
     try {
@@ -105,7 +104,7 @@ export class AgentRunnerService {
         () => new Error('deadline'),
       );
       const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
-      return { ...mapped, traceUrl: this.traceUrlFor(collector) };
+      return { ...mapped, traceUrl: await this.traceUrlFor(requestId) };
     } catch (error) {
       const message = (error as Error)?.message ?? String(error);
       this.logger.warn(`Прогон прерван: ${message}`);
@@ -127,27 +126,29 @@ export class AgentRunnerService {
       throw new NotAwaitingApprovalError();
     }
     this.flow.assertSessionNotExpired(sessionId);
-    const collector = new RunCollector();
-    const config = { ...this.configFor(sessionId), callbacks: [collector] };
+    const config = { ...this.configFor(sessionId) };
     this.registry.beginRun(sessionId);
 
     try {
       const result = await graph.invoke(new Command({ resume: decision }), config);
       const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
-      return { ...mapped, traceUrl: this.traceUrlFor(collector) };
+      return { ...mapped, traceUrl: await this.traceUrlFor() };
     } finally {
       this.registry.endRun(sessionId);
     }
   }
 
-  private traceUrlFor(collector: RunCollector): string | undefined {
+  /** Ссылка на трейс: берём последний корневой run проекта (только при включённой трассировке). */
+  private async traceUrlFor(requestId?: string): Promise<string | undefined> {
     const langsmith = this.config.value.langsmith;
     if (!langsmith.tracing) {
       return undefined;
     }
+    const runId = await resolveRootRunId({ project: langsmith.project, requestId });
+    const orgId = langsmith.orgId ?? (await resolveOrgId(langsmith.apiKey));
     return buildTraceUrl(langsmith.traceUrlTemplate, {
-      runId: collector.runId,
-      orgId: langsmith.orgId,
+      runId,
+      orgId,
       project: langsmith.project,
     });
   }

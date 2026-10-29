@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { jest } from '@jest/globals';
 import type { INestApplication } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AIMessage } from '@langchain/core/messages';
 import request from 'supertest';
@@ -212,6 +214,83 @@ describe('HTTP API', () => {
     expect(response.status).toBe(503);
     expect(response.body.components['mcp:tinkoff']).toMatchObject({ status: 'down' });
     await broken.app.close();
+  });
+
+  it('пустой портфель: 202 с подтверждением, затем 200 с пустым составом', async () => {
+    const emptyPortfolio = { ...PORTFOLIO_FIXTURE, positions: [], totalAmountPortfolio: undefined };
+    const local = await createApp(async () => [
+      fakeTool('invest_list_accounts', async () => ACCOUNTS_FIXTURE),
+      fakeTool('invest_get_portfolio', async () => emptyPortfolio),
+      fakeTool('invest_get_positions', async () => ({ positions: [] })),
+    ]);
+
+    const awaiting = await request(local.app.getHttpServer())
+      .post('/api/v1/agent/chat')
+      .send({ message: 'что у меня в портфеле?' });
+
+    expect(awaiting.status).toBe(202);
+    expect(awaiting.body.status).toBe('awaiting_approval');
+
+    const response = await request(local.app.getHttpServer())
+      .post('/api/v1/agent/chat/approve')
+      .send({ sessionId: awaiting.body.sessionId, approved: true });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('completed');
+    expect(response.body.partial).toBe(false);
+    expect(String(response.body.answer)).toContain('SBER');
+    await local.app.close();
+  });
+
+  it('off-topic: отвечает без подтверждения и без вызовов инструментов', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat')
+      .send({ message: 'какая погода в Москве?' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('completed');
+    expect(response.body.approval).toBeUndefined();
+    expect(String(response.body.answer).length).toBeGreaterThan(0);
+  });
+
+  it('невалидный JSON в теле отдаёт 400 без стектрейса', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat')
+      .set('content-type', 'application/json')
+      .send('{"message": ');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(response.body.error).not.toHaveProperty('stack');
+  });
+
+  it('fail-open: падающий экспорт трейса не ломает ответ', async () => {
+    const originalTracing = process.env.LANGSMITH_TRACING;
+    process.env.LANGSMITH_TRACING = 'true';
+    process.env.LANGSMITH_API_KEY = 'lsv2_invalid_key_for_test';
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const local = await createApp(toolsFactory);
+
+    try {
+      const awaiting = await request(local.app.getHttpServer())
+        .post('/api/v1/agent/chat')
+        .send({ message: 'портфель?' });
+
+      expect(awaiting.status).toBe(202);
+
+      const response = await request(local.app.getHttpServer())
+        .post('/api/v1/agent/chat/approve')
+        .send({ sessionId: awaiting.body.sessionId, approved: true });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('completed');
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      process.env.LANGSMITH_TRACING = originalTracing;
+      delete process.env.LANGSMITH_API_KEY;
+      await local.app.close();
+    }
   });
 });
 

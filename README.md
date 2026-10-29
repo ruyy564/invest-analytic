@@ -4,12 +4,38 @@
 
 Агент отвечает на вопрос «что у меня в портфеле» строго по данным брокера, запрашивает подтверждение перед каждым чтением и пишет трейсы в LangSmith. Провайдер LLM и MCP-серверы подключаются только конфигурацией.
 
-> Проект в стадии MVP: реализован каркас и конфигурация, остальные группы задач — в `openspec/changes/portfolio-analyst-agent-mvp/tasks.md`.
+> Статус MVP: все группы задач реализованы, кроме проверки `docker compose up` (см. раздел «Статус»). Задачи и спеки — в `openspec/changes/portfolio-analyst-agent-mvp/`.
+
+## Как это работает
+
+```
+POST /api/v1/agent/chat
+        │
+        ▼
+   classify (LLM-роутер) ── off_topic ─▶ offTopic ─▶ ответ без доступа к данным
+        │ portfolio
+        ▼
+   agent (LLM + инструменты MCP)
+        │  просит вызвать инструмент
+        ▼
+   approve (interrupt) ─▶ 202 awaiting_approval + список действий
+        │ POST /chat/approve
+        ▼
+   tools (MCP через локальный прокси) ─▶ agent ─▶ отчёт + дисклеймер ─▶ 200 completed
+```
+
+- **Граф** — LangGraph с чекпоинтером: прерывание на `approve` можно возобновить после перезапуска процесса.
+- **Подтверждение** — на каждое чтение данных портфеля; политика выводится из правил (`src/agent/approvals/approval-rules.ts`).
+- **Инструменты** — `MultiServerMCPClient` + allowlist по серверу; имена вида `tinkoff__invest_get_portfolio`.
+- **MCP-прокси** — `McpProxyService` поднимает `http://127.0.0.1:<port>/mcp`, говорит с T-Invest MCP по протоколу MCP (сессия, SSE → JSON) и отдаёт адаптеру обычный JSON. Нужен потому, что сервер отдаёт `tools/list` потоком SSE, который адаптер не досчитывает до конца.
+- **LLM** — реестр провайдеров по `LLM_PROVIDER`, две модели: роутер и ответчик.
+- **Состояние** — SQLite (`data/state.db`), очистка по `STATE_TTL_DAYS`.
+- **Наблюдаемость** — трейсы LangSmith по env, `traceUrl` в каждом ответе, структурные логи с маскированием секретов.
 
 ## Требования
 
 - Node.js **>= 22** (проект ESM: `"type": "module"`)
-- Токен Tinkoff Invest API с доступом к чтению портфеля
+- Токен T-Invest API с доступом к чтению портфеля
 - Ключ LLM-провайдера (GigaChat, OpenAI или совместимый)
 
 ## Запуск
@@ -160,14 +186,21 @@ test/unit, test/e2e, test/fixtures
 - Доступ к данным — только чтение: торговые и денежные операции MCP запрещены и на уровне allowlist, и в правилах подтверждений.
 - Поддерживается только состав портфеля. Аналитика по отдельным бумагам, новости, макро, налоги, ставка ЦБ, инвест-идеи и Пульс — следующие итерации.
 - Подтверждение требуется на **каждый** запрос, читающий данные портфеля; ранее данное согласие не переносится.
-- Состояние сессий хранится в SQLite (`STATE_BACKEND=sqlite`), история в памяти процесса доступна только при `STATE_BACKEND=memory` и теряется при перезапуске.
-- Нет UI, стриминга ответа и мультипользовательской авторизации: `USER_ID` задаётся конфигурацией.
+- Состояние сессий хранится в SQLite (`data/state.db`, `STATE_BACKEND=sqlite`); история в памяти процесса доступна только при `STATE_BACKEND=memory` и теряется при перезапуске.
+- Одна сессия = один `USER_ID` из конфигурации: мультипользовательской авторизации нет.
+- Нет UI и стриминга ответа: ответ приходит одним JSON после подтверждения.
+- Лимиты на прогон зашиты в коде (`RUN_TOOL_BUDGET` в `src/tools/mcp-registry.service.ts`: 8 вызовов и 30 с; `RUN_DEADLINE_MS` = 30 с в `agent-runner`); при исчерпании ответ помечается `partial: true`.
+- TLS до T-Invest MCP требует дополнительного CA (`MCP_TINKOFF_TLS_MODE=extra-ca`, файл из `scripts/fetch-mcp-ca.mjs`).
 
 ## Статус
 
-Реализовано: каркас и конфигурация, реестр LLM-провайдеров (gigachat/openai/openai-compatible), реестр MCP-серверов с allowlist и бюджетом вызовов, граф `classify → (off-topic | agent ⇄ approve → tools)`, подтверждения через `interrupt`, HTTP-слой с `202/409/410`, health, SQLite-персистентность, маскирование секретов и `traceUrl`.
+Реализовано: конфигурация с проверкой zod, реестр LLM-провайдеров (gigachat/openai/openai-compatible), реестр MCP-серверов с allowlist, бюджетом вызовов и локальным прокси, граф `classify → (offTopic | agent ⇄ approve → tools)`, подтверждения через `interrupt` с возобновлением после рестарта, HTTP-слой (`202/409/410`, единый формат ошибок), health, SQLite-персистентность с очисткой TTL, маскирование секретов, трейсы LangSmith и `traceUrl`.
 
-Проверки: `npm run build`, `npm test` (unit), `npm run test:e2e` (граф, MCP, HTTP, рестарт состояния), `npm run lint`, `npm run smoke:mcp` (живой MCP).
+Проверено вживую (T-Invest MCP + GigaChat): `POST /chat` → `202 awaiting_approval` с действием `tinkoff__invest_get_portfolio`, `POST /chat/approve` → `200 completed` с отчётом и дисклеймером, `GET /health` → `ok` (`llm: up`, `mcp:tinkoff: up`), `traceUrl` открывает прогон со спанами `classify`, `agent`, `tools`, `approve`.
+
+Проверки: `npm run build`, `npm test` (95 unit), `npm run test:e2e` (22 e2e: граф, MCP, HTTP, рестарт состояния, пустой портфель, off-topic, невалидный ввод, fail-open трассировки), `npm run lint`, `npm run smoke:mcp` (живой MCP, см. [`docs/mcp.md`](docs/mcp.md)).
+
+Не проверено в этом окружении: `docker compose up` (Docker daemon недоступен) — манифесты `Dockerfile` и `docker-compose.yml` готовы, но живой прогон контейнера остаётся за вами.
 
 Планирование и спецификации — в [`openspec/changes/portfolio-analyst-agent-mvp/`](openspec/changes/portfolio-analyst-agent-mvp/).
 

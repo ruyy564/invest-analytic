@@ -1,6 +1,8 @@
+import { Logger } from '@nestjs/common';
+import { jest } from '@jest/globals';
 import { formatLogEntry } from '../../src/observability/logger.js';
 import { maskSecret, redact } from '../../src/observability/redact.js';
-import { RunCollector, buildTraceUrl } from '../../src/observability/run-collector.js';
+import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../../src/observability/run-collector.js';
 
 describe('маскирование секретов', () => {
   it('маскирует Bearer-заголовки и секретные поля', () => {
@@ -43,13 +45,108 @@ describe('ссылка на трейс', () => {
       }),
     ).toBe('https://smith.langchain.com/projects/p/invest/r/r1');
   });
+});
 
-  it('запоминает корневой прогон', () => {
-    const collector = new RunCollector();
-    collector.handleChainStart('chain', {}, 'run-1');
-    collector.handleChainStart('chain', {}, 'run-2');
+describe('поиск прогона в LangSmith', () => {
+  const apiKey = 'lsv2_test_key';
+  const template = 'https://smith.langchain.com/o/{orgId}/projects/p/{project}/r/{runId}';
 
-    expect(collector.runId).toBe('run-1');
+  /** Асинхронный источник прогонов: отдаёт список или бросает ошибку. */
+  type Run = { id?: string; name?: string; metadata?: Record<string, unknown> };
+  const runsOf =
+    (items: Run[] | Error) =>
+    (project: string): AsyncIterable<Run> => {
+      expect(project).toBe('invest');
+      const iterator = async function* iterate(): AsyncGenerator<Run> {
+        if (items instanceof Error) {
+          throw items;
+        }
+        for (const item of items) {
+          yield item;
+        }
+      };
+      return iterator();
+    };
+
+  it('сопоставляет прогон по requestId из метаданных', async () => {
+    const runId = await resolveRootRunId(
+      { project: 'invest', requestId: 'req-2', maxAttempts: 1 },
+      runsOf([
+        { id: 'other-request', name: 'LangGraph', metadata: { requestId: 'req-1' } },
+        { id: 'wanted', name: 'LangGraph', metadata: { requestId: 'req-2' } },
+      ]),
+    );
+
+    expect(runId).toBe('wanted');
+  });
+
+  it('пропускает прогон без совпадения, чтобы ссылка не вела в чужой трейс', async () => {
+    const runId = await resolveRootRunId(
+      { project: 'invest', requestId: 'req-9', maxAttempts: 2, delayMs: 1 },
+      runsOf([{ id: 'other-request', name: 'LangGraph', metadata: { requestId: 'req-1' } }]),
+    );
+
+    expect(runId).toBeUndefined();
+  });
+
+  it('берёт прогон графа, а не корневые спаны инструментов', async () => {
+    const runId = await resolveRootRunId(
+      { project: 'invest', maxAttempts: 1 },
+      runsOf([
+        { id: 'tools-run', name: 'invest_list_accounts' },
+        { id: 'graph-run', name: 'LangGraph' },
+        { id: 'old-graph-run', name: 'LangGraph' },
+      ]),
+    );
+
+    expect(runId).toBe('graph-run');
+  });
+
+  it('повторяет запрос, пока экспорт не дошёл до LangSmith', async () => {
+    let call = 0;
+    const flaky = runsOf([]);
+    const source = (project: string): AsyncIterable<{ id?: string; name?: string }> => {
+      call += 1;
+      return call > 1 ? runsOf([{ id: 'late-run', name: 'LangGraph' }])(project) : flaky(project);
+    };
+
+    await expect(
+      resolveRootRunId({ project: 'invest', maxAttempts: 3, delayMs: 1 }, source),
+    ).resolves.toBe('late-run');
+    expect(call).toBe(2);
+  });
+
+  it('fail-open: при ошибке LangSmith ссылки нет', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const runId = await resolveRootRunId(
+      { project: 'invest', maxAttempts: 2, delayMs: 1 },
+      runsOf(new Error('ECONNREFUSED')),
+    );
+
+    expect(runId).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Ссылка на трейс недоступна'));
+    warn.mockRestore();
+  });
+
+  it('без runId или orgId ссылка не строится', async () => {
+    jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+    await expect(resolveOrgId(apiKey)).resolves.toBeUndefined();
+    expect(buildTraceUrl(template, { runId: 'r1', project: 'invest' })).toBeUndefined();
+  });
+
+  it('организацию отдаёт LangSmith по ключу либо из env', async () => {
+    const spy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ id: 'org-1' }), { status: 200 }));
+
+    await expect(resolveOrgId(apiKey)).resolves.toBe('org-1');
+    expect(spy).toHaveBeenCalledWith('https://api.smith.langchain.com/api/v1/orgs/current', {
+      headers: { 'x-api-key': apiKey },
+    });
+    expect(buildTraceUrl(template, { runId: 'r1', orgId: 'org-1', project: 'invest' })).toBe(
+      'https://smith.langchain.com/o/org-1/projects/p/invest/r/r1',
+    );
+    await expect(resolveOrgId(undefined)).resolves.toBeUndefined();
   });
 });
 

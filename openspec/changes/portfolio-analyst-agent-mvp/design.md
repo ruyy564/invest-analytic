@@ -238,8 +238,8 @@ test/{unit/, e2e/, fixtures/mcp-test-server.ts, fixtures/fake-chat-model.ts}
 ### 9. Наблюдаемость
 
 - LangSmith включается переменными `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`; дерево LangGraph трассируется автоматически, узлы становятся спанами.
-- Адаптер инструментов оборачивается `traceable`, поэтому вызовы MCP попадают в то же дерево с именем `<server>__<tool>`.
-- `RunCollector` (callback handler) запоминает `runId` корневого прогона → `traceUrl` по `LANGSMITH_TRACE_URL_TEMPLATE`.
+- Адаптер инструментов оборачивается в проверку с именем `<server>__<tool>`: LangGraph и `@langchain/mcp-adapters` трассируют span инструмента автоматически, ошибка вызова помечает span неуспешным и несёт доменный код.
+- `runId` корневого прогона LangChain не отдаёт в колбэках, поэтому после `invoke` сервис читает свежие прогоны проекта (`resolveRootRunId` в `run-collector.ts`, совпадение по `requestId` из метаданных) → `traceUrl` по `LANGSMITH_TRACE_URL_TEMPLATE`; `orgId` берётся из env или `GET /orgs/current`.
 - Логи: JSON-строки с `requestId`, `sessionId`, `intent`, длительностями этапов и именами инструментов; `redact.ts` маскирует токены и заголовки; `LOG_QUESTION_TEXT=false` по умолчанию.
 - Сбой экспорта трейса не влияет на ответ (fail-open, предупреждение в логах).
 
