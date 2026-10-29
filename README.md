@@ -153,4 +153,19 @@ src/
 test/unit, test/e2e, test/fixtures
 ```
 
-Планирование и спецификации — в `openspec/changes/portfolio-analyst-agent-mvp/`.
+## Ограничения MVP
+
+- Доступ к данным — только чтение: торговые и денежные операции MCP запрещены и на уровне allowlist, и в правилах подтверждений.
+- Поддерживается только состав портфеля. Аналитика по отдельным бумагам, новости, макро, налоги, ставка ЦБ, инвест-идеи и Пульс — следующие итерации.
+- Подтверждение требуется на **каждый** запрос, читающий данные портфеля; ранее данное согласие не переносится.
+- Состояние сессий хранится в SQLite (`STATE_BACKEND=sqlite`), история в памяти процесса доступна только при `STATE_BACKEND=memory` и теряется при перезапуске.
+- Нет UI, стриминга ответа и мультипользовательской авторизации: `USER_ID` задаётся конфигурацией.
+
+## Статус
+
+Реализовано: каркас и конфигурация, реестр LLM-провайдеров (gigachat/openai/openai-compatible), реестр MCP-серверов с allowlist и бюджетом вызовов, граф `classify → (off-topic | agent ⇄ approve → tools)`, подтверждения через `interrupt`, HTTP-слой с `202/409/410`, health, SQLite-персистентность, маскирование секретов и `traceUrl`.
+
+Проверки: `npm run build`, `npm test` (unit), `npm run test:e2e` (граф, MCP, HTTP, рестарт состояния), `npm run lint`, `npm run smoke:mcp` (живой MCP).
+
+Планирование и спецификации — в [`openspec/changes/portfolio-analyst-agent-mvp/`](openspec/changes/portfolio-analyst-agent-mvp/).
+
