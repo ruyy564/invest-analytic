@@ -1,14 +1,17 @@
+import { existsSync } from 'node:fs';
 import { z } from 'zod';
 
 export const SUPPORTED_LLM_PROVIDERS = ['gigachat', 'openai', 'openai-compatible'] as const;
 export const SUPPORTED_STATE_BACKENDS = ['sqlite', 'memory'] as const;
 export const APPROVAL_UNLISTED_POLICIES = ['require', 'allow'] as const;
 export const MCP_TRANSPORTS = ['http', 'sse'] as const;
+export const MCP_TLS_MODES = ['strict', 'extra-ca', 'insecure'] as const;
 
 export type LlmProviderId = (typeof SUPPORTED_LLM_PROVIDERS)[number];
 export type McpTransport = (typeof MCP_TRANSPORTS)[number];
 export type StateBackend = (typeof SUPPORTED_STATE_BACKENDS)[number];
 export type ApprovalUnlistedPolicy = (typeof APPROVAL_UNLISTED_POLICIES)[number];
+export type McpTlsMode = (typeof MCP_TLS_MODES)[number];
 
 /**
  * Торговые и денежные операции MCP: их нельзя ни разрешать агенту,
@@ -168,6 +171,10 @@ export interface McpServerConfig {
   transport: McpTransport;
   token?: string;
   allowedTools: string[];
+  /** `strict` — проверять сертификат обычно, `extra-ca` — доверять указанному файлу, `insecure` — не проверять. */
+  tlsMode: McpTlsMode;
+  /** Путь к PEM-файлу с дополнительным CA (для `tlsMode: extra-ca`). */
+  caFile?: string;
 }
 
 export interface McpServersParseResult {
@@ -220,6 +227,23 @@ export const parseMcpServers = (
       continue;
     }
 
+    const tlsRaw = (raw[`${prefix}TLS_MODE`]?.trim() || 'strict').toLowerCase();
+    const tlsMode = MCP_TLS_MODES.find((item) => item === tlsRaw);
+    if (!tlsMode) {
+      issues.push(`${prefix}TLS_MODE: допустимые значения: ${MCP_TLS_MODES.join(', ')}`);
+      continue;
+    }
+
+    const caFile = raw[`${prefix}CA_FILE`]?.trim() || undefined;
+    if (tlsMode === 'extra-ca' && !caFile) {
+      issues.push(`${prefix}CA_FILE: обязателен при ${prefix}TLS_MODE=extra-ca`);
+      continue;
+    }
+    if (caFile && !existsSync(caFile)) {
+      issues.push(`${prefix}CA_FILE: файл не найден (${caFile})`);
+      continue;
+    }
+
     const allowedTools = (raw[`${prefix}ALLOWED_TOOLS`] ?? '')
       .split(',')
       .map((item) => item.trim())
@@ -242,6 +266,8 @@ export const parseMcpServers = (
       transport,
       token: raw[`${prefix}TOKEN`]?.trim() || undefined,
       allowedTools,
+      tlsMode,
+      caFile,
     });
   }
 

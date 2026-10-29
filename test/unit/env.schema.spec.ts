@@ -32,6 +32,8 @@ describe('конфигурация окружения', () => {
         transport: 'http',
         token: undefined,
         allowedTools: ['invest_list_accounts', 'invest_get_portfolio'],
+        tlsMode: 'strict',
+        caFile: undefined,
       },
     ]);
     expect(config.state).toEqual({

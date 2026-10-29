@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service.js';
 import { createCheckpointer } from './checkpointer.factory.js';
+import { CleanupService } from './cleanup.service.js';
 import { GlobalStoreService } from './global-store.service.js';
 
 /** Чекпоинтер состояния прогонов: sqlite (по умолчанию) или memory. */
@@ -17,8 +18,9 @@ export const GLOBAL_STORE = Symbol('GLOBAL_STORE');
       inject: [AppConfigService],
     },
     { provide: GLOBAL_STORE, useExisting: GlobalStoreService },
+    CleanupService,
   ],
-  exports: [CHECKPOINTER, GLOBAL_STORE, GlobalStoreService],
+  exports: [CHECKPOINTER, GLOBAL_STORE, GlobalStoreService, CleanupService],
 })
 export class StateModule {}
 

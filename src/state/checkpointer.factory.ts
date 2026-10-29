@@ -18,5 +18,8 @@ export const createCheckpointer = (state: AppConfig['state']): BaseCheckpointSav
   if (directory && directory !== '.') {
     mkdirSync(directory, { recursive: true });
   }
-  return SqliteSaver.fromConnString(state.sqlitePath);
+  const saver = SqliteSaver.fromConnString(state.sqlitePath);
+  // `setup()` защищён в типах, но нужен, чтобы таблицы существовали до очистки TTL.
+  void (saver as unknown as { setup: () => Promise<void> }).setup();
+  return saver;
 };

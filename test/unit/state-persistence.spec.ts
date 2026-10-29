@@ -1,11 +1,13 @@
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { MemorySaver } from '@langchain/langgraph';
 import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
 import { AppConfigService } from '../../src/config/app-config.service.js';
 import type { AppConfig } from '../../src/config/configuration.js';
 import { createCheckpointer } from '../../src/state/checkpointer.factory.js';
+import { CleanupService } from '../../src/state/cleanup.service.js';
 import { GlobalStoreService } from '../../src/state/global-store.service.js';
 
 const stateConfig = (overrides: Partial<AppConfig['state']> = {}): AppConfig['state'] => ({
@@ -29,6 +31,57 @@ describe('фабрика чекпоинтера', () => {
 
     expect(checkpointer).toBeInstanceOf(SqliteSaver);
     expect(existsSync(state.sqlitePath)).toBe(true);
+  });
+});
+
+describe('очистка устаревших сессий', () => {
+  it('удаляет чекпоинты старше STATE_TTL_DAYS и не трогает свежие', async () => {
+    const state = stateConfig({ ttlDays: 1 });
+    void (SqliteSaver.fromConnString(state.sqlitePath) as unknown as { setup: () => Promise<void> }).setup();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const db = new Database(state.sqlitePath);
+    const insert = db.prepare(
+      'INSERT INTO checkpoints (thread_id, checkpoint_ns, checkpoint_id, type, checkpoint, metadata) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    const insertWrite = db.prepare(
+      'INSERT INTO writes (thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, value) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    );
+    const old = new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString();
+    const fresh = new Date().toISOString();
+
+    insert.run('old', '', old, 'json', '{}', '{}');
+    insert.run('fresh', '', fresh, 'json', '{}', '{}');
+    insertWrite.run('old', '', old, 'task', 0, 'channel', '{}');
+    db.close();
+
+    const cleanup = new CleanupService(
+      configStub(state),
+      new GlobalStoreService(configStub({ ...state, backend: 'memory' })),
+    );
+    const removed = cleanup.cleanup(new Date());
+
+    expect(removed).toBe(1);
+
+    const check = new Database(state.sqlitePath);
+    const remaining = check
+      .prepare('SELECT thread_id FROM checkpoints')
+      .all()
+      .map((row) => (row as { thread_id: string }).thread_id);
+    const writes = check.prepare('SELECT thread_id FROM writes').all();
+    check.close();
+
+    expect(remaining).toEqual(['fresh']);
+    expect(writes).toHaveLength(0);
+  });
+
+  it('ничего не делает в memory-режиме', () => {
+    const cleanup = new CleanupService(
+      configStub({ ...stateConfig(), backend: 'memory' }),
+      new GlobalStoreService(configStub({ ...stateConfig(), backend: 'memory' })),
+    );
+
+    expect(cleanup.cleanup()).toBe(0);
   });
 });
 

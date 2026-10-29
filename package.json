@@ -13,7 +13,7 @@
     "start:dev": "tsc -w -p tsconfig.build.json",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.cjs",
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest-e2e.config.cjs --runInBand",
-    "smoke:mcp": "node scripts/smoke-mcp.mjs",
+    "smoke:mcp": "node --env-file=.env scripts/smoke-mcp.mjs",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\""
   },
