@@ -24,13 +24,15 @@ export class MultiServerMcpFactory {
       return existing;
     }
     const client = new MultiServerMCPClient({
+      // Неймспейсинг делаем сами (`<server>__<tool>`), префикс адаптера отключаем.
+      prefixToolNameWithServerName: false,
       mcpServers: {
         [server.name]: {
           transport: server.transport === 'sse' ? 'sse' : 'http',
           url: server.url,
           ...(server.token ? { headers: { Authorization: `Bearer ${server.token}` } } : {}),
-          // Тип адаптера требует это поле, при рантайме у него есть значение по умолчанию.
-          automaticSSEFallback: false,
+          // Тип адаптера требует поле, но валидация запрещает его вне mode: "legacy",
+          // поэтому оставляем поведение по умолчанию и приводим тип намеренно.
         },
       },
     } as unknown as ConstructorParameters<typeof MultiServerMCPClient>[0]);
