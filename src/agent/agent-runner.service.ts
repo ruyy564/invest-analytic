@@ -16,6 +16,7 @@ import { NotAwaitingApprovalError } from './approval.errors.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
 import type { AgentStateType } from './graph/state.js';
+import { RunCollector, buildTraceUrl } from '../observability/run-collector.js';
 
 /** Лимит шагов графа (учитывает шаги цикла «модель ⇄ инструменты»). */
 export const RUN_RECURSION_LIMIT = 12;
@@ -28,6 +29,8 @@ export interface RunResult {
   intent: AgentStateType['intent'];
   partial: boolean;
   approval?: ApprovePayload;
+  /** Ссылка на трейс LangSmith, если трассировка включена. */
+  traceUrl?: string;
 }
 
 const extractInterrupt = (result: unknown): ApprovePayload | undefined => {
@@ -67,17 +70,25 @@ export class AgentRunnerService {
     @Inject(CHECKPOINTER) private readonly checkpointer: BaseCheckpointSaver,
   ) {}
 
-  async run(message: string, sessionId: string): Promise<RunResult> {
+  async run(message: string, sessionId: string, requestId?: string): Promise<RunResult> {
     const graph = await this.graph();
-    const config = this.configFor(sessionId);
+    const collector = new RunCollector();
+    const config = { ...this.configFor(sessionId), callbacks: [collector] };
 
     try {
       const result = await withTimeout(
-        graph.invoke({ messages: [new HumanMessage(message)] }, config),
+        graph.invoke(
+          { messages: [new HumanMessage(message)] },
+          {
+            ...config,
+            metadata: { requestId, sessionId },
+          },
+        ),
         RUN_DEADLINE_MS,
         () => new Error('deadline'),
       );
-      return await this.toResultAndTrack(graph, result as unknown, config, sessionId);
+      const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
+      return { ...mapped, traceUrl: this.traceUrlFor(collector) };
     } catch (error) {
       this.logger.warn(`Прогон прерван: ${(error as Error).message}`);
       return this.partialResult(config, sessionId);
@@ -90,10 +101,24 @@ export class AgentRunnerService {
       throw new NotAwaitingApprovalError();
     }
     this.flow.assertSessionNotExpired(sessionId);
-    const config = this.configFor(sessionId);
+    const collector = new RunCollector();
+    const config = { ...this.configFor(sessionId), callbacks: [collector] };
 
     const result = await graph.invoke(new Command({ resume: decision }), config);
-    return this.toResultAndTrack(graph, result as unknown, config, sessionId);
+    const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
+    return { ...mapped, traceUrl: this.traceUrlFor(collector) };
+  }
+
+  private traceUrlFor(collector: RunCollector): string | undefined {
+    const langsmith = this.config.value.langsmith;
+    if (!langsmith.tracing) {
+      return undefined;
+    }
+    return buildTraceUrl(langsmith.traceUrlTemplate, {
+      runId: collector.runId,
+      orgId: langsmith.orgId,
+      project: langsmith.project,
+    });
   }
 
   /** Отмечает сессию как ожидающую решения (для 409 на повторное подтверждение). */

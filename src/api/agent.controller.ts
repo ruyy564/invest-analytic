@@ -26,7 +26,7 @@ export class AgentController {
     const requestId = randomUUID();
     const sessionId = dto.sessionId ?? randomUUID();
 
-    const result = await this.runner.run(dto.message, sessionId);
+    const result = await this.runner.run(dto.message, sessionId, requestId);
     response.status(result.status === 'awaiting_approval' ? 202 : 200);
 
     return { requestId, sessionId, ...result };
