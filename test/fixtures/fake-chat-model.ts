@@ -23,6 +23,11 @@ export class ScriptedChatModel extends BaseChatModel {
     return 'scripted';
   }
 
+  /** Фейковая модель «принимает» инструменты, возвращая себя. */
+  bindTools(..._args: unknown[]): this {
+    return this;
+  }
+
   protected async _generate(
     _messages: BaseMessage[],
     _options: this['ParsedCallOptions'],

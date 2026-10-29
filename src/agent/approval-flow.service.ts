@@ -23,10 +23,35 @@ export interface ApproveDecision {
 /** Собирает запрос подтверждения и считает срок его жизни. */
 @Injectable()
 export class ApprovalFlowService {
+  private readonly requestedAt = new Map<string, string>();
+
   constructor(private readonly config: AppConfigService) {}
 
   get ttlMinutes(): number {
     return this.config.value.approvals.ttlMinutes;
+  }
+
+  /** Запоминает момент постановки в `interrupt` для проверки срока. */
+  markRequested(sessionId: string, at: Date = new Date()): void {
+    if (sessionId) {
+      this.requestedAt.set(sessionId, at.toISOString());
+    }
+  }
+
+  requestedAtOf(sessionId: string): string | undefined {
+    return this.requestedAt.get(sessionId);
+  }
+
+  clear(sessionId: string): void {
+    this.requestedAt.delete(sessionId);
+  }
+
+  /** Проверка срока для сессии: нет отметки — считаем, что подтверждения не ждали. */
+  assertSessionNotExpired(sessionId: string, now: Date = new Date()): void {
+    const requestedAt = this.requestedAt.get(sessionId);
+    if (requestedAt) {
+      this.assertNotExpired(requestedAt, now);
+    }
   }
 
   buildPayload(
