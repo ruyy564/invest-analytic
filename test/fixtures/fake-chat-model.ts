@@ -1,0 +1,48 @@
+import type { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
+import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { AIMessage, type BaseMessage } from '@langchain/core/messages';
+import type { ChatResult } from '@langchain/core/outputs';
+import type { LlmRole } from '../../src/llm/llm-provider.interface.js';
+
+/** Один шаг сценария: текст ответа или готовое сообщение с `tool_calls`. */
+export type ScriptedStep = string | AIMessage;
+
+/**
+ * Детерминированная модель для тестов: отдаёт заранее заданные ответы
+ * по очереди, последний шаг повторяется. Сеть и ключи не нужны.
+ */
+export class ScriptedChatModel extends BaseChatModel {
+  private readonly steps: ScriptedStep[];
+
+  constructor(steps: ScriptedStep[]) {
+    super({});
+    this.steps = [...steps];
+  }
+
+  _llmType(): string {
+    return 'scripted';
+  }
+
+  protected async _generate(
+    _messages: BaseMessage[],
+    _options: this['ParsedCallOptions'],
+    _runManager?: CallbackManagerForLLMRun,
+  ): Promise<ChatResult> {
+    const step = this.steps.length > 1 ? (this.steps.shift() as ScriptedStep) : this.steps[0];
+    const message = typeof step === 'string' ? new AIMessage(step) : step;
+    return {
+      generations: [{ text: typeof message.content === 'string' ? message.content : '', message }],
+    };
+  }
+}
+
+/** Тестовый провайдер: подключается в реестр вместо реального. */
+export class FakeLlmProvider {
+  readonly id = 'fake';
+
+  constructor(private readonly steps: ScriptedStep[] = ['ok']) {}
+
+  createChatModel(_role: LlmRole): ScriptedChatModel {
+    return new ScriptedChatModel(this.steps);
+  }
+}
