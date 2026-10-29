@@ -1,3 +1,5 @@
+import { buildPortfolioReportPrompt } from './portfolio-report.js';
+
 export interface AgentPromptOptions {
   accountId?: string;
   dataAsOf?: string;
@@ -7,12 +9,10 @@ export interface AgentPromptOptions {
 export const buildAgentSystemPrompt = (options: AgentPromptOptions = {}): string => {
   const lines = [
     'Ты — ассистент по личному портфелю Tinkoff Invest. Отвечай на русском языке.',
-    'Показывай состав портфеля: тикер, название, количество, текущую цену, стоимость позиции,',
-    'итоговую стоимость, доходность (только если она есть в данных), валюту и время данных.',
     'Используй ТОЛЬКО данные, полученные из инструментов. Если данных нет — скажи, что они недоступны,',
     'и не подставляй примерные значения. Не совершай торговых операций и не предлагай их.',
-    'Не пересчитывай валюту, суммы указывай в валюте портфеля.',
-    'Добавляй в конец ответа: «Это информационная сводка по данным брокера, а не инвестиционная рекомендация.»',
+    'Суммы указывай в валюте портфеля и не пересчитывай в другие валюты.',
+    buildPortfolioReportPrompt(options.dataAsOf),
   ];
 
   if (options.accountId) {
@@ -24,9 +24,6 @@ export const buildAgentSystemPrompt = (options: AgentPromptOptions = {}): string
     );
   }
 
-  if (options.dataAsOf) {
-    lines.push(`Время данных прогона: ${options.dataAsOf}.`);
-  }
-
   return lines.join(' ');
 };
+

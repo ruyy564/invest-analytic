@@ -40,19 +40,33 @@ class IntentAwareModel extends ScriptedChatModel {
   }
 }
 
+/** Записывает входные сообщения, чтобы проверить, что модели приходят данные инструментов. */
+class RecordingModel extends ScriptedChatModel {
+  readonly inputs: string[] = [];
+
+  protected override async _generate(
+    messages: Parameters<ScriptedChatModel['_generate']>[0],
+  ): ReturnType<ScriptedChatModel['_generate']> {
+    this.inputs.push(messages.map((message) => JSON.stringify(message.content)).join('\n'));
+    return super._generate(messages);
+  }
+}
+
 interface Harness {
   runner: AgentRunnerService;
   toolCalls: () => number;
+  modelInputs: () => string[];
 }
 
 /** Каждый сценарий — своё приложение и свой сценарий ответов модели. */
 const createHarness = async (answerSteps: ScriptedStep[]): Promise<Harness> => {
   let calls = 0;
+  const answerModel = new RecordingModel(answerSteps);
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(LLM_ROUTER_MODEL)
     .useValue(new IntentAwareModel([]))
     .overrideProvider(LLM_ANSWER_MODEL)
-    .useValue(new ScriptedChatModel(answerSteps))
+    .useValue(answerModel)
     .overrideProvider(MCP_CLIENT_FACTORY)
     .useValue(async () => [
       fakeTool('invest_list_accounts', async () => ACCOUNTS_FIXTURE),
@@ -64,7 +78,7 @@ const createHarness = async (answerSteps: ScriptedStep[]): Promise<Harness> => {
     ])
     .compile();
 
-  return { runner: moduleRef.get(AgentRunnerService), toolCalls: () => calls };
+  return { runner: moduleRef.get(AgentRunnerService), toolCalls: () => calls, modelInputs: () => answerModel.inputs };
 };
 
 describe('граф агента с подтверждением', () => {
@@ -90,7 +104,7 @@ describe('граф агента с подтверждением', () => {
   });
 
   it('портфель читается только после подтверждения', async () => {
-    const { runner, toolCalls } = await createHarness([
+    const { runner, toolCalls, modelInputs } = await createHarness([
       toolCall('call-1'),
       'В портфеле: SBER 100 шт., итог 152345.67 RUB.',
     ]);
@@ -104,6 +118,11 @@ describe('граф агента с подтверждением', () => {
     expect(result.status).toBe('completed');
     expect(result.answer).toContain('SBER');
     expect(toolCalls()).toBe(1);
+
+    // Модель получает данные инструмента, а не «свободный» ответ.
+    const lastInput = modelInputs().at(-1) ?? '';
+    expect(lastInput).toContain('294.55');
+    expect(lastInput).toContain('152345.67');
   });
 
   it('при отказе данные не читаются', async () => {
