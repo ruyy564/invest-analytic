@@ -29,6 +29,7 @@ export const RUN_TOOL_BUDGET = { maxCalls: 8, deadlineMs: 30_000 } as const;
 export class McpRegistryService {
   private readonly logger = new Logger(McpRegistryService.name);
   private readonly statuses = new Map<string, McpServerStatus>();
+  private readonly budgets = new Map<string, ToolBudget>();
   private toolsCache: DynamicStructuredTool[] = [];
   private initPromise?: Promise<void>;
 
@@ -62,7 +63,12 @@ export class McpRegistryService {
         }
         tools.push(
           ...allowed.map((tool) =>
-            wrapTool(tool, { server: server.name, timeoutMs: MCP_TOOL_TIMEOUT_MS }),
+            wrapTool(tool, {
+              server: server.name,
+              timeoutMs: MCP_TOOL_TIMEOUT_MS,
+              budgetFor: (sessionId) =>
+                sessionId ? this.budgets.get(sessionId) : undefined,
+            }),
           ),
         );
         this.statuses.set(server.name, {
@@ -103,5 +109,17 @@ export class McpRegistryService {
   /** Бюджет на один прогон: 8 вызовов и 30 секунд. */
   createBudget(): ToolBudget {
     return new ToolBudget({ ...RUN_TOOL_BUDGET });
+  }
+
+  /** Начало прогона: создаёт бюджет для сессии. */
+  beginRun(sessionId: string): void {
+    if (sessionId) {
+      this.budgets.set(sessionId, this.createBudget());
+    }
+  }
+
+  /** Завершение прогона: бюджет сессии больше не нужен. */
+  endRun(sessionId: string): void {
+    this.budgets.delete(sessionId);
   }
 }

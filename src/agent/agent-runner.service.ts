@@ -39,6 +39,15 @@ const extractInterrupt = (result: unknown): ApprovePayload | undefined => {
   return value ? (value as ApprovePayload) : undefined;
 };
 
+/** Ответ помечается частичным, если инструмент упёрся в бюджет прогона. */
+const hasBudgetError = (messages: AgentStateType['messages'] | undefined): boolean =>
+  (messages ?? []).some(
+    (message) =>
+      (message as { _getType?: () => string })._getType?.() === 'tool' &&
+      typeof message.content === 'string' &&
+      /run_budget_exceeded|Лимит вызовов|Лимит времени/.test(message.content),
+  );
+
 const lastAnswer = (messages: AgentStateType['messages'] | undefined): string | undefined => {
   const list = messages ?? [];
   for (let index = list.length - 1; index >= 0; index -= 1) {
@@ -74,6 +83,7 @@ export class AgentRunnerService {
     const graph = await this.graph();
     const collector = new RunCollector();
     const config = { ...this.configFor(sessionId), callbacks: [collector] };
+    this.registry.beginRun(sessionId);
 
     try {
       const result = await withTimeout(
@@ -92,6 +102,8 @@ export class AgentRunnerService {
     } catch (error) {
       this.logger.warn(`Прогон прерван: ${(error as Error).message}`);
       return this.partialResult(config, sessionId);
+    } finally {
+      this.registry.endRun(sessionId);
     }
   }
 
@@ -103,10 +115,15 @@ export class AgentRunnerService {
     this.flow.assertSessionNotExpired(sessionId);
     const collector = new RunCollector();
     const config = { ...this.configFor(sessionId), callbacks: [collector] };
+    this.registry.beginRun(sessionId);
 
-    const result = await graph.invoke(new Command({ resume: decision }), config);
-    const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
-    return { ...mapped, traceUrl: this.traceUrlFor(collector) };
+    try {
+      const result = await graph.invoke(new Command({ resume: decision }), config);
+      const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
+      return { ...mapped, traceUrl: this.traceUrlFor(collector) };
+    } finally {
+      this.registry.endRun(sessionId);
+    }
   }
 
   private traceUrlFor(collector: RunCollector): string | undefined {
@@ -204,7 +221,7 @@ export class AgentRunnerService {
       status: 'completed',
       answer: lastAnswer(values?.messages),
       intent: values?.intent ?? 'portfolio',
-      partial: values?.partial ?? false,
+      partial: (values?.partial ?? false) || hasBudgetError(values?.messages),
     };
   }
 

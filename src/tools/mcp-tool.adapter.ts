@@ -13,6 +13,8 @@ export interface ToolWrapperOptions {
   server: string;
   timeoutMs: number;
   budget?: ToolBudget;
+  /** Бюджет конкретного прогона: сессия берётся из `config.configurable.thread_id`. */
+  budgetFor?: (sessionId: string | undefined) => ToolBudget | undefined;
   /** Крючок для трейсинга и логов. */
   onCall?: (event: ToolCallEvent) => void;
 }
@@ -64,9 +66,17 @@ export const wrapTool = (
 ): DynamicStructuredTool => {
   const wrappedName = namespaceTool(options.server, tool.name);
 
-  const call = async (input: unknown): Promise<unknown> => {
-    options.budget?.assertAvailable(wrappedName);
-    options.budget?.registerCall();
+  const call = async (
+    input: unknown,
+    config?: { configurable?: Record<string, unknown> },
+  ): Promise<unknown> => {
+    const sessionId =
+      typeof config?.configurable?.thread_id === 'string'
+        ? config.configurable.thread_id
+        : undefined;
+    const budget = options.budgetFor?.(sessionId) ?? options.budget;
+    budget?.assertAvailable(wrappedName);
+    budget?.registerCall();
     const startedAt = Date.now();
     try {
       const result = await withTimeout(
@@ -90,6 +100,7 @@ export const wrapTool = (
     name: wrappedName,
     description: tool.description,
     schema: tool.schema,
-    func: call,
+    func: (input: unknown, _runManager: unknown, config: unknown) =>
+      call(input, config as { configurable?: Record<string, unknown> }),
   } as never);
 };

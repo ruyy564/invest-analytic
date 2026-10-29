@@ -81,6 +81,29 @@ describe('адаптер инструментов MCP', () => {
     await expect(expired.invoke({} as never)).rejects.toMatchObject({ code: 'run_budget_exceeded' });
   });
 
+  it('ведёт отдельный бюджет на прогон по thread_id', async () => {
+    const budgets = new Map<string, ToolBudget>();
+    const tool = wrapTool(fakeTool('fast'), {
+      server: 'tinkoff',
+      timeoutMs: 1000,
+      budgetFor: (sessionId) => (sessionId ? budgets.get(sessionId) : undefined),
+    });
+    budgets.set('s1', new ToolBudget({ maxCalls: 2, deadlineMs: 30_000 }));
+
+    const config = { configurable: { thread_id: 's1' } } as never;
+    await expect(tool.invoke({} as never, config)).resolves.toBe('ok');
+    await expect(tool.invoke({} as never, config)).resolves.toBe('ok');
+    await expect(tool.invoke({} as never, config)).rejects.toMatchObject({
+      code: 'run_budget_exceeded',
+    });
+
+    // У другой сессии свой бюджет.
+    budgets.set('s2', new ToolBudget({ maxCalls: 2, deadlineMs: 30_000 }));
+    await expect(
+      tool.invoke({} as never, { configurable: { thread_id: 's2' } } as never),
+    ).resolves.toBe('ok');
+  });
+
   it('сообщает о вызове для трейсинга', async () => {
     const events: unknown[] = [];
     const tool = wrapTool(fakeTool('fast'), {
