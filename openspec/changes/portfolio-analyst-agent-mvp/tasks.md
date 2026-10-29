@@ -2,12 +2,12 @@
 
 ## 1. Каркас NestJS и конфигурация
 
-- [ ] 1.1 Инициализировать проект NestJS (`main.ts`, `app.module.ts`, `tsconfig` в strict, eslint, prettier, jest, скрипты `build`/`test`/`test:e2e`/`lint`) и проверить, что `npm run build` и `npm test` проходят
-- [ ] 1.2 Добавить зависимости (`@nestjs/config`, `@nestjs/terminus`, `@langchain/langgraph`, `@langchain/core`, `@langchain/openai`, `@langchain/mcp-adapters`, `@modelcontextprotocol/sdk`, `langchain-gigachat`, `langsmith`, `zod`, `dotenv`) и проверить, что `npm install` проходит без unmet peer dependencies, а сборка остаётся зелёной
-- [ ] 1.3 Реализовать zod-схему окружения: разбор `MCP_SERVERS` в список серверов, обязательный `MCP_<NAME>_URL`, условная проверка креденшелов по `LLM_PROVIDER`, обязательный непустой allowlist и запрет торговых имён, допустимые значения `STATE_BACKEND` и `APPROVAL_UNLISTED`, и проверить unit-тестами каждый из этих кейсов
-- [ ] 1.4 Создать `.env.example` с комментариями по всем группам переменных и проверить тестом соответствия: набор ключей совпадает с ключами zod-схемы
-- [ ] 1.5 Разложить модули по структуре из `design.md` (`api`, `agent`, `llm`, `tools`, `observability`, `config`) с DI-токенами и проверить e2e-тестом, что `AppModule` инициализируется без внешних вызовов
-- [ ] 1.6 Описать конфигурацию в `README.md` (таблица переменных, примеры для трёх провайдеров, добавление MCP-сервера) и проверить, что каждая переменная из zod-схемы описана в таблице
+- [x] 1.1 Инициализировать проект NestJS (`main.ts`, `app.module.ts`, `tsconfig` в strict, eslint, prettier, jest, скрипты `build`/`test`/`test:e2e`/`lint`) и проверить, что `npm run build` и `npm test` проходят
+- [x] 1.2 Добавить зависимости (`@nestjs/config`, `@nestjs/terminus`, `@langchain/langgraph`, `@langchain/core`, `@langchain/openai`, `@langchain/mcp-adapters`, `@modelcontextprotocol/sdk`, `langchain-gigachat`, `langsmith`, `zod`, `dotenv`) и проверить, что `npm install` проходит без unmet peer dependencies, а сборка остаётся зелёной
+- [x] 1.3 Реализовать zod-схему окружения: разбор `MCP_SERVERS` в список серверов, обязательный `MCP_<NAME>_URL`, условная проверка креденшелов по `LLM_PROVIDER`, обязательный непустой allowlist и запрет торговых имён, допустимые значения `STATE_BACKEND` и `APPROVAL_UNLISTED`, и проверить unit-тестами каждый из этих кейсов
+- [x] 1.4 Создать `.env.example` с комментариями по всем группам переменных и проверить тестом соответствия: набор ключей совпадает с ключами zod-схемы
+- [x] 1.5 Разложить модули по структуре из `design.md` (`api`, `agent`, `llm`, `tools`, `observability`, `config`) с DI-токенами и проверить e2e-тестом, что `AppModule` инициализируется без внешних вызовов
+- [x] 1.6 Описать конфигурацию в `README.md` (таблица переменных, примеры для трёх провайдеров, добавление MCP-сервера) и проверить, что каждая переменная из zod-схемы описана в таблице
 
 ## 2. Реестр LLM-провайдеров
 
