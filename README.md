@@ -4,7 +4,7 @@
 
 Агент отвечает на вопрос «что у меня в портфеле» строго по данным брокера, запрашивает подтверждение перед каждым чтением и пишет трейсы в LangSmith. Провайдер LLM и MCP-серверы подключаются только конфигурацией.
 
-> Все 61 задача MVP закрыты и проверены вживую (локально и в Docker). Задачи и спеки — в `openspec/changes/portfolio-analyst-agent-mvp/`.
+> Все 61 задача MVP закрыты и проверены вживую (локально и в Docker). Спецификации — в [`openspec/specs/`](openspec/specs/), завершённое изменение — в `openspec/changes/archive/2026-10-29-portfolio-analyst-agent-mvp/`.
 
 ## Как это работает
 
@@ -214,5 +214,5 @@ test/unit, test/e2e, test/fixtures
 
 Проверено в Docker: `docker compose up -d --build` → контейнер `healthy`, `GET /health` → `ok`, «вопрос → подтверждение → ответ» → `202`/`200`, подтверждение после `docker compose restart` продолжает прогон (состояние в `./data`).
 
-Планирование и спецификации — в [`openspec/changes/portfolio-analyst-agent-mvp/`](openspec/changes/portfolio-analyst-agent-mvp/).
+Планирование и спецификации — в [`openspec/specs/`](openspec/specs/) (основные спеки) и [`openspec/changes/archive/2026-10-29-portfolio-analyst-agent-mvp/`](openspec/changes/archive/2026-10-29-portfolio-analyst-agent-mvp/) (предложение, дизайн и задачи реализованного MVP).
 
