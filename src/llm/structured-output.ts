@@ -1,6 +1,5 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { SystemMessage, type BaseMessage } from '@langchain/core/messages';
-import type { z } from 'zod';
 
 /** Разбор структурированного ответа не удался ни первым, ни вторым способом. */
 export class StructuredOutputError extends Error {
@@ -19,7 +18,8 @@ export interface StructuredFallback<T> {
 
 export interface InvokeStructuredParams<T extends Record<string, unknown>> {
   model: BaseChatModel;
-  schema: z.ZodType<T>;
+  /** Схема для провайдера: zod 3 (`zod/v3`) или zod 4 — значение приводится внутри. */
+  schema: unknown;
   /** Имя функции для провайдеров, поддерживающих вызов инструментов. */
   name: string;
   messages: BaseMessage[];
@@ -37,7 +37,9 @@ export const invokeStructured = async <T extends Record<string, unknown>>(
   params: InvokeStructuredParams<T>,
 ): Promise<T> => {
   try {
-    const structured = params.model.withStructuredOutput(params.schema, { name: params.name });
+    const structured = params.model.withStructuredOutput(params.schema as never, {
+      name: params.name,
+    });
     return (await structured.invoke(params.messages)) as T;
   } catch {
     const response = await params.model.invoke([

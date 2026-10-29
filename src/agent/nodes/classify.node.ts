@@ -1,6 +1,7 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { SystemMessage } from '@langchain/core/messages';
 import { invokeStructured } from '../../llm/structured-output.js';
+import { PORTFOLIO_SCOPE_PROMPT } from '../prompts/off-topic.js';
 import type { AgentStateType } from '../graph/state.js';
 import {
   CLASSIFIER_FALLBACK_PROMPT,
@@ -17,7 +18,11 @@ export const createClassifyNode =
       model,
       schema: INTENT_SCHEMA,
       name: 'classify_intent',
-      messages: [new SystemMessage(CLASSIFIER_SYSTEM_PROMPT), ...state.messages],
+      // Инструкции классификатора — в system-сообщении, вопрос пользователя — отдельным сообщением.
+      messages: [
+        new SystemMessage(`${PORTFOLIO_SCOPE_PROMPT}\n\n${CLASSIFIER_SYSTEM_PROMPT}`),
+        ...state.messages,
+      ],
       fallback: { systemPrompt: CLASSIFIER_FALLBACK_PROMPT, parse: parseIntentText },
     });
     return { intent: intent.intent };

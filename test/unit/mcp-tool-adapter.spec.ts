@@ -10,7 +10,61 @@ import {
   wrapTool,
 } from '../../src/tools/mcp-tool.adapter.js';
 import { ToolBudget } from '../../src/tools/tool-budget.js';
+import { toolSchemaFrom, toZodV3 } from '../../src/tools/tool-schema.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
+
+describe('JSON Schema -> zod 3', () => {
+  it('делает обязательные поля обязательными, а остальные опциональными', () => {
+    const schema = toZodV3(
+      toolSchemaFrom(
+        JSON.stringify({
+          type: 'object',
+          properties: {
+            accountId: { type: 'string', description: 'Идентификатор счёта' },
+            limit: { type: 'integer' },
+          },
+          required: ['accountId'],
+        }),
+      ),
+    );
+
+    expect(schema.safeParse({ accountId: 'acc-1' }).success).toBe(true);
+    expect(schema.safeParse({ accountId: 'acc-1', limit: 5 }).success).toBe(true);
+    expect(schema.safeParse({}).success).toBe(false);
+    expect(schema.safeParse({ accountId: 42 }).success).toBe(false);
+  });
+
+  it('поддерживает enum, массивы, вложенные объекты и пустые схемы', () => {
+    const schema = toZodV3({
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['OPEN', 'CLOSED'] },
+        tags: { type: 'array', items: { type: 'string' } },
+        filter: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+      },
+      required: ['status'],
+    });
+
+    expect(schema.safeParse({ status: 'OPEN', tags: ['a'], filter: { name: 'x' } }).success).toBe(true);
+    expect(schema.safeParse({ status: 'OTHER' }).success).toBe(false);
+    expect(schema.safeParse({ status: 'OPEN', filter: {} }).success).toBe(false);
+    expect(toZodV3({ type: 'object' }).safeParse({ any: 'value' }).success).toBe(true);
+  });
+
+  it('разбирает схему из строки и переживает мусор', () => {
+    expect(toolSchemaFrom('{"type":"object"}')).toEqual({ type: 'object' });
+    expect(toolSchemaFrom('not json')).toEqual({ type: 'object', properties: {} });
+    expect(toZodV3(undefined).safeParse({}).success).toBe(true);
+  });
+
+  it('принимает объединения через anyOf', () => {
+    const schema = toZodV3({ anyOf: [{ type: 'string' }, { type: 'number' }] });
+
+    expect(schema.safeParse('text').success).toBe(true);
+    expect(schema.safeParse(1).success).toBe(true);
+    expect(schema.safeParse(true).success).toBe(false);
+  });
+});
 
 describe('адаптер инструментов MCP', () => {
   it('добавляет неймспейс сервера в имя', () => {

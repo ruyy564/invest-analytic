@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service.js';
+// Глобальное хранилище общих данных (счёт по умолчанию и прочие настройки).
+import { GlobalStoreService } from './global-store.service.js';
 import { createCheckpointer } from './checkpointer.factory.js';
 import { CleanupService } from './cleanup.service.js';
-import { GlobalStoreService } from './global-store.service.js';
 
 /** Чекпоинтер состояния прогонов: sqlite (по умолчанию) или memory. */
 export const CHECKPOINTER = Symbol('CHECKPOINTER');

@@ -6,6 +6,7 @@ import { AppConfigService } from '../config/app-config.service.js';
 import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../llm/llm.module.js';
 import { CHECKPOINTER } from '../state/state.module.js';
 import { McpRegistryService } from '../tools/mcp-registry.service.js';
+import { resolveDefaultAccount } from '../tools/resolve-account.js';
 import { withTimeout } from '../tools/mcp-tool.adapter.js';
 import {
   ApprovalFlowService,
@@ -13,6 +14,7 @@ import {
   type ApprovePayload,
 } from './approval-flow.service.js';
 import { NotAwaitingApprovalError } from './approval.errors.js';
+import { NO_TOOLS_ANSWER } from './prompts/off-topic.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
 import type { AgentStateType } from './graph/state.js';
@@ -69,6 +71,8 @@ export class AgentRunnerService {
   private readonly logger = new Logger(AgentRunnerService.name);
   private compiled?: CompiledAgentGraph;
 
+  private defaultAccount?: string;
+
   constructor(
     private readonly config: AppConfigService,
     private readonly registry: McpRegistryService,
@@ -81,6 +85,9 @@ export class AgentRunnerService {
 
   async run(message: string, sessionId: string, requestId?: string): Promise<RunResult> {
     const graph = await this.graph();
+    if (!graph) {
+      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'portfolio', partial: true };
+    }
     const collector = new RunCollector();
     const config = { ...this.configFor(sessionId), callbacks: [collector] };
     this.registry.beginRun(sessionId);
@@ -100,7 +107,11 @@ export class AgentRunnerService {
       const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
       return { ...mapped, traceUrl: this.traceUrlFor(collector) };
     } catch (error) {
-      this.logger.warn(`Прогон прерван: ${(error as Error).message}`);
+      const message = (error as Error)?.message ?? String(error);
+      this.logger.warn(`Прогон прерван: ${message}`);
+      if (process.env.AGENT_DEBUG_ERRORS === '1') {
+        this.logger.error((error as Error)?.stack ?? message);
+      }
       return this.partialResult(config, sessionId);
     } finally {
       this.registry.endRun(sessionId);
@@ -109,6 +120,9 @@ export class AgentRunnerService {
 
   async resume(sessionId: string, decision: ApproveDecision): Promise<RunResult> {
     const graph = await this.graph();
+    if (!graph) {
+      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'portfolio', partial: true };
+    }
     if (!this.flow.hasPending(sessionId) && !(await this.isAwaiting(graph, sessionId))) {
       throw new NotAwaitingApprovalError();
     }
@@ -154,16 +168,22 @@ export class AgentRunnerService {
     return mapped;
   }
 
-  private async graph(): Promise<CompiledAgentGraph> {
+  private async graph(): Promise<CompiledAgentGraph | undefined> {
     if (this.compiled) {
       return this.compiled;
     }
     await this.registry.ensureInitialized();
     const tools = this.registry.tools;
     if (tools.length === 0) {
-      throw new Error('Ни один MCP-инструмент не доступен: проверьте MCP_<NAME>_URL и подключение');
+      // MCP недоступен: отвечаем частичным результатом, а не подсовываем модели пустой набор.
+      this.logger.warn('MCP недоступен: инструменты не получены');
+      return undefined;
     }
     this.policy.assertKnownTools(tools.map((tool) => tool.name));
+
+    if (!this.defaultAccount) {
+      this.defaultAccount = await resolveDefaultAccount(this.config, this.registry);
+    }
 
     this.compiled = buildAgentGraph({
       routerModel: this.routerModel,
@@ -171,7 +191,7 @@ export class AgentRunnerService {
       tools,
       policy: this.policy,
       flow: this.flow,
-      accountId: this.config.value.mcp.accountId,
+      accountId: this.defaultAccount,
       checkpointer: this.checkpointer,
     });
     return this.compiled;
@@ -230,6 +250,9 @@ export class AgentRunnerService {
     _sessionId: string,
   ): Promise<RunResult> {
     const graph = await this.graph();
+    if (!graph) {
+      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'portfolio', partial: true };
+    }
     const snapshot = await graph.getState(config);
     const values = (snapshot.values ?? {}) as AgentStateType;
 

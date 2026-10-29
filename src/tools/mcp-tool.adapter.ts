@@ -1,5 +1,6 @@
 import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { DynamicStructuredTool as DynamicTool } from '@langchain/core/tools';
+import { toolSchemaFrom, toZodV3 } from './tool-schema.js';
 import { McpUnavailableError, mapMcpError } from './errors.js';
 import type { ToolBudget } from './tool-budget.js';
 
@@ -96,10 +97,15 @@ export const wrapTool = (
     }
   };
 
+  const inputSchema = toZodV3(toolSchemaFrom(tool.schema));
   return new DynamicTool({
     name: wrappedName,
     description: tool.description,
-    schema: tool.schema,
+    // GigaChat конвертирует схемы инструментов через zod-to-json-schema (только zod 3),
+    // а адаптер MCP отдаёт zod 4. Строим zod-3 схему из JSON Schema MCP, чтобы модель
+    // видела обязательные аргументы (например, accountId) и не звала инструмент с {}.
+    // `lessSafeParse` не валидирует вход: защита от неполной аргументации остаётся в MCP.
+    schema: inputSchema as never,
     func: (input: unknown, _runManager: unknown, config: unknown) =>
       call(input, config as { configurable?: Record<string, unknown> }),
   } as never);

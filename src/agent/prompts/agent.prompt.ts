@@ -16,11 +16,17 @@ export const buildAgentSystemPrompt = (options: AgentPromptOptions = {}): string
   ];
 
   if (options.accountId) {
-    lines.push(`Счёт для запросов портфеля: ${options.accountId}.`);
+    lines.push(
+      `Счёт для запросов портфеля: ${options.accountId}. Вызывай invest_get_portfolio ` +
+        'сразу с этим accountId, без уточняющих вопросов.',
+    );
   } else {
     lines.push(
-      'Если счёт неизвестен, сначала узнай список счетов инструментом invest_list_accounts, ' +
-        'затем запрашивай портфель по нужному счёту.',
+      'Счёт пользователя заранее неизвестен, и спрашивать его у пользователя не нужно: ' +
+        'вызови invest_list_accounts, возьми id первого счёта со статусом ' +
+        'ACCOUNT_STATUS_OPEN и сразу запроси invest_get_portfolio с этим accountId ' +
+        '(аргумент accountId обязателен, пустой объект {} недопустим). ' +
+        'Если открытых счетов несколько — покажи сводку по первому и упомяни остальные.',
     );
   }
 

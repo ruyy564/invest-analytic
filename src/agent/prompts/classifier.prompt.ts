@@ -1,5 +1,7 @@
 import type { BaseMessage } from '@langchain/core/messages';
-import * as z from 'zod';
+// Схемы для провайдеров (в т.ч. GigaChat) конвертируются через zod-to-json-schema,
+// который понимает только zod 3, поэтому structured output объявляется в `zod/v3`.
+import { z } from 'zod/v3';
 
 export const INTENT_SCHEMA = z.object({
   intent: z.enum(['portfolio', 'off_topic']),

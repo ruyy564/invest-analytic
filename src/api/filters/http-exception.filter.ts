@@ -1,5 +1,6 @@
 import {
   ArgumentsHost,
+  BadRequestException,
   Catch,
   ExceptionFilter,
   Logger,
@@ -24,6 +25,10 @@ interface MappedError {
 const mapError = (error: unknown): MappedError => {
   if (error instanceof ApiValidationError) {
     return { status: 400, code: error.code, message: error.message };
+  }
+  if (error instanceof BadRequestException) {
+    // Битый JSON и прочие ошибки парсинга тела запроса.
+    return { status: 400, code: 'VALIDATION_ERROR', message: 'Некорректное тело запроса' };
   }
   if (error instanceof NotAwaitingApprovalError) {
     return { status: 409, code: error.code, message: error.message };
@@ -55,7 +60,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const requestId = request.headers['x-request-id'] ?? randomUUID();
     const mapped = mapError(error);
 
-    this.logger.warn(`${mapped.code} ${mapped.status} ${request.url ?? ''} requestId=${requestId}`);
+    this.logger.error(
+      `${mapped.code} ${mapped.status} ${request.url ?? ''} requestId=${requestId}: ` +
+        `${(error as Error)?.stack ?? String(error)}`,
+    );
 
     const body: ErrorBody = {
       error: { code: mapped.code, message: mapped.message, requestId },

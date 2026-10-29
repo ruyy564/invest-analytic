@@ -7,6 +7,17 @@ import type { LlmRole } from '../../src/llm/llm-provider.interface.js';
 /** Один шаг сценария: текст ответа или готовое сообщение с `tool_calls`. */
 export type ScriptedStep = string | AIMessage;
 
+/** Последнее сообщение пользователя в диалоге. */
+export const lastHumanText = (messages: BaseMessage[]): string => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message._getType() === 'human') {
+      return typeof message.content === 'string' ? message.content : '';
+    }
+  }
+  return '';
+};
+
 /**
  * Детерминированная модель для тестов: отдаёт заранее заданные ответы
  * по очереди, последний шаг повторяется. Сеть и ключи не нужны.

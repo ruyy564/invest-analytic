@@ -1,54 +1,26 @@
-﻿import { existsSync, readFileSync } from 'node:fs';
-import { Agent, type AgentOptions } from 'node:https';
+import { Optional } from '@nestjs/common';
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
 import type { McpServerConfig } from '../config/env.schema.js';
 import type { McpClientFactory } from './mcp-registry.service.js';
-
-/** РџР°СЂР°РјРµС‚СЂС‹ TLS РґР»СЏ MCP-СЃРѕРµРґРёРЅРµРЅРёСЏ: `extra-ca` РґРѕР±Р°РІР»СЏРµС‚ CA, `insecure` РѕС‚РєР»СЋС‡Р°РµС‚ РїСЂРѕРІРµСЂРєСѓ. */
-export const tlsAgentOptions = (
-  server: Pick<McpServerConfig, 'tlsMode' | 'caFile'>,
-): AgentOptions | undefined => {
-  if (server.tlsMode === 'insecure') {
-    return { rejectUnauthorized: false };
-  }
-  if (server.tlsMode === 'extra-ca' && server.caFile && existsSync(server.caFile)) {
-    return { ca: readFileSync(server.caFile, 'utf8') };
-  }
-  return undefined;
-};
+import type { McpProxyService } from './mcp-proxy.service.js';
 
 /**
- * РџРѕРґРјРµРЅСЏРµС‚ `fetch` С‚РѕР»СЊРєРѕ РґР»СЏ РїСѓС‚РµР№ TLS: Р°РґР°РїС‚РµСЂ MCP РЅРµ РїСЂРёРЅРёРјР°РµС‚ `dispatcher`,
- * Р° РіР»РѕР±Р°Р»СЊРЅС‹Р№ `NODE_TLS_REJECT_UNAUTHORIZED` РѕС‚РєР»СЋС‡Р°С‚СЊ РЅРµР»СЊР·СЏ вЂ” Р·Р°С‚СЂР°РіРёРІР°РµС‚ РІРµСЃСЊ РїСЂРѕС†РµСЃСЃ.
+ * Реальные подключения к MCP: адаптер LangChain подключается к серверу
+ * напрямую, если у сервера обычный JSON-транспорт, и через локальный прокси,
+ * если сервер отвечает SSE-стримом (адаптер такой ответ не дожидается).
  */
-export const withTlsFetch = async <T>(
-  server: Pick<McpServerConfig, 'tlsMode' | 'caFile'>,
-  fn: () => Promise<T>,
-): Promise<T> => {
-  const options = tlsAgentOptions(server);
-  if (!options) {
-    return fn();
-  }
-
-  const originalFetch = globalThis.fetch;
-  const agent = new Agent(options);
-  globalThis.fetch = ((input: string | URL | Request, init: RequestInit = {}) =>
-    originalFetch(input as never, { ...init, dispatcher: agent } as never)) as typeof fetch;
-  try {
-    return await fn();
-  } finally {
-    globalThis.fetch = originalFetch;
-    agent.destroy();
-  }
-};
-
-/** Р РµР°Р»СЊРЅС‹Рµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє MCP: РѕРґРёРЅ РєР»РёРµРЅС‚ РЅР° СЃРµСЂРІРµСЂ, tool discovery С‡РµСЂРµР· Р°РґР°РїС‚РµСЂ. */
 export class MultiServerMcpFactory {
   private readonly clients = new Map<string, MultiServerMCPClient>();
+  private readonly resolvedUrls = new Map<string, string>();
+
+  constructor(
+    @Optional() private readonly proxy?: McpProxyService,
+    @Optional() private readonly proxyEnabled: (server: McpServerConfig) => boolean = () => false,
+  ) {}
 
   create: McpClientFactory = async (server) => {
-    const client = this.clientFor(server);
-    return withTlsFetch(server, () => client.getTools(server.name));
+    const client = await this.clientFor(server);
+    return client.getTools(server.name);
   };
 
   async close(): Promise<void> {
@@ -58,24 +30,34 @@ export class MultiServerMcpFactory {
     this.clients.clear();
   }
 
-  private clientFor(server: McpServerConfig): MultiServerMCPClient {
+  private async clientFor(server: McpServerConfig): Promise<MultiServerMCPClient> {
     const existing = this.clients.get(server.name);
     if (existing) {
       return existing;
     }
+
+    const useProxy = this.proxy !== undefined && this.proxyEnabled(server);
+    const url = useProxy ? await this.proxy!.start(server) : server.url;
+    this.resolvedUrls.set(server.name, url);
+
     const client = new MultiServerMCPClient({
-      // РќРµР№РјСЃРїРµР№СЃРёРЅРі РґРµР»Р°РµРј СЃР°РјРё (`<server>__<tool>`), РїСЂРµС„РёРєСЃ Р°РґР°РїС‚РµСЂР° РѕС‚РєР»СЋС‡Р°РµРј.
+      // Неймспейсинг делаем сами (`<server>__<tool>`), префикс адаптера отключаем.
       prefixToolNameWithServerName: false,
       mcpServers: {
         [server.name]: {
           transport: server.transport === 'sse' ? 'sse' : 'http',
-          url: server.url,
-          ...(server.token ? { headers: { Authorization: `Bearer ${server.token}` } } : {}),
+          url,
+          ...(server.token && !useProxy
+            ? { headers: { Authorization: `Bearer ${server.token}` } }
+            : {}),
         },
       },
     } as unknown as ConstructorParameters<typeof MultiServerMCPClient>[0]);
     this.clients.set(server.name, client);
     return client;
   }
-}
 
+  urlFor(serverName: string): string | undefined {
+    return this.resolvedUrls.get(serverName);
+  }
+}
