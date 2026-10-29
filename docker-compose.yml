@@ -3,10 +3,17 @@ services:
     build: .
     env_file:
       - .env
+    environment:
+      # Контейнер не видит локальные правки окружения разработчика: URL и TLS до
+      # T-Invest передаём явно, чтобы живой прогон не зависел от старых значений в `.env`.
+      MCP_TINKOFF_URL: https://invest-public-api.tbank.ru/mcp
+      MCP_TINKOFF_TLS_MODE: extra-ca
+      MCP_TINKOFF_CA_FILE: /app/certs/mcp-chain.pem
     ports:
       - '3000:3000'
     volumes:
       - ./data:/app/data
+      - ./certs:/app/certs:ro
     healthcheck:
       test:
         [

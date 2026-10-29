@@ -38,9 +38,17 @@ export class CleanupService implements OnApplicationBootstrap {
       }
 
       const threshold = new Date(now.getTime() - state.ttlDays * 24 * 60 * 60 * 1000).toISOString();
+      // `checkpoint_id` — не время, а идентификатор в лексикографическом порядке
+      // (для UUIDv6 первый префикс — метка времени). Поэтому сравниваем время из
+      // `checkpoint` (ISO-строка, JSON); фолбэк по `checkpoint_id` — только для строк,
+      // где времени нет, иначе свежие сессии удалялись бы вместе со старыми.
       const stale = db
-        .prepare('SELECT DISTINCT thread_id FROM checkpoints WHERE checkpoint_id < ?')
-        .all(threshold) as { thread_id: string }[];
+        .prepare(
+          `SELECT DISTINCT thread_id FROM checkpoints
+           WHERE json_extract(checkpoint, '$.ts') < ?
+              OR (json_extract(checkpoint, '$.ts') IS NULL AND checkpoint_id < ?)`,
+        )
+        .all(threshold, threshold) as { thread_id: string }[];
 
       const deleteCheckpoints = db.prepare('DELETE FROM checkpoints WHERE thread_id = ?');
       const deleteWrites = db.prepare('DELETE FROM writes WHERE thread_id = ?');

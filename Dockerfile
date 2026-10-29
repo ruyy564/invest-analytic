@@ -1,5 +1,8 @@
 FROM node:22-alpine AS build
 WORKDIR /app
+# `better-sqlite3` ставится из prebuilt-бинарника; если для платформы его нет,
+# npm уходит в `node-gyp rebuild` — для этого нужны python3, make и g++.
+RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY tsconfig*.json ./

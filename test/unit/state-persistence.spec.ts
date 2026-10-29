@@ -35,6 +35,32 @@ describe('фабрика чекпоинтера', () => {
 });
 
 describe('очистка устаревших сессий', () => {
+  interface Row {
+    thread: string;
+    checkpointId: string;
+    ts: string;
+  }
+
+  const writeCheckpointRows = (path: string, rows: Row[]): void => {
+    const db = new Database(path);
+    const insert = db.prepare(
+      'INSERT INTO checkpoints (thread_id, checkpoint_ns, checkpoint_id, type, checkpoint, metadata) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    for (const row of rows) {
+      insert.run(row.thread, '', row.checkpointId, 'json', JSON.stringify({ ts: row.ts }), '{}');
+    }
+    db.close();
+  };
+
+  const remainingThreads = (path: string): string[] => {
+    const db = new Database(path);
+    const threads = (
+      db.prepare('SELECT thread_id FROM checkpoints').all() as { thread_id: string }[]
+    ).map((row) => row.thread_id);
+    db.close();
+    return threads;
+  };
+
   it('удаляет чекпоинты старше STATE_TTL_DAYS и не трогает свежие', async () => {
     const state = stateConfig({ ttlDays: 1 });
     void (SqliteSaver.fromConnString(state.sqlitePath) as unknown as { setup: () => Promise<void> }).setup();
@@ -50,9 +76,11 @@ describe('очистка устаревших сессий', () => {
     const old = new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString();
     const fresh = new Date().toISOString();
 
-    insert.run('old', '', old, 'json', '{}', '{}');
-    insert.run('fresh', '', fresh, 'json', '{}', '{}');
-    insertWrite.run('old', '', old, 'task', 0, 'channel', '{}');
+    // У свежей сессии `checkpoint_id` лексикографически меньше старой — так проверяем,
+    // что очистка смотрит на время, а не на идентификатор.
+    insert.run('old', '', 'b-checkpoint', 'json', JSON.stringify({ ts: old }), '{}');
+    insert.run('fresh', '', 'a-checkpoint', 'json', JSON.stringify({ ts: fresh }), '{}');
+    insertWrite.run('old', '', 'b-checkpoint', 'task', 0, 'channel', '{}');
     db.close();
 
     const cleanup = new CleanupService(
@@ -75,8 +103,32 @@ describe('очистка устаревших сессий', () => {
     expect(writes).toHaveLength(0);
   });
 
-  it('ничего не делает в memory-режиме', () => {
+  it('не удаляет свежую сессию, если её checkpoint_id лексикографически меньше', () => {
+    const state = stateConfig({ ttlDays: 1 });
+    void (SqliteSaver.fromConnString(state.sqlitePath) as unknown as { setup: () => Promise<void> }).setup();
+    writeCheckpointRows(state.sqlitePath, [
+      {
+        thread: 'fresh',
+        checkpointId: '01a18000-aaaa-7000-8000-000000000000',
+        ts: new Date().toISOString(),
+      },
+      {
+        thread: 'stale',
+        checkpointId: '01a1ffff-bbbb-7000-8000-000000000000',
+        ts: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
+      },
+    ]);
+
     const cleanup = new CleanupService(
+      configStub(state),
+      new GlobalStoreService(configStub({ ...state, backend: 'memory' })),
+    );
+
+    expect(cleanup.cleanup(new Date())).toBe(1);
+    expect(remainingThreads(state.sqlitePath)).toEqual(['fresh']);
+  });
+
+  it('ничего не делает в memory-режиме', () => {    const cleanup = new CleanupService(
       configStub({ ...stateConfig(), backend: 'memory' }),
       new GlobalStoreService(configStub({ ...stateConfig(), backend: 'memory' })),
     );

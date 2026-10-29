@@ -18,7 +18,14 @@ MCP_NEWS_TOKEN=<токен>
 MCP_NEWS_ALLOWED_TOOLS=search_news,get_article
 ```
 
-Для каждого имени `NAME` из `MCP_SERVERS` читаются `MCP_<NAME>_URL` (обязательна), `_TRANSPORT`, `_TOKEN`, `_ALLOWED_TOOLS` (обязательна, непустая).
+Для каждого имени `NAME` из `MCP_SERVERS` читаются `MCP_<NAME>_URL` (обязательна), `_TRANSPORT`, `_TOKEN`, `_ALLOWED_TOOLS` (обязательна, непустая), а также TLS-опции:
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `MCP_<NAME>_TLS_MODE` | `strict` | `strict` — обычная проверка сертификата; `extra-ca` — дополнительно доверять сертификатам из `_CA_FILE`; `insecure` — не проверять (только это соединение) |
+| `MCP_<NAME>_CA_FILE` | — | PEM с цепочкой (обязателен при `extra-ca`); получить файл: `node scripts/fetch-mcp-ca.mjs` |
+
+При `extra-ca` сертификаты из файла добавляются к корневым сертификатам **процесса** (`tls.setDefaultCACertificates`), поэтому им доверяет и MCP-прокси, и LLM-провайдер, который ходит через `fetch`. При остановке модуля исходный набор восстанавливается. Глобальный `NODE_TLS_REJECT_UNAUTHORIZED` в коде приложения не используется. Если задан `NODE_EXTRA_CA_CERTS`, переменная окружения имеет приоритет.
 
 ## Правила
 

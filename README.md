@@ -4,7 +4,7 @@
 
 Агент отвечает на вопрос «что у меня в портфеле» строго по данным брокера, запрашивает подтверждение перед каждым чтением и пишет трейсы в LangSmith. Провайдер LLM и MCP-серверы подключаются только конфигурацией.
 
-> Статус MVP: все группы задач реализованы, кроме проверки `docker compose up` (см. раздел «Статус»). Задачи и спеки — в `openspec/changes/portfolio-analyst-agent-mvp/`.
+> Все 61 задача MVP закрыты и проверены вживую (локально и в Docker). Задачи и спеки — в `openspec/changes/portfolio-analyst-agent-mvp/`.
 
 ## Как это работает
 
@@ -27,7 +27,7 @@ POST /api/v1/agent/chat
 - **Граф** — LangGraph с чекпоинтером: прерывание на `approve` можно возобновить после перезапуска процесса.
 - **Подтверждение** — на каждое чтение данных портфеля; политика выводится из правил (`src/agent/approvals/approval-rules.ts`).
 - **Инструменты** — `MultiServerMCPClient` + allowlist по серверу; имена вида `tinkoff__invest_get_portfolio`.
-- **MCP-прокси** — `McpProxyService` поднимает `http://127.0.0.1:<port>/mcp`, говорит с T-Invest MCP по протоколу MCP (сессия, SSE → JSON) и отдаёт адаптеру обычный JSON. Нужен потому, что сервер отдаёт `tools/list` потоком SSE, который адаптер не досчитывает до конца.
+- **MCP-прокси** — `McpProxyService` поднимает `http://127.0.0.1:<port>/mcp`, говорит с T-Invest MCP по протоколу MCP (сессия, SSE → JSON) и отдаёт адаптеру обычный JSON. Нужен потому, что сервер отдаёт `tools/list` потоком SSE, который адаптер не досчитывает до конца. К апстриму ходит через `node:https`, поэтому `MCP_<NAME>_TLS_MODE`/`CA_FILE` применяются именно к этому соединению.
 - **LLM** — реестр провайдеров по `LLM_PROVIDER`, две модели: роутер и ответчик.
 - **Состояние** — SQLite (`data/state.db`), очистка по `STATE_TTL_DAYS`.
 - **Наблюдаемость** — трейсы LangSmith по env, `traceUrl` в каждом ответе, структурные логи с маскированием секретов.
@@ -52,6 +52,18 @@ npm test                  # unit-тесты (Jest, ESM)
 npm run test:e2e          # e2e на тестовом MCP-сервере
 npm run lint
 ```
+
+Через Docker (порт `3000`, состояние в `./data`, CA для T-Invest — из `./certs`):
+
+```bash
+node scripts/fetch-mcp-ca.mjs   # один раз: сохранит цепочку T-Invest в certs/mcp-chain.pem
+docker compose up -d --build
+docker compose ps                # ждём статус (healthy)
+docker compose logs -f
+docker compose down
+```
+
+`docker-compose.yml` явно передаёт `MCP_TINKOFF_URL`, `MCP_TINKOFF_TLS_MODE=extra-ca` и `MCP_TINKOFF_CA_FILE=/app/certs/mcp-chain.pem`, чтобы контейнер не зависел от локальных значений `.env`. В образе `better-sqlite3` собирается из исходников (`python3`, `make`, `g++`), если готового бинарника для платформы нет.
 
 ## API
 
@@ -198,9 +210,9 @@ test/unit, test/e2e, test/fixtures
 
 Проверено вживую (T-Invest MCP + GigaChat): `POST /chat` → `202 awaiting_approval` с действием `tinkoff__invest_get_portfolio`, `POST /chat/approve` → `200 completed` с отчётом и дисклеймером, `GET /health` → `ok` (`llm: up`, `mcp:tinkoff: up`), `traceUrl` открывает прогон со спанами `classify`, `agent`, `tools`, `approve`.
 
-Проверки: `npm run build`, `npm test` (95 unit), `npm run test:e2e` (22 e2e: граф, MCP, HTTP, рестарт состояния, пустой портфель, off-topic, невалидный ввод, fail-open трассировки), `npm run lint`, `npm run smoke:mcp` (живой MCP, см. [`docs/mcp.md`](docs/mcp.md)).
+Проверки: `npm run build`, `npm test` (96 unit), `npm run test:e2e` (22 e2e: граф, MCP, HTTP, рестарт состояния, пустой портфель, off-topic, невалидный ввод, fail-open трассировки), `npm run lint`, `npm run smoke:mcp` (живой MCP, см. [`docs/mcp.md`](docs/mcp.md)).
 
-Не проверено в этом окружении: `docker compose up` (Docker daemon недоступен) — манифесты `Dockerfile` и `docker-compose.yml` готовы, но живой прогон контейнера остаётся за вами.
+Проверено в Docker: `docker compose up -d --build` → контейнер `healthy`, `GET /health` → `ok`, «вопрос → подтверждение → ответ» → `202`/`200`, подтверждение после `docker compose restart` продолжает прогон (состояние в `./data`).
 
 Планирование и спецификации — в [`openspec/changes/portfolio-analyst-agent-mvp/`](openspec/changes/portfolio-analyst-agent-mvp/).
 
