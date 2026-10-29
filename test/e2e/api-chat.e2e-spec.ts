@@ -22,13 +22,19 @@ const TEST_ENV: NodeJS.ProcessEnv = {
   LANGSMITH_TRACING: 'false',
 };
 
-const toolCall = () =>
+const toolCall = (id = 'call-1') =>
   new AIMessage({
     content: '',
     tool_calls: [
-      { id: 'call-1', name: 'tinkoff__invest_get_portfolio', args: { accountId: 'acc-1' } },
+      { id, name: 'tinkoff__invest_get_portfolio', args: { accountId: 'acc-1' } },
     ],
   });
+
+/** Сценарий ответов с запасом: приложение в тестах общее, прогонов несколько. */
+const answerScript = Array.from({ length: 10 }).flatMap((_, index) => [
+  toolCall(`call-${index}`),
+  'В портфеле: SBER 100 шт., итог 152345.67 RUB.',
+]);
 
 class CountingRouter extends ScriptedChatModel {
   calls = 0;
@@ -58,9 +64,7 @@ const createApp = async (factory: () => Promise<unknown>): Promise<Harness> => {
     .overrideProvider(LLM_ROUTER_MODEL)
     .useValue(router)
     .overrideProvider(LLM_ANSWER_MODEL)
-    .useValue(
-      new ScriptedChatModel([toolCall(), 'В портфеле: SBER 100 шт., итог 152345.67 RUB.']),
-    )
+    .useValue(new ScriptedChatModel(answerScript))
     .overrideProvider(MCP_CLIENT_FACTORY)
     .useValue(factory)
     .compile();
@@ -122,17 +126,24 @@ describe('HTTP API', () => {
   });
 
   it('после подтверждения возвращает 200 с ответом', async () => {
-    const awaiting = await request(app.getHttpServer())
+    const local = await createApp(toolsFactory);
+
+    const awaiting = await request(local.app.getHttpServer())
       .post('/api/v1/agent/chat')
       .send({ message: 'портфель?' });
 
-    const response = await request(app.getHttpServer())
+    expect(awaiting.status).toBe(202);
+    expect(local.app.get(ApprovalFlowService).hasPending(awaiting.body.sessionId)).toBe(true);
+
+    const response = await request(local.app.getHttpServer())
       .post('/api/v1/agent/chat/approve')
       .send({ sessionId: awaiting.body.sessionId, approved: true });
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ status: 'completed', intent: 'portfolio' });
     expect(String(response.body.answer)).toContain('SBER');
+
+    await local.app.close();
   });
 
   it('отвечает 409, если сессия не ждёт подтверждения', async () => {
@@ -144,23 +155,42 @@ describe('HTTP API', () => {
     expect(response.body.error.code).toBe('NOT_AWAITING_APPROVAL');
   });
 
-  it('отвечает 410, если срок подтверждения истёк', async () => {
-    const awaiting = await request(app.getHttpServer())
+  it('после отказа данные не читаются и приходит 200', async () => {
+    const local = await createApp(toolsFactory);
+
+    const awaiting = await request(local.app.getHttpServer())
       .post('/api/v1/agent/chat')
       .send({ message: 'портфель?' });
 
-    app.get(ApprovalFlowService).markRequested(
-      awaiting.body.sessionId,
-      new Date(Date.now() - 3_600_000),
-    );
+    const response = await request(local.app.getHttpServer())
+      .post('/api/v1/agent/chat/approve')
+      .send({ sessionId: awaiting.body.sessionId, approved: false });
 
-    const response = await request(app.getHttpServer())
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('completed');
+    await local.app.close();
+  });
+
+  it('отвечает 410, если срок подтверждения истёк', async () => {
+    const local = await createApp(toolsFactory);
+
+    const awaiting = await request(local.app.getHttpServer())
+      .post('/api/v1/agent/chat')
+      .send({ message: 'портфель?' });
+
+    local.app
+      .get(ApprovalFlowService)
+      .markRequested(awaiting.body.sessionId, new Date(Date.now() - 3_600_000));
+
+    const response = await request(local.app.getHttpServer())
       .post('/api/v1/agent/chat/approve')
       .send({ sessionId: awaiting.body.sessionId, approved: true });
 
     expect(response.status).toBe(410);
     expect(response.body.error.code).toBe('APPROVAL_EXPIRED');
     expect(response.body.error).not.toHaveProperty('stack');
+
+    await local.app.close();
   });
 
   it('отдаёт health со статусом компонентов', async () => {
