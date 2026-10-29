@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-10-28
+goal: Deliver a NestJS app skeleton with a LangGraph agent that reports
+  portfolio composition from Tinkoff Invest MCP, with pluggable LLM providers
+  and MCP servers configured through environment variables
