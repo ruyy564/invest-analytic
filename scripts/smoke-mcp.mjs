@@ -27,7 +27,6 @@ const client = new MultiServerMCPClient({
     },
   },
 });
-
 const preview = (value) => JSON.stringify(value).slice(0, 400);
 
 const started = Date.now();

@@ -76,6 +76,8 @@ npm run lint
 | `MCP_<NAME>_TRANSPORT` | `http` | `http` (streamable) \| `sse` |
 | `MCP_<NAME>_TOKEN` | — | Bearer-токен сервера |
 | `MCP_<NAME>_ALLOWED_TOOLS` | — (обязательна) | Allowlist инструментов; торговые и денежные операции запрещены |
+| `MCP_<NAME>_TLS_MODE` | `strict` | `strict` \| `extra-ca` (доп. CA) \| `insecure` (без проверки, только для MCP) |
+| `MCP_<NAME>_CA_FILE` | — | PEM-файл с CA; обязателен при `TLS_MODE=extra-ca` |
 | `TINKOFF_ACCOUNT_ID` | — | Счёт по умолчанию; если пусто, агент узнаёт его через MCP |
 
 ### Состояние и подтверждения
