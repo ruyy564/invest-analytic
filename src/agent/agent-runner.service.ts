@@ -12,6 +12,7 @@ import {
   type ApproveDecision,
   type ApprovePayload,
 } from './approval-flow.service.js';
+import { NotAwaitingApprovalError } from './approval.errors.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
 import type { AgentStateType } from './graph/state.js';
@@ -76,7 +77,7 @@ export class AgentRunnerService {
         RUN_DEADLINE_MS,
         () => new Error('deadline'),
       );
-      return await this.toResult(graph, result as unknown, config);
+      return await this.toResultAndTrack(graph, result as unknown, config, sessionId);
     } catch (error) {
       this.logger.warn(`Прогон прерван: ${(error as Error).message}`);
       return this.partialResult(config, sessionId);
@@ -85,11 +86,30 @@ export class AgentRunnerService {
 
   async resume(sessionId: string, decision: ApproveDecision): Promise<RunResult> {
     const graph = await this.graph();
+    if (!this.flow.hasPending(sessionId) && !(await this.isAwaiting(graph, sessionId))) {
+      throw new NotAwaitingApprovalError();
+    }
     this.flow.assertSessionNotExpired(sessionId);
     const config = this.configFor(sessionId);
 
     const result = await graph.invoke(new Command({ resume: decision }), config);
-    return this.toResult(graph, result as unknown, config);
+    return this.toResultAndTrack(graph, result as unknown, config, sessionId);
+  }
+
+  /** Отмечает сессию как ожидающую решения (для 409 на повторное подтверждение). */
+  private async toResultAndTrack(
+    graph: CompiledAgentGraph,
+    result: unknown,
+    config: ReturnType<AgentRunnerService['configFor']>,
+    sessionId: string,
+  ): Promise<RunResult> {
+    const mapped = await this.toResult(graph, result, config);
+    if (mapped.status === 'awaiting_approval') {
+      this.flow.markPending(sessionId);
+    } else {
+      this.flow.clearPending(sessionId);
+    }
+    return mapped;
   }
 
   private async graph(): Promise<CompiledAgentGraph> {
@@ -113,6 +133,20 @@ export class AgentRunnerService {
       checkpointer: this.checkpointer,
     });
     return this.compiled;
+  }
+
+  /** Проверка по чекпоинту: прогон реально стоит на подтверждении. */
+  private async isAwaiting(
+    graph: CompiledAgentGraph,
+    sessionId: string,
+  ): Promise<boolean> {
+    const snapshot = (await graph.getState(this.configFor(sessionId))) as {
+      next?: string[];
+      tasks?: { interrupts?: unknown[] }[];
+    };
+    const next = snapshot.next ?? [];
+    const tasks = snapshot.tasks ?? [];
+    return next.length > 0 || tasks.some((task) => (task.interrupts?.length ?? 0) > 0);
   }
 
   private configFor(sessionId: string) {

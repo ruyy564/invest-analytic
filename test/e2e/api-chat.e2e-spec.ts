@@ -1,0 +1,187 @@
+import { randomUUID } from 'node:crypto';
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { AIMessage } from '@langchain/core/messages';
+import request from 'supertest';
+import { AppModule } from '../../src/app.module.js';
+import { ApprovalFlowService } from '../../src/agent/approval-flow.service.js';
+import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../../src/llm/llm.module.js';
+import { MCP_CLIENT_FACTORY } from '../../src/tools/mcp-registry.service.js';
+import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
+import { fakeTool } from '../fixtures/fake-mcp-tools.js';
+import { ACCOUNTS_FIXTURE, PORTFOLIO_FIXTURE } from '../fixtures/mcp-test-server.js';
+
+const TEST_ENV: NodeJS.ProcessEnv = {
+  LLM_PROVIDER: 'openai',
+  LLM_MODEL: 'gpt-test',
+  LLM_API_KEY: 'test-key',
+  MCP_SERVERS: 'tinkoff',
+  MCP_TINKOFF_URL: 'https://mcp.example.com/mcp',
+  MCP_TINKOFF_ALLOWED_TOOLS: 'invest_list_accounts,invest_get_portfolio,invest_get_positions',
+  STATE_BACKEND: 'memory',
+  LANGSMITH_TRACING: 'false',
+};
+
+const toolCall = () =>
+  new AIMessage({
+    content: '',
+    tool_calls: [
+      { id: 'call-1', name: 'tinkoff__invest_get_portfolio', args: { accountId: 'acc-1' } },
+    ],
+  });
+
+class CountingRouter extends ScriptedChatModel {
+  calls = 0;
+
+  protected override async _generate(
+    messages: Parameters<ScriptedChatModel['_generate']>[0],
+  ): ReturnType<ScriptedChatModel['_generate']> {
+    this.calls += 1;
+    const question =
+      messages
+        .filter((message) => (message as { _getType?: () => string })._getType?.() === 'human')
+        .map((message) => (typeof message.content === 'string' ? message.content : ''))
+        .at(-1) ?? '';
+    const intent = /погода|налог/i.test(question) ? 'off_topic' : 'portfolio';
+    return { generations: [{ text: intent, message: new AIMessage(intent) }] };
+  }
+}
+
+interface Harness {
+  app: INestApplication;
+  router: CountingRouter;
+}
+
+const createApp = async (factory: () => Promise<unknown>): Promise<Harness> => {
+  const router = new CountingRouter([]);
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(LLM_ROUTER_MODEL)
+    .useValue(router)
+    .overrideProvider(LLM_ANSWER_MODEL)
+    .useValue(
+      new ScriptedChatModel([toolCall(), 'В портфеле: SBER 100 шт., итог 152345.67 RUB.']),
+    )
+    .overrideProvider(MCP_CLIENT_FACTORY)
+    .useValue(factory)
+    .compile();
+
+  const app = moduleRef.createNestApplication();
+  app.setGlobalPrefix('api/v1');
+  await app.init();
+  return { app, router };
+};
+
+const toolsFactory = async () => [
+  fakeTool('invest_list_accounts', async () => ACCOUNTS_FIXTURE),
+  fakeTool('invest_get_portfolio', async () => PORTFOLIO_FIXTURE),
+  fakeTool('invest_get_positions', async () => ({ positions: PORTFOLIO_FIXTURE.positions })),
+];
+
+describe('HTTP API', () => {
+  let app: INestApplication;
+  let router: CountingRouter;
+  const originalEnv = { ...process.env };
+
+  beforeAll(async () => {
+    Object.assign(process.env, TEST_ENV);
+    ({ app, router } = await createApp(toolsFactory));
+  });
+
+  afterAll(async () => {
+    await app.close();
+    process.env = originalEnv;
+  });
+
+  it('отклоняет пустой и слишком длинный вопрос без вызова модели', async () => {
+    const empty = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat')
+      .send({ message: '   ' });
+    expect(empty.status).toBe(400);
+    expect(empty.body.error).toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(empty.body.error.requestId).toBeTruthy();
+
+    const long = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat')
+      .send({ message: 'а'.repeat(2001) });
+    expect(long.status).toBe(400);
+    expect(router.calls).toBe(0);
+  });
+
+  it('возвращает 202 и запрос подтверждения на вопрос о портфеле', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat')
+      .send({ message: 'что у меня в портфеле?' });
+
+    expect(response.status).toBe(202);
+    expect(response.body).toMatchObject({ status: 'awaiting_approval', intent: 'portfolio' });
+    expect(response.body.sessionId).toBeTruthy();
+    expect(response.body.approval.actions[0]).toMatchObject({
+      tool: 'tinkoff__invest_get_portfolio',
+    });
+    expect(JSON.stringify(response.body)).not.toContain('test-key');
+  });
+
+  it('после подтверждения возвращает 200 с ответом', async () => {
+    const awaiting = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat')
+      .send({ message: 'портфель?' });
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat/approve')
+      .send({ sessionId: awaiting.body.sessionId, approved: true });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ status: 'completed', intent: 'portfolio' });
+    expect(String(response.body.answer)).toContain('SBER');
+  });
+
+  it('отвечает 409, если сессия не ждёт подтверждения', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat/approve')
+      .send({ sessionId: randomUUID(), approved: true });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('NOT_AWAITING_APPROVAL');
+  });
+
+  it('отвечает 410, если срок подтверждения истёк', async () => {
+    const awaiting = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat')
+      .send({ message: 'портфель?' });
+
+    app.get(ApprovalFlowService).markRequested(
+      awaiting.body.sessionId,
+      new Date(Date.now() - 3_600_000),
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat/approve')
+      .send({ sessionId: awaiting.body.sessionId, approved: true });
+
+    expect(response.status).toBe(410);
+    expect(response.body.error.code).toBe('APPROVAL_EXPIRED');
+    expect(response.body.error).not.toHaveProperty('stack');
+  });
+
+  it('отдаёт health со статусом компонентов', async () => {
+    const response = await request(app.getHttpServer()).get('/api/v1/health');
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('ok');
+    expect(response.body.components['mcp:tinkoff']).toMatchObject({ status: 'up' });
+    expect(response.body.components.llm).toMatchObject({ status: 'up' });
+  });
+
+  it('отдаёт 503, если MCP недоступен', async () => {
+    const broken = await createApp(async () => {
+      throw new Error('ECONNREFUSED');
+    });
+
+    const response = await request(broken.app.getHttpServer()).get('/api/v1/health');
+
+    expect(response.status).toBe(503);
+    expect(response.body.components['mcp:tinkoff']).toMatchObject({ status: 'down' });
+    await broken.app.close();
+  });
+});
+

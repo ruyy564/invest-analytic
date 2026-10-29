@@ -24,6 +24,7 @@ export interface ApproveDecision {
 @Injectable()
 export class ApprovalFlowService {
   private readonly requestedAt = new Map<string, string>();
+  private readonly pending = new Set<string>();
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -44,6 +45,21 @@ export class ApprovalFlowService {
 
   clear(sessionId: string): void {
     this.requestedAt.delete(sessionId);
+  }
+
+  /** Флаг «сессия ждёт решения» — чтобы различать 409 и обычное продолжение. */
+  markPending(sessionId: string): void {
+    if (sessionId) {
+      this.pending.add(sessionId);
+    }
+  }
+
+  hasPending(sessionId: string): boolean {
+    return this.pending.has(sessionId);
+  }
+
+  clearPending(sessionId: string): void {
+    this.pending.delete(sessionId);
   }
 
   /** Проверка срока для сессии: нет отметки — считаем, что подтверждения не ждали. */
