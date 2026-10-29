@@ -7,3 +7,5 @@ data/
 *.log
 *.tsbuildinfo
 .DS_Store
+certs/
+health.json

@@ -1,1 +1,0 @@
-﻿{"status":"error","components":{"llm":{"status":"up","details":"gigachat/GigaChat-2-Max"},"mcp:tinkoff":{"status":"down","details":"Failed to connect to streamable HTTP server \"tinkoff, url: https://invest-public-api.tinkoff.ru/mcp\" in auto mode: SdkError: Version negotiation probe failed: fetch failed"}}}
