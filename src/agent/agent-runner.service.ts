@@ -117,7 +117,7 @@ export class AgentRunnerService {
     }
   }
 
-  async resume(sessionId: string, decision: ApproveDecision): Promise<RunResult> {
+  async resume(sessionId: string, decision: ApproveDecision, requestId?: string): Promise<RunResult> {
     const graph = await this.graph();
     if (!graph) {
       return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'portfolio', partial: true };
@@ -130,9 +130,12 @@ export class AgentRunnerService {
     this.registry.beginRun(sessionId);
 
     try {
-      const result = await graph.invoke(new Command({ resume: decision }), config);
+      const result = await graph.invoke(new Command({ resume: decision }), {
+        ...config,
+        metadata: { requestId, sessionId },
+      });
       const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
-      return { ...mapped, traceUrl: await this.traceUrlFor() };
+      return { ...mapped, traceUrl: await this.traceUrlFor(requestId) };
     } finally {
       this.registry.endRun(sessionId);
     }
@@ -145,6 +148,7 @@ export class AgentRunnerService {
       return undefined;
     }
     const runId = await resolveRootRunId({ project: langsmith.project, requestId });
+    this.logger.debug?.(`traceUrl: requestId=${requestId} runId=${runId}`);
     const orgId = langsmith.orgId ?? (await resolveOrgId(langsmith.apiKey));
     return buildTraceUrl(langsmith.traceUrlTemplate, {
       runId,

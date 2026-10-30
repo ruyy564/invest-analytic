@@ -29,13 +29,26 @@ LangGraph и LangChain трассируются автоматически: уз
 https://smith.langchain.com/o/{orgId}/projects/p/{project}/r/{runId}
 ```
 
-`runId` — идентификатор корневого прогона графа. LangChain не отдаёт его в колбэках (`handleChainStart` приходит только для вложенных runnable), поэтому после `invoke` сервис читает последний прогон имени `LangGraph` из проекта (`resolveRootRunId` в `src/observability/run-collector.ts`): до 5 попыток с паузой 800 мс — экспорт асинхронный. Явный флаг `isRoot` не используется: `__start__` тоже считается корневым, а собственные корневые узлы инструментов пишутся отдельными трейсами.
+`runId` — идентификатор корневого прогона графа. LangChain не отдаёт его в колбэках (`handleChainStart` приходит только для вложенных runnable), поэтому после `invoke` сервис читает свежие прогоны имени `LangGraph` из проекта (`resolveRootRunId` в `src/observability/run-collector.ts`): до 5 попыток с паузой 800 мс — экспорт асинхронный. Выбирается прогон с совпадающим `requestId`; прогоны без метаданных берутся только если точного совпадения не нашлось ни в одной попытке — иначе ссылка уводила бы в чужой трейс. Явный флаг `isRoot` не используется: `__start__` тоже считается корневым, а собственные корневые узлы инструментов пишутся отдельными трейсами.
 
 `orgId` берётся из `LANGSMITH_ORG_ID`, а если не задан — из `GET /api/v1/orgs/current` по `LANGSMITH_API_KEY` (`resolveOrgId`).
 
 Ссылки нет, если трассировка выключена, `runId` не получен или в шаблоне нужен `{orgId}`, а получить его не удалось.
 
-Проверено вживую: `POST /chat` → `traceUrl` с прогоном, в котором спаны `classify`, `agent`; после `POST /chat/approve` — прогон со спанами `agent`, `tools`, `approve`.
+## Проверка трейса
+
+`npm run trace -- <runId>` (или `node --env-file=.env scripts/trace-report.mjs <runId>`) печатает корневой прогон, его метаданные (`requestId`, `sessionId`) и дерево спанов со статусами — удобно, когда ссылку нужно проверить без UI.
+
+Проверенные сценарии (живой прогон, T-Invest MCP + GigaChat):
+
+| Сценарий | Корневой прогон и спаны |
+|---|---|
+| `POST /chat` (нужно подтверждение) | `LangGraph` → `__start__`, `classify`, `agent`, `approve` (прерывание) |
+| `POST /chat/approve` (подтверждено) | `LangGraph` → `approve`, `tools` → `tinkoff__invest_get_portfolio`, `agent`, `GigaChat` |
+| `POST /chat/approve` (отказ) | `LangGraph` → `approve`, `agent`, `GigaChat` — данные не читаются |
+| off-topic | `LangGraph` → `__start__`, `classify`, `offTopic` — без доступа к данным |
+
+Спан `approve` в первом прогоне показывает «ошибку» с `GraphInterrupt`: LangGraph прерывает узел, чтобы вернуть управление клиенту — это не сбой сервиса, и по `traceUrl` из `202` видно, где прогон остановился.
 
 ## Логи
 

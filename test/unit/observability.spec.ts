@@ -89,6 +89,46 @@ describe('поиск прогона в LangSmith', () => {
     expect(runId).toBeUndefined();
   });
 
+  it('предпочитает точное совпадение по requestId прогону без метаданных', async () => {
+    const runId = await resolveRootRunId(
+      { project: 'invest', requestId: 'req-3', maxAttempts: 1 },
+      runsOf([
+        { id: 'unlabelled', name: 'LangGraph' },
+        { id: 'wanted', name: 'LangGraph', metadata: { requestId: 'req-3' } },
+        { id: 'older', name: 'LangGraph', metadata: { requestId: 'req-2' } },
+      ]),
+    );
+
+    expect(runId).toBe('wanted');
+  });
+
+  it('берёт прогон без метаданных, только если совпадений нет совсем', async () => {
+    const runId = await resolveRootRunId(
+      { project: 'invest', requestId: 'req-3', maxAttempts: 3, delayMs: 1 },
+      runsOf([
+        { id: 'other', name: 'LangGraph', metadata: { requestId: 'req-2' } },
+        { id: 'unlabelled', name: 'LangGraph' },
+      ]),
+    );
+
+    expect(runId).toBe('unlabelled');
+  });
+
+  it('не отдаёт прогон без метаданных, если точное совпадение появилось на повторе', async () => {
+    let call = 0;
+    const late = (project: string): AsyncIterable<{ id?: string; name?: string; metadata?: Record<string, unknown> }> => {
+      call += 1;
+      return call === 1
+        ? runsOf([{ id: 'unlabelled', name: 'LangGraph' }])(project)
+        : runsOf([{ id: 'wanted', name: 'LangGraph', metadata: { requestId: 'req-5' } }])(project);
+    };
+
+    await expect(
+      resolveRootRunId({ project: 'invest', requestId: 'req-5', maxAttempts: 3, delayMs: 1 }, late),
+    ).resolves.toBe('wanted');
+    expect(call).toBe(2);
+  });
+
   it('берёт прогон графа, а не корневые спаны инструментов', async () => {
     const runId = await resolveRootRunId(
       { project: 'invest', maxAttempts: 1 },

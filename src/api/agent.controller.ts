@@ -40,10 +40,14 @@ export class AgentController {
     const dto = parseOrThrow(approveRequestSchema, body);
     const requestId = randomUUID();
 
-    const result = await this.runner.resume(dto.sessionId, {
-      approved: dto.approved,
-      comment: dto.comment,
-    });
+    const result = await this.runner.resume(
+      dto.sessionId,
+      {
+        approved: dto.approved,
+        comment: dto.comment,
+      },
+      requestId,
+    );
     response.status(result.status === 'awaiting_approval' ? 202 : 200);
 
     return { requestId, sessionId: dto.sessionId, ...result };

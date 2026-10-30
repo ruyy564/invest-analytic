@@ -74,6 +74,7 @@ export const resolveRootRunId = async (
   listRuns: (project: string) => AsyncIterable<RunSummary> = listRunsViaLangsmith,
 ): Promise<string | undefined> => {
   const attempts = options.maxAttempts ?? 5;
+  let unlabelled: string | undefined;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
@@ -81,28 +82,54 @@ export const resolveRootRunId = async (
       // в выдаче нет (они пишутся отдельными трейсами), поэтому фильтруем по имени.
       // Явный `isRoot` отсекает `__start__` (он тоже без родителя) и требует, чтобы
       // до старта корня уже были известны все дети — поэтому его не используем.
+      let found = false;
       for await (const run of listRuns(options.project)) {
-        if (run.id && run.name === GRAPH_RUN_NAME && matchesRequest(run, options.requestId)) {
+        if (!run.id || run.name !== GRAPH_RUN_NAME) {
+          continue;
+        }
+        const match = requestMatch(run, options.requestId);
+        if (match === true) {
+          logger.debug(`Трейс запроса ${options.requestId}: ${run.id}`);
           return run.id;
         }
+        // Прогоны без `requestId` — запасной вариант: подходят, только если точного
+        // совпадения нет ни в одной попытке (иначе ссылка уводила бы в чужой трейс).
+        if (match === 'unknown' && !unlabelled) {
+          unlabelled = run.id;
+          found = true;
+        }
       }
+      if (found && attempt === attempts - 1 && unlabelled) {
+        return unlabelled;
+      }
+      logger.debug(
+        `Трейс запроса ${options.requestId} ещё не найден (попытка ${attempt + 1}/${attempts})`,
+      );
     } catch (error) {
       // LangSmith недоступен — ответ отдаём без ссылки.
       logger.warn(`Ссылка на трейс недоступна: ${(error as Error)?.message ?? String(error)}`);
       return undefined;
     }
-    await new Promise((resolve) => setTimeout(resolve, options.delayMs ?? 800));
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, options.delayMs ?? 800));
+    }
   }
-  return undefined;
+  return unlabelled;
 };
 
-/** Прогон относится к запросу: либо метаданных нет, либо номер совпадает. */
-const matchesRequest = (run: RunSummary, requestId?: string): boolean => {
+/**
+ * Принадлежит ли прогон запросу. Возвращает `true`, `false` или `'unknown'`, когда прогон
+ * писался без метаданных (например, утилитой или старой версией сервиса).
+ */
+const requestMatch = (run: RunSummary, requestId?: string): boolean | 'unknown' => {
   if (!requestId) {
     return true;
   }
   const actual = run.metadata?.requestId;
-  return actual === undefined || actual === requestId;
+  if (actual === undefined) {
+    return 'unknown';
+  }
+  return actual === requestId;
 };
 
 /** Прогоны проекта из LangSmith: идентификатор, имя и номер запроса. */
@@ -110,7 +137,7 @@ const listRunsViaLangsmith = (project: string): AsyncIterable<RunSummary> => {
   const iterator = async function* iterate(): AsyncGenerator<RunSummary> {
     const { Client } = await import('langsmith');
     const client = new Client();
-    for await (const run of client.listRuns({ projectName: project, limit: 50 })) {
+    for await (const run of client.listRuns({ projectName: project, limit: 100 })) {
       yield {
         id: run.id ? String(run.id) : undefined,
         name: run.name,
