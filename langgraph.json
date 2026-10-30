@@ -1,0 +1,8 @@
+{
+  "node_version": "22",
+  "dependencies": ["."],
+  "graphs": {
+    "portfolio_analyst": "./dist/studio/agent.graph.js:graph"
+  },
+  "env": ".env"
+}

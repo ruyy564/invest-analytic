@@ -193,6 +193,21 @@ src/
 test/unit, test/e2e, test/fixtures
 ```
 
+## Трейсы и Studio (LangSmith)
+
+**Трейсы.** Каждый ответ API содержит `traceUrl` — ссылку на прогон графа этого запроса (спаны `classify`, `agent`, `approve`, `tools`, вызовы модели и инструментов). Проверка без UI: `npm run trace -- <runId из traceUrl>`.
+
+**Studio.** Граф можно посмотреть на канвасе LangSmith Studio:
+
+```bash
+npm run build      # Studio запускает скомпилированный граф из dist/
+npm run studio     # LangGraph Server на 127.0.0.1:2024, граф portfolio_analyst
+```
+
+Сервер печатает ссылку вида `https://smith.langchain.com/studio?baseUrl=http://127.0.0.1:2024` — открыть её в браузере, где вы вошли в LangSmith. На канвасе видны узлы `classify → (offTopic | agent → approve → tools)`, панели Memory и Interrupts.
+
+Граф для Studio (`src/studio/agent.graph.ts`, конфигурация — `langgraph.json`) повторяет маршрут рабочего графа и паузу подтверждения через `interrupt`, но узлы-заглушки не вызывают ни LLM, ни MCP: это витрина архитектуры, реальная работа идёт через NestJS-сервис. Привязка к `127.0.0.1` обязательна — по умолчанию CLI слушает `localhost` (IPv6 `::1`), и браузер не может достучаться до API.
+
 ## Ограничения MVP
 
 - Доступ к данным — только чтение: торговые и денежные операции MCP запрещены и на уровне allowlist, и в правилах подтверждений.

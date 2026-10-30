@@ -10,3 +10,6 @@ data/
 certs/
 health.json
 tmp/
+
+# LangGraph API
+.langgraph_api
