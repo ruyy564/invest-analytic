@@ -117,6 +117,11 @@ describe('конфигурация окружения', () => {
         scanPages: 3,
         maxItems: 15,
       },
+      newsFeed: {
+        enabled: true,
+        periodDays: [1, 7, 30, 180],
+        maxPerPeriod: 5,
+      },
       taxKeywordsFile: 'data/tax-keywords.yaml',
       tickerAliasesFile: 'data/ticker-aliases.yaml',
     });

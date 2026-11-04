@@ -44,7 +44,19 @@ curl -s http://localhost:3000/api/v1/health
 | `data_lookup` | точечный вопрос по данным (состав, цена, дивиденды, новости бумаги) | `agent ⇄ approve → tools` |
 | `security_analysis` | разбор или сравнение бумаг | `agent ⇄ approve → tools` |
 | `portfolio_review` | глубокий разбор: портфель, счёт или бумага — цикл, секторы, налоги, мнения | `plan → approve → collect → report` |
+| `market_news` | сводка новостей инвестиционного рынка по периодам | `news` |
 | `off_topic` | посторонняя тема или просьба совершить сделку | `offTopic` |
+
+Новостная ветка не читает портфель и не запрашивает подтверждение: ответ
+собирается из публичных источников. Метаданные приходят в блоке `report` с
+`type: "market_news"`, временем данных и покрытием источников — без `reportId`,
+потому что сводка не сохраняется как отчёт:
+
+```json
+{"status":"completed","intent":"market_news","answer":"Новости инвестиционного рынка …",
+ "report":{"type":"market_news","asOf":"2026-11-04T20:00:00Z",
+           "coverage":[{"source":"rbc","status":"ok"},{"source":"bcs","status":"missing","reason":"HTTP 429"}]}}
+```
 
 Область глубокого разбора приходит в ответе полями `scope` (`portfolio` | `account` |
 `instrument`), `scopeTarget` (тикер или счёт) и `scopeLabel` (подпись отчёта).

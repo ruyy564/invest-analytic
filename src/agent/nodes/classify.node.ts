@@ -10,6 +10,7 @@ import {
   CLASSIFIER_FALLBACK_PROMPT,
   CLASSIFIER_SYSTEM_PROMPT,
   heuristicIntent,
+  heuristicNewsIntent,
   parseIntentText,
 } from '../prompts/classifier.prompt.js';
 
@@ -65,6 +66,13 @@ export const createClassifyNode = (model: BaseChatModel) => {
       return { intent: heuristic.intent, ...scopeFields };
     }
 
+    // Новости рынка без бумаги и портфеля — отдельная ветка: решаем правилом,
+    // чтобы «какие новости за неделю» стабильно попадало в сводку.
+    const newsEnabled = process.env.NEWS_FEED_ENABLED?.trim().toLowerCase() !== 'false';
+    if (newsEnabled && heuristicNewsIntent(question, scoped.scope)) {
+      return { intent: 'market_news', ...scopeFields };
+    }
+
     try {
       const response = await withTimeout(
         model.invoke([
@@ -77,7 +85,13 @@ export const createClassifyNode = (model: BaseChatModel) => {
         () => new Error('llm timeout'),
       );
       const text = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-      return { intent: parseIntentText(text)?.intent ?? 'data_lookup', ...scopeFields };
+      const intent = parseIntentText(text)?.intent ?? 'data_lookup';
+      // Метка новостей применима только к вопросам без бумаги, счёта и портфеля.
+      const normalized =
+        intent === 'market_news' && (!newsEnabled || scoped.scope !== 'portfolio')
+          ? 'data_lookup'
+          : intent;
+      return { intent: normalized, ...scopeFields };
     } catch (error) {
       logger.warn(
         `Классификатор недоступен (${(error as Error)?.message}): вопрос обработан как data_lookup`,

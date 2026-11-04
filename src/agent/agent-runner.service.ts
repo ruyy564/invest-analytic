@@ -26,7 +26,14 @@ export const RUN_RECURSION_LIMIT = 12;
 
 export interface RunReport {
   reportId: string;
-  type: 'data_answer' | 'portfolio_report' | 'deep_review';
+  type: 'data_answer' | 'portfolio_report' | 'deep_review' | 'market_news';
+  asOf: string;
+  coverage: { source: string; status: 'ok' | 'missing'; reason?: string }[];
+}
+
+/** Метаданные новостной сводки: без `reportId`, она не сохраняется как отчёт. */
+export interface NewsReport {
+  type: 'market_news';
   asOf: string;
   coverage: { source: string; status: 'ok' | 'missing'; reason?: string }[];
 }
@@ -42,7 +49,7 @@ export interface RunResult {
   partial: boolean;
   approval?: ApprovePayload;
   /** Метаданные отчёта: идентификатор для выгрузки, вид, время данных и покрытие. */
-  report?: RunReport;
+  report?: RunReport | NewsReport;
   /** Ссылка на трейс LangSmith, если трассировка включена. */
   traceUrl?: string;
 }
@@ -268,7 +275,23 @@ export class AgentRunnerService {
       scopeTarget: values?.scopeTarget,
       scopeLabel: values?.scopeLabel,
       partial: (values?.partial ?? false) || hasBudgetError(values?.messages),
-      report: this.reportOf(values, lastAnswer(values?.messages)),
+      report: this.newsReportOf(values) ?? this.reportOf(values, lastAnswer(values?.messages)),
+    };
+  }
+
+  /** Метаданные новостной сводки: вид ответа, время данных и покрытие источников. */
+  private newsReportOf(values: AgentStateType | undefined): NewsReport | undefined {
+    if (values?.reportType !== 'market_news') {
+      return undefined;
+    }
+    return {
+      type: 'market_news',
+      asOf: values.dataAsOf ?? new Date().toISOString(),
+      coverage: (values.collection?.coverage ?? []).map(({ source, status, reason }) => ({
+        source,
+        status,
+        reason,
+      })),
     };
   }
 

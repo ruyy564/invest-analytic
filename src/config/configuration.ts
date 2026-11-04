@@ -70,6 +70,12 @@ export interface AppConfig {
       scanPages: number;
       maxItems: number;
     };
+    /** Сводка новостей рынка по периодам (ветка `news`). */
+    newsFeed: {
+      enabled: boolean;
+      periodDays: number[];
+      maxPerPeriod: number;
+    };
     taxKeywordsFile: string;
     /** Алиасы тикеров: подстроки для поиска новостей по эмитенту. */
     tickerAliasesFile: string;
@@ -148,6 +154,11 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
       ids: env.NEWS_SOURCES,
       scanPages: env.NEWS_SCAN_PAGES,
       maxItems: env.NEWS_DIGEST_MAX_ITEMS,
+    },
+    newsFeed: {
+      enabled: env.NEWS_FEED_ENABLED,
+      periodDays: env.NEWS_FEED_PERIODS.split(',').map((part) => Number(part.trim())),
+      maxPerPeriod: env.NEWS_FEED_MAX_PER_PERIOD,
     },
     taxKeywordsFile: env.TAX_KEYWORDS_FILE,
     tickerAliasesFile: env.TICKER_ALIASES_FILE,

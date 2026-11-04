@@ -130,7 +130,16 @@ export class McpRegistryService {
       }
     }
 
-    const byName = new Map(tools.map((tool) => [tool.name, tool]));
+    const byName = new Map<string, (typeof tools)[number]>();
+    for (const tool of tools) {
+      byName.set(tool.name, tool);
+      // Источники ищут инструмент по короткому имени (`invest_get_news`),
+      // а в наборе он лежит с префиксом сервера (`tinkoff__invest_get_news`).
+      const separator = tool.name.indexOf('__');
+      if (separator > 0) {
+        byName.set(tool.name.slice(separator + 2), tool);
+      }
+    }
     this.sources = buildSourceRegistry({
       config: this.config.value,
       tool: (name) => byName.get(name),

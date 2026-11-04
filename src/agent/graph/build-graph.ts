@@ -8,6 +8,7 @@ import { createAgentNode } from '../nodes/agent.node.js';
 import { createApproveNode } from '../nodes/approve.node.js';
 import { createClassifyNode } from '../nodes/classify.node.js';
 import { offTopicNode } from '../nodes/off-topic.node.js';
+import { createNewsNode } from '../nodes/news.node.js';
 import {
   createCollectNode,
   createPlanNode,
@@ -29,15 +30,22 @@ export interface BuildAgentGraphDeps {
   review: ReviewDeps;
   /** `false` — прежнее поведение: две метки и только узел ответа. */
   reviewEnabled?: boolean;
+  /** `false` — новостной вопрос уходит прежним маршрутом (`data_lookup`). */
+  newsEnabled?: boolean;
 }
 
-/** Топология: classify → (offTopic | agent ⇄ approve → tools | plan → approve → collect → report). */
+/** Топология: classify → (offTopic | news | agent ⇄ approve → tools | plan → approve → collect → report). */
 export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
   const reviewEnabled = deps.reviewEnabled ?? true;
+  const newsEnabled = deps.newsEnabled ?? true;
 
   const base = new StateGraph(AgentState)
     .addNode('classify', createClassifyNode(deps.routerModel))
     .addNode('offTopic', offTopicNode)
+    .addNode(
+      'news',
+      createNewsNode({ config: deps.review.config, registry: deps.review.registry }),
+    )
     .addNode('agent', createAgentNode(deps.answerModel, deps.tools, { accountId: deps.accountId }))
     .addNode('approve', createApproveNode(deps), {
       // В режиме без разбора узла `collect` нет: и список выходов короче.
@@ -49,9 +57,10 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     // Прежнее поведение: две метки, ветки разбора в графе нет вовсе.
     return base
       .addEdge(START, 'classify')
-      .addConditionalEdges('classify', afterClassify(false), {
+      .addConditionalEdges('classify', afterClassify(false, newsEnabled), {
         offTopic: 'offTopic',
         agent: 'agent',
+        news: 'news',
       })
       .addConditionalEdges('agent', createAfterAgent(deps.policy), {
         approve: 'approve',
@@ -59,6 +68,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
         [END]: END,
       })
       .addEdge('offTopic', END)
+      .addEdge('news', END)
       .addEdge('tools', 'agent')
       .compile({ checkpointer: deps.checkpointer });
   }
@@ -68,10 +78,11 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     .addNode('collect', createCollectNode(deps.review))
     .addNode('report', createReportNode(deps.review))
     .addEdge(START, 'classify')
-    .addConditionalEdges('classify', afterClassify(true), {
+    .addConditionalEdges('classify', afterClassify(true, newsEnabled), {
       offTopic: 'offTopic',
       agent: 'agent',
       plan: 'plan',
+      news: 'news',
     })
     .addConditionalEdges('agent', createAfterAgent(deps.policy), {
       approve: 'approve',
@@ -79,6 +90,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
       [END]: END,
     })
     .addEdge('offTopic', END)
+    .addEdge('news', END)
     .addEdge('tools', 'agent')
     .addEdge('plan', 'approve')
     .addEdge('collect', 'report')

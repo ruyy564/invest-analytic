@@ -6,6 +6,7 @@ export const INTENTS = [
   'data_lookup',
   'security_analysis',
   'portfolio_review',
+  'market_news',
   'off_topic',
 ] as const;
 export type Intent = (typeof INTENTS)[number];
@@ -56,7 +57,9 @@ export const AgentState = new StateSchema({
   reportId: z.string().optional(),
   /** Версия шаблона, по которому собран отчёт. */
   reportTemplateVersion: z.number().optional(),
-  reportType: z.enum(['data_answer', 'portfolio_report', 'deep_review']).optional(),
+  reportType: z
+    .enum(['data_answer', 'portfolio_report', 'deep_review', 'market_news'])
+    .optional(),
 });
 
 export type AgentStateType = typeof AgentState.State;

@@ -121,6 +121,22 @@ describe('граф агента с подтверждением', () => {
     expect(toolCalls()).toBe(0);
   });
 
+  it('вопрос про новости рынка отвечает сводкой без подтверждения', async () => {
+    const { runner, toolCalls } = await createHarness(['ответ модели не используется']);
+
+    const result = await runner.run('какие последние новости в мире инвестиций?', 's-news');
+
+    expect(result.status).toBe('completed');
+    expect(result.intent).toBe('market_news');
+    // Подтверждение не запрашивается: публичные новости, не данные счёта.
+    expect(result.approval).toBeUndefined();
+    expect(result.answer).toContain('Новости инвестиционного рынка');
+    expect(result.answer).toContain('Сегодня');
+    expect(result.report).toMatchObject({ type: 'market_news' });
+    // Портфель не читается: ни одного вызова инструментов моделью.
+    expect(toolCalls()).toBe(0);
+  });
+
   it('портфель читается только после подтверждения', async () => {
     const { runner, toolCalls } = await createHarness([
       toolCall('call-1'),
@@ -194,7 +210,7 @@ describe('граф агента с подтверждением', () => {
 
     const stored = moduleRef
       .get(ReportStoreService)
-      .get(result.report?.reportId ?? '', 'default');
+      .get(result.report && 'reportId' in result.report ? result.report.reportId : '', 'default');
     expect(stored?.markdown).toContain('## Итог: диверсификация и стратегия');
     expect(stored?.templateVersion).toBe(2);
   });

@@ -119,6 +119,7 @@ export const graphForServer = (): Promise<ReturnType<typeof buildAgentGraph>> =>
         model: runtime.answerModel,
       },
       reviewEnabled: runtime.config.run.reviewEnabled,
+      newsEnabled: runtime.config.sources.newsFeed.enabled,
     }),
   );
   return compiled;

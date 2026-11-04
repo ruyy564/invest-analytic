@@ -1,4 +1,5 @@
-import type { SourceCoverageEntry, SourceRegistry } from '../../sources/registry.js';
+import { type SourceCoverageEntry, type SourceRegistry } from '../../sources/registry.js';
+import { isDigestTitle, isOffTopicTitle, hasInvestmentMarker } from '../../sources/noise.js';
 import type { SourceItem } from '../../sources/types.js';
 
 export const NEWS_DIGEST_TOOL = 'market__news_digest';
@@ -89,3 +90,132 @@ export const formatNewsDigest = (result: NewsDigestResult): string => {
 };
 
 /** Краткая версия для брифинга интерпретации: только свежие заголовки. */
+/** Окно новостной сводки: подпись и глубина в днях. */
+export interface NewsFeedPeriod {
+  id: string;
+  title: string;
+  days: number;
+  items: SourceItem[];
+}
+
+export interface NewsFeedResult {
+  periods: NewsFeedPeriod[];
+  coverage: SourceCoverageEntry[];
+  asOf: string;
+}
+
+/** Периоды по умолчанию: сегодня, неделя, месяц, полгода. */
+export const NEWS_FEED_PERIODS = [
+  { id: 'today', title: 'Сегодня', days: 1 },
+  { id: 'week', title: 'За неделю', days: 7 },
+  { id: 'month', title: 'За месяц', days: 30 },
+  { id: 'half_year', title: 'За полгода', days: 180 },
+] as const;
+
+/** Сколько публикаций показывать в одном периоде, если лимит не задан. */
+export const NEWS_FEED_MAX_PER_PERIOD = 5;
+
+/**
+ * Сводка инвестиционных новостей без привязки к портфелю: общая повестка всех
+ * источников, разложенная по окнам времени. Каждая публикация попадает только
+ * в самое свежее окно, куда укладывается по дате.
+ */
+export const collectNewsFeed = async (
+  registry: SourceRegistry,
+  params: {
+    pages: number;
+    maxItems: number;
+    periods?: readonly { id: string; title: string; days: number }[];
+    maxPerPeriod?: number;
+    now?: Date;
+  },
+): Promise<NewsFeedResult> => {
+  const now = params.now ?? new Date();
+  const periods = params.periods ?? NEWS_FEED_PERIODS;
+  const maxPerPeriod = params.maxPerPeriod ?? NEWS_FEED_MAX_PER_PERIOD;
+  const longest = periods.reduce((max, period) => Math.max(max, period.days), 1);
+
+  // Тикеров нет: это общая повестка, а не новости конкретных бумаг.
+  const { items, coverage } = await registry.newsDigest({
+    pages: params.pages,
+    maxItems: Math.max(params.maxItems, maxPerPeriod * periods.length * 3),
+    sinceDays: longest,
+  });
+
+  const relevant = items
+    .filter((entry) => !isDigestTitle(entry.title))
+    .filter((entry) => !isOffTopicTitle(entry.title, entry.summary))
+    // Общая лента приносит и некрологи, и политику: в сводку берём только
+    // заголовки с инвестиционным маркером (рынок, бумаги, ставка, эмитент…).
+    .filter((entry) => hasInvestmentMarker(entry.title))
+    .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
+
+  const used = new Set<string>();
+  // Один источник не должен занимать весь период: сводка должна быть обзорной.
+  const maxPerSource = Math.max(1, Math.ceil(maxPerPeriod / 2));
+  const buckets = periods.map((period) => ({
+    id: period.id,
+    title: period.title,
+    days: period.days,
+    items: [] as SourceItem[],
+    perSource: new Map<string, number>(),
+  }));
+
+  for (const entry of relevant) {
+    const age = now.getTime() - Date.parse(entry.publishedAt);
+    // Самое свежее окно, в которое попадает публикация.
+    const bucket = buckets.find((candidate) => age <= candidate.days * 24 * 60 * 60 * 1000);
+    if (!bucket || bucket.items.length >= maxPerPeriod) {
+      continue;
+    }
+    const fromSource = bucket.perSource.get(entry.source) ?? 0;
+    if (fromSource >= maxPerSource) {
+      continue;
+    }
+    const key = entry.title.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (used.has(key)) {
+      continue;
+    }
+    used.add(key);
+    bucket.perSource.set(entry.source, fromSource + 1);
+    bucket.items.push(entry);
+  }
+
+  return {
+    periods: buckets.map(({ perSource: _perSource, ...period }) => period),
+    coverage,
+    asOf: now.toISOString(),
+  };
+};
+
+/** Ответ пользователю: периоды с датами и источниками, покрытие и время данных. */
+export const formatNewsFeed = (result: NewsFeedResult): string => {
+  const lines: string[] = [`Новости инвестиционного рынка (данные на ${result.asOf})`, ''];
+
+  for (const period of result.periods) {
+    lines.push(period.title);
+    if (period.items.length === 0) {
+      lines.push(`• новостей нет`);
+    } else {
+      for (const entry of period.items) {
+        lines.push(`• ${entry.publishedAt.slice(0, 10)} [${entry.source}] ${entry.title}`);
+      }
+    }
+    lines.push('');
+  }
+
+  if (result.coverage.length > 0) {
+    lines.push(
+      `Источники: ${result.coverage
+        .map((entry) =>
+          entry.status === 'ok'
+            ? `${entry.source} — получено${entry.items ? ` (${entry.items})` : ''}`
+            : `${entry.source} — недоступен${entry.reason ? ` (${entry.reason})` : ''}`,
+        )
+        .join(', ')}`,
+    );
+  }
+  lines.push(`Данные обновлены: ${result.asOf}`);
+  return lines.join('\n');
+};
+

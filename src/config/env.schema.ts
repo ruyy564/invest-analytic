@@ -142,6 +142,29 @@ const scalarEnvObject = z
     NEWS_SOURCES: csvList('interfax,rbc,smartlab'),
     NEWS_SCAN_PAGES: z.coerce.number().int().positive().max(20).default(3),
     NEWS_DIGEST_MAX_ITEMS: z.coerce.number().int().positive().max(100).default(15),
+    /** Сводка новостей рынка отдельной веткой графа. */
+    NEWS_FEED_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    /** Окна периодов в днях: сегодня, неделя, месяц, полгода. */
+    NEWS_FEED_PERIODS: z
+      .string()
+      .trim()
+      .default('1,7,30,180')
+      .refine(
+        (value) =>
+          value
+            .split(',')
+            .map((part) => Number(part.trim()))
+            .every((days) => Number.isFinite(days) && days > 0),
+        'NEWS_FEED_PERIODS: ожидается список положительных чисел, например 1,7,30,180',
+      )
+      .refine((value) => {
+        const days = value.split(',').map((part) => Number(part.trim()));
+        return days.every((day, index) => index === 0 || day > days[index - 1]);
+      }, 'NEWS_FEED_PERIODS: периоды должны возрастать'),
+    NEWS_FEED_MAX_PER_PERIOD: z.coerce.number().int().positive().max(50).default(5),
     TAX_KEYWORDS_FILE: z.string().trim().min(1).default('data/tax-keywords.yaml'),
   TICKER_ALIASES_FILE: z.string().trim().min(1).default('data/ticker-aliases.yaml'),
 
