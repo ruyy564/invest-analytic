@@ -2,7 +2,7 @@
   "node_version": "22",
   "dependencies": ["."],
   "graphs": {
-    "portfolio_analyst": "./dist/studio/agent.graph.js:graph"
+    "portfolio_analyst": "./dist/agent/agent.server.js:graph"
   },
   "env": ".env"
 }
