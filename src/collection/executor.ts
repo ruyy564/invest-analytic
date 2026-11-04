@@ -111,30 +111,6 @@ export const executePlan = async (
   return { results, coverage, partial };
 };
 
-/** Результат записи плана по инструменту и виду данных. */
-export const resultFor = (
-  plan: CollectionPlan,
-  collected: CollectionResult,
-  predicate: { tool?: string; group?: string; target?: string },
-): string | undefined => {
-  for (const entry of plan.entries) {
-    if (predicate.tool && entry.tool !== predicate.tool) {
-      continue;
-    }
-    if (predicate.group && entry.group !== predicate.group) {
-      continue;
-    }
-    if (predicate.target && entry.target !== predicate.target) {
-      continue;
-    }
-    const value = collected.results.get(planKey(entry));
-    if (value !== undefined) {
-      return value;
-    }
-  }
-  return undefined;
-};
-
 /** Все результаты группы: нужно для разбора по бумагам. */
 export const resultsInGroup = (
   plan: CollectionPlan,

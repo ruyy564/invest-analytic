@@ -1,5 +1,3 @@
-import type { CoverageEntry } from '../sources/registry.js';
-
 /** Тикер без класса: `SBER_TQBR` → `SBER`. */
 export const baseTicker = (instrumentId: string): string => instrumentId.split('_')[0];
 
@@ -171,9 +169,6 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
   return { entries, maxInstruments: ctx.maxInstruments };
 };
 
-/** Сколько записей в плане (для запроса подтверждения). */
-export const planSize = (plan: CollectionPlan): number => plan.entries.length;
-
 /**
  * Записи справочника для определения секторов: `invest_get_asset` по uid актива.
  * Проверено на живом MCP: `invest_get_share` отдаёт только `instrument` без бренда,
@@ -199,9 +194,3 @@ export const sectorEntries = (
       },
     ];
   });
-
-/** Виды данных, которые затронет прогон: их видит пользователь в подтверждении. */
-export const planGroups = (plan: CollectionPlan): PlanGroup[] =>
-  [...new Set(plan.entries.map((entry) => entry.group))].sort();
-
-export type { CoverageEntry };

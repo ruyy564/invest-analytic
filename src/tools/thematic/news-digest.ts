@@ -1,4 +1,3 @@
-import { formatNumber } from '../../agent/report/portfolio-report.js';
 import type { SourceCoverageEntry, SourceRegistry } from '../../sources/registry.js';
 import type { SourceItem } from '../../sources/types.js';
 
@@ -79,19 +78,3 @@ export const formatNewsDigest = (result: NewsDigestResult): string => {
 };
 
 /** Краткая версия для брифинга интерпретации: только свежие заголовки. */
-export const newsBrief = (result: NewsDigestResult, limit = 6): string[] =>
-  result.periods
-    .flatMap((period) => period.items)
-    .slice(0, limit)
-    .map((item) => `${item.publishedAt.slice(0, 10)} ${item.title}`);
-
-/** Относительное изменение ставки — для раздела макро. */
-export const formatRateChange = (from: number, to: number): string => {
-  if (from === 0) {
-    return 'нет базы для сравнения';
-  }
-  const diff = to - from;
-  const percent = (diff / from) * 100;
-  const sign = diff > 0 ? '+' : '';
-  return `${sign}${formatNumber(diff)} п.п. (${sign}${formatNumber(percent)} %)`;
-};

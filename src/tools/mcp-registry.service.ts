@@ -23,8 +23,6 @@ export const MCP_CLIENT_FACTORY = Symbol('MCP_CLIENT_FACTORY');
 
 /** Тематические имена локальных инструментов (см. спецификацию data-sources). */
 export const PORTFOLIO_SNAPSHOT_TOOL = 'portfolio__snapshot';
-export const PORTFOLIO_REVIEW_TOOL = 'portfolio__review';
-export const SECURITY_BRIEF_TOOL = 'security__brief';
 export const MARKET_DYNAMICS_TOOL = 'market__price_dynamics';
 /** Возвращает инструменты сервера в исходных (ненаймспейсенных) именах. */
 export type McpClientFactory = (server: McpServerConfig) => Promise<DynamicStructuredTool[]>;

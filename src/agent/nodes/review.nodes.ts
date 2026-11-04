@@ -82,10 +82,6 @@ export const instrumentsOf = (
   return [...found.values()];
 };
 
-/** Тикеры из собранных позиций: по ним строится вторая фаза плана. */
-export const tickersOf = (plan: CollectionPlan, collected: CollectionResult): string[] =>
-  instrumentsOf(plan, collected).map((instrument) => instrument.ticker);
-
 /** Узел плана: счета и обязательные источники, подтверждается одним запросом. */
 export const createPlanNode =
   (deps: ReviewDeps) =>

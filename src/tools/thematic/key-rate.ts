@@ -50,12 +50,6 @@ export const formatKeyRate = (result: KeyRateResult, historyLimit = 6): string =
   return lines.join('\n');
 };
 
-/** Строка для брифинга интерпретации: только текущая ставка и дата. */
-export const keyRateBrief = (result: KeyRateResult): string | undefined =>
-  result.snapshot
-    ? `Ключевая ставка ${formatNumber(result.snapshot.current.rate)} % с ${result.snapshot.current.date}`
-    : undefined;
-
 /**
  * Словарь налоговых терминов из файла: по строке `- термин`.
  * Отсутствующий файл — не ошибка: используется встроенный словарь.

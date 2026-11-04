@@ -47,12 +47,6 @@ export class KeyRateCache {
     return ageMs >= 0 && ageMs <= this.ttlHours * 3_600_000 ? row.payload : undefined;
   }
 
-  /** Значение из кэша в любом состоянии: нужно для сценария «сеть недоступна». */
-  getAny(key: string): { payload: string; fetchedAt: string } | undefined {
-    const row = this.read(key);
-    return row ? { payload: row.payload, fetchedAt: row.fetched_at } : undefined;
-  }
-
   put(key: string, payload: string, now: Date = new Date()): void {
     const fetchedAt = now.toISOString();
     this.memory.set(key, { payload, fetched_at: fetchedAt });

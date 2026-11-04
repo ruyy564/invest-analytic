@@ -8,6 +8,12 @@ data/*
 .env
 .env.local
 *.log
+# Временные артефакты прогонов и отладки
+report.md
+coverage.json
+sid.txt
+rid.txt
+tool-dump.jsonl
 *.tsbuildinfo
 .DS_Store
 certs/
