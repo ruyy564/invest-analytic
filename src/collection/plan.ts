@@ -158,6 +158,23 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
 /** Сколько записей в плане (для запроса подтверждения). */
 export const planSize = (plan: CollectionPlan): number => plan.entries.length;
 
+/**
+ * Записи справочника для определения секторов: по одной на инструмент.
+ * Тикер попадает в `target`, идентификатор актива — в аргумент.
+ */
+export const sectorEntries = (
+  instruments: readonly { ticker: string; uid?: string }[],
+): PlanEntry[] =>
+  instruments
+    .filter((instrument) => instrument.uid !== undefined && instrument.uid !== '')
+    .map((instrument) => ({
+      tool: 'invest_get_asset',
+      args: { instrumentId: instrument.uid },
+      group: 'reference' as PlanGroup,
+      priority: 'optional' as PlanPriority,
+      target: instrument.ticker,
+    }));
+
 /** Виды данных, которые затронет прогон: их видит пользователь в подтверждении. */
 export const planGroups = (plan: CollectionPlan): PlanGroup[] =>
   [...new Set(plan.entries.map((entry) => entry.group))].sort();

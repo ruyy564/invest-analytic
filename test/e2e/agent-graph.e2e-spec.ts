@@ -188,6 +188,8 @@ describe('граф агента с подтверждением', () => {
     expect(result.report?.coverage.some((entry) => entry.status === 'ok')).toBe(true);
     expect(result.answer).toContain('## Снимок портфеля');
     expect(result.answer).toContain('SBER');
+    // Сектор взят из справочника активов, а не «не определён».
+    expect(result.answer).toContain('финансы');
     expect(result.answer).toContain('совет — добрать облигации');
 
     const stored = moduleRef

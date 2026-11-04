@@ -139,11 +139,12 @@ export const collectDynamics = async (
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
 
   // По одному классу свечей может быть почти нет (фьючерс, внебиржевой режим):
-  // перебираем кандидатов, пока не наберём достаточно точек.
+  // перебираем кандидатов, пока не наберём достаточно точек. Больше двух не пробуем —
+  // каждый перебор стоит вызова из бюджета прогона.
   let best: { instrument: (typeof candidates)[number]; points: PricePoint[]; currency: string } | undefined;
   let lastError: string | undefined;
 
-  for (const instrument of candidates.slice(0, 5)) {
+  for (const instrument of candidates.slice(0, 2)) {
     const instrumentId = instrument.classCode
       ? `${instrument.ticker}_${instrument.classCode}`
       : instrument.ticker;

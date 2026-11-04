@@ -80,7 +80,21 @@ const DEFAULTS: Record<string, unknown> = {
   invest_get_portfolio: PORTFOLIO_FIXTURE,
   invest_get_positions: POSITIONS_JSON,
   invest_get_market_values: MARKET_VALUES_JSON,
+  // Справочник актива: сектор приходит в brand.sector (enum T-Invest).
+  invest_get_asset: { uid: 'uid-sber', brand: { uid: 'brand-sber', sector: 'SECTOR_FINANCIAL' } },
   invest_get_forecast: FORECAST_JSON,
+  // Поиск бумаги и свечи: динамика считается по дневным свечам.
+  invest_find_instrument: {
+    instruments: [{ ticker: 'SBER', classCode: 'TQBR', name: 'Сбербанк' }],
+  },
+  invest_get_candles: {
+    priceCurrency: 'rub',
+    candles: [
+      { time: '2026-05-04T00:00:00Z', close: { value: '250' } },
+      { time: '2026-08-04T00:00:00Z', close: { value: '270' } },
+      { time: '2026-11-04T00:00:00Z', close: { value: '294.55' } },
+    ],
+  },
   invest_get_news: NEWS_JSON,
   invest_get_operations: OPERATIONS_JSON,
   invest_get_share_dividends: { dividends: [] },

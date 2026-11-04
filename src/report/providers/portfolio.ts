@@ -5,6 +5,7 @@ import type { Money } from '../../tools/mappers/money.js';
 import { mapPositions } from '../../tools/mappers/positions.mapper.js';
 import type { FactContext, FactProvider, SectionFacts } from '../engine.js';
 import { formatPercent, renderDistribution, renderKpi, renderTable } from '../renderers.js';
+import { sectorByTicker, UNKNOWN_SECTOR } from '../sector.js';
 
 export interface Holding {
   ticker: string;
@@ -152,7 +153,20 @@ export const structureProvider: FactProvider = {
       return { missing: 'нет данных о стоимости позиций' };
     }
 
+    // Секторы — из справочника активов: собран в группе `reference`.
+    const sectors = sectorByTicker(
+      resultsInGroup(ctx.plan, ctx.collected, 'reference').map(({ entry, text }) => ({
+        target: entry.target,
+        text,
+      })),
+    );
+
     const byClass = distribute(holdings, (holding) => holding.className, (holding) => holding.value?.amount ?? 0);
+    const bySector = distribute(
+      holdings,
+      (holding) => sectors.get(holding.ticker) ?? UNKNOWN_SECTOR,
+      (holding) => holding.value?.amount ?? 0,
+    );
     const byCurrency = distribute(holdings, (holding) => holding.currency, (holding) => holding.value?.amount ?? 0);
     const byIssuer = distribute(holdings, (holding) => holding.ticker, (holding) => holding.value?.amount ?? 0);
 
@@ -167,12 +181,18 @@ export const structureProvider: FactProvider = {
     return {
       markdown: [
         block('Класс актива', byClass),
-        block('Сектор', [{ name: 'сектор не определён', amount: totalValue(holdings), share: 1 }]),
+        block('Сектор', bySector),
         block('Валюта', byCurrency),
         block('Эмитент', byIssuer),
       ].join('\n\n'),
-      structured: { byClass, byCurrency, byIssuer },
-      brief: byClass.map((row) => `${row.name} ${formatPercent(row.share)}`).join(', '),
+      structured: { byClass, bySector, byCurrency, byIssuer },
+      brief: [
+        byClass.map((row) => `${row.name} ${formatPercent(row.share)}`).join(', '),
+        `секторы: ${bySector
+          .slice(0, 5)
+          .map((row) => `${row.name} ${formatPercent(row.share)}`)
+          .join(', ')}`,
+      ].join('; '),
     };
   },
 };
@@ -226,28 +246,60 @@ export const gapsProvider: FactProvider = {
       return { missing: 'нет данных о составе портфеля' };
     }
 
-    const byClass = distribute(holdings, (holding) => holding.className, (holding) => holding.value?.amount ?? 0);
+    const sectors = sectorByTicker(
+      resultsInGroup(ctx.plan, ctx.collected, 'reference').map(({ entry, text }) => ({
+        target: entry.target,
+        text,
+      })),
+    );
+
     const minShare = ctx.template.thresholds.minClassShare;
-    const expected = ['акции', 'фонды', 'облигации'];
-    const gaps = expected
+    const byClass = distribute(holdings, (holding) => holding.className, (holding) => holding.value?.amount ?? 0);
+    const bySector = distribute(
+      holdings,
+      (holding) => sectors.get(holding.ticker) ?? UNKNOWN_SECTOR,
+      (holding) => holding.value?.amount ?? 0,
+    );
+
+    const classGaps = ['акции', 'фонды', 'облигации']
       .map((name) => ({ name, share: byClass.find((row) => row.name === name)?.share ?? 0 }))
       .filter((row) => row.share < minShare);
+    // Секторы ниже порога: только те, что реально есть в портфеле и известны.
+    const sectorGaps = bySector.filter(
+      (row) => row.name !== UNKNOWN_SECTOR && row.share < minShare,
+    );
+    const unknownSector = bySector.find((row) => row.name === UNKNOWN_SECTOR);
 
-    if (gaps.length === 0) {
-      return {
-        markdown: 'Явных пробелов по классам активов нет: каждый класс выше порога.',
-        structured: { gaps: [] },
-        brief: 'Пробелов по классам активов нет',
-      };
+    const lines: string[] = [`Порог минимальной доли: ${formatPercent(minShare)}`];
+    lines.push(
+      classGaps.length > 0
+        ? `• классы ниже порога: ${classGaps.map((row) => `${row.name} ${formatPercent(row.share)}`).join(', ')}`
+        : '• классы активов: явных пробелов нет',
+    );
+    lines.push(
+      sectorGaps.length > 0
+        ? `• секторы ниже порога: ${sectorGaps
+            .map((row) => `${row.name} ${formatPercent(row.share)}`)
+            .join(', ')}`
+        : '• секторы: недопредставленных нет',
+    );
+    if (unknownSector) {
+      lines.push(
+        `• сектор не определён у ${formatPercent(unknownSector.share)} портфеля: справочник активов не дал сектор`,
+      );
     }
 
     return {
-      markdown: [
-        `Порог минимальной доли: ${formatPercent(minShare)}`,
-        ...gaps.map((row) => `• ${row.name}: ${formatPercent(row.share)} — ниже порога`),
-      ].join('\n'),
-      structured: { gaps, minShare },
-      brief: `Пробелы: ${gaps.map((row) => `${row.name} ${formatPercent(row.share)}`).join(', ')}`,
+      markdown: lines.join('\n'),
+      structured: { classGaps, sectorGaps, minShare, unknownSectorShare: unknownSector?.share },
+      brief: [
+        classGaps.length > 0
+          ? `классы ниже порога: ${classGaps.map((row) => `${row.name} ${formatPercent(row.share)}`).join(', ')}`
+          : 'классы в норме',
+        sectorGaps.length > 0
+          ? `секторы ниже порога: ${sectorGaps.map((row) => row.name).join(', ')}`
+          : 'секторы в норме',
+      ].join('; '),
     };
   },
 };

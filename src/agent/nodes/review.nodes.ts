@@ -8,7 +8,13 @@ import {
   resultsInGroup,
   type CollectionResult,
 } from '../../collection/executor.js';
-import { buildCollectionPlan, type CollectionPlan, type PlanEntry } from '../../collection/plan.js';
+import {
+  buildCollectionPlan,
+  planKey,
+  sectorEntries,
+  type CollectionPlan,
+  type PlanEntry,
+} from '../../collection/plan.js';
 import { mapPositions } from '../../tools/mappers/positions.mapper.js';
 import type { McpRegistryService } from '../../tools/mcp-registry.service.js';
 import { openAccounts } from '../../tools/portfolio-snapshot.js';
@@ -52,20 +58,30 @@ const accountIds = async (deps: ReviewDeps): Promise<string[]> => {
   }
 };
 
-/** Тикеры из собранных позиций: по ним строится вторая фаза плана. */
-export const tickersOf = (plan: CollectionPlan, collected: CollectionResult): string[] => {
-  const tickers = new Set<string>();
+/** Инструменты из собранных позиций: тикер и uid актива (для справочника). */
+export const instrumentsOf = (
+  plan: CollectionPlan,
+  collected: CollectionResult,
+): { ticker: string; uid?: string }[] => {
+  const found = new Map<string, { ticker: string; uid?: string }>();
   for (const { text } of resultsInGroup(plan, collected, 'portfolio')) {
     try {
       for (const position of mapPositions(text, 'rub')) {
-        tickers.add(position.instrument.ticker);
+        found.set(position.instrument.ticker, {
+          ticker: position.instrument.ticker,
+          uid: position.instrument.uid,
+        });
       }
     } catch {
       // Счёт без позиций или нечитаемый ответ: остальные всё равно разберём.
     }
   }
-  return [...tickers];
+  return [...found.values()];
 };
+
+/** Тикеры из собранных позиций: по ним строится вторая фаза плана. */
+export const tickersOf = (plan: CollectionPlan, collected: CollectionResult): string[] =>
+  instrumentsOf(plan, collected).map((instrument) => instrument.ticker);
 
 /** Узел плана: счета и обязательные источники, подтверждается одним запросом. */
 export const createPlanNode =
@@ -106,16 +122,33 @@ export const createCollectNode =
     };
     const first = await executePlan(basePlan, executeDeps);
 
-    // Вторая фаза: пери-тикерная аналитика. Состав уже одобрен пользователем
-    // («аналитика и новости по бумагам портфеля»), поэтому подтверждение не повторяем.
-    const tickers = tickersOf(basePlan, first);
-    const template = templateOf(deps);
-    const phase2 = buildCollectionPlan({
+    // Вторая фаза: только то, что нельзя было спланировать до чтения позиций —
+    // цены, пери-тикерная аналитика, новости по бумагам и справочник секторов.
+    // Уже выполненные запросы первой фазы не повторяем: бюджет прогона общий.
+    const instruments = instrumentsOf(basePlan, first);
+    const tickers = instruments.map((instrument) => instrument.ticker);
+    const perTicker = buildCollectionPlan({
       accounts: [],
       tickers,
       maxInstruments: deps.config.value.run.reviewMaxInstruments,
-      providers: templateProviders(template),
+      providers: ['market.dynamics', 'market.analytics', 'news.digest'],
     });
+    const perTickerGroups = new Set([
+      'prices',
+      'candles',
+      'analytics',
+      'dividends',
+      'signals',
+      'news',
+    ]);
+    const seen = new Set(first.results.keys());
+    const phase2: CollectionPlan = {
+      entries: [
+        ...perTicker.entries.filter((entry) => perTickerGroups.has(entry.group)),
+        ...sectorEntries(instruments),
+      ].filter((entry) => !seen.has(planKey(entry))),
+      maxInstruments: deps.config.value.run.reviewMaxInstruments,
+    };
     const second = await executePlan(phase2, executeDeps);
 
     const results: Record<string, string> = Object.fromEntries(first.results);
