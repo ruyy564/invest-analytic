@@ -3,6 +3,8 @@ import { buildPortfolioReportPrompt } from './portfolio-report.js';
 export interface AgentPromptOptions {
   accountId?: string;
   dataAsOf?: string;
+  /** Справочный блок базы знаний: чек-лист решений и границы оценок. */
+  knowledge?: string;
 }
 
 /** Системный промпт агента: роль, запрет торговли, опора на данные инструментов. */
@@ -25,6 +27,14 @@ export const buildAgentSystemPrompt = (options: AgentPromptOptions = {}): string
       'новости по бумаге. Не выдумывай другие умения и не представляйся общим помощником.',
     buildPortfolioReportPrompt(options.dataAsOf),
   ];
+
+  if (options.knowledge) {
+    lines.push(options.knowledge);
+    lines.push(
+      'Справочный блок — принципы трактовки, а не данные: цены, суммы и доли бери только из ' +
+        'результатов инструментов, а суждения о фазе цикла и привлекательности сектора помечай (оценка).',
+    );
+  }
 
   if (options.accountId) {
     lines.push(

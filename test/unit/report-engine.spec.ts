@@ -2,10 +2,11 @@ import { join } from 'node:path';
 import { ConfigError } from '../../src/config/config.error.js';
 import { buildCollectionPlan, planKey, ANALYTICS_MAX_INSTRUMENTS, CANDLES_MAX_INSTRUMENTS } from '../../src/collection/plan.js';
 import type { CollectionResult } from '../../src/collection/executor.js';
-import { buildReport, composeMarkdown, missingProviders } from '../../src/report/engine.js';
+import { buildReport, composeMarkdown, missingProviders, type FactProvider } from '../../src/report/engine.js';
 import { createProviderMap } from '../../src/report/providers/index.js';
 import { parseYaml } from '../../src/report/yaml.js';
 import { loadReportTemplate, parseReportTemplate, templateProviders } from '../../src/report/template.js';
+import { loadKnowledgeBase, type KnowledgeBase } from '../../src/knowledge/knowledge.js';
 
 const templatePath = join(import.meta.dirname, '..', '..', 'reports', 'portfolio-review.yaml');
 
@@ -438,5 +439,97 @@ describe('область разбора в отчёте', () => {
     const text = composeMarkdown(report, {}, 'бумаги SBER');
 
     expect(text.startsWith('Разбор бумаги SBER (шаблон v2)')).toBe(true);
+  });
+});
+
+describe('справочный контекст разбора', () => {
+  const knowledgePath = join(import.meta.dirname, '..', '..', 'data', 'investment-knowledge.yaml');
+
+  const fakeTemplate = () =>
+    parseReportTemplate(
+      {
+        id: 'knowledge-test',
+        version: 1,
+        periods: ['1d'],
+        sections: [
+          { id: 'macro', provider: 'fake.macro', interpret: true },
+          { id: 'structure', provider: 'fake.structure' },
+          { id: 'opinions', provider: 'fake.opinions', interpret: true },
+        ],
+      },
+      'knowledge-test.yaml',
+    );
+
+  const fakeProviders = (): Map<string, FactProvider> =>
+    new Map<string, FactProvider>([
+      [
+        'fake.macro',
+        {
+          id: 'fake.macro',
+          section: () => ({ markdown: 'Ключевая ставка ЦБ: 14,00 %', brief: 'ставка ЦБ 14,00 %' }),
+        },
+      ],
+      [
+        'fake.structure',
+        {
+          id: 'fake.structure',
+          section: () => ({
+            markdown: 'Сектор: энергетика 40,00 %',
+            structured: { bySector: [{ name: 'энергетика', share: 0.4 }] },
+          }),
+        },
+      ],
+      ['fake.opinions', { id: 'fake.opinions', section: () => ({ markdown: 'SBER', brief: 'SBER' }) }],
+    ]);
+
+  const buildFake = (knowledge?: KnowledgeBase) =>
+    buildReport({
+      template: fakeTemplate(),
+      providers: fakeProviders(),
+      plan: { entries: [], maxInstruments: 15 },
+      collected: { results: new Map(), coverage: [], partial: false },
+      reportId: 'report-k',
+      knowledge,
+      knowledgeMaxChars: 1_800,
+    });
+
+  it('подбирает знания под раздел и секторы, не подменяя факты', () => {
+    const report = buildFake(loadKnowledgeBase(knowledgePath));
+    const macro = report.interpretation.find((request) => request.id === 'macro');
+    const opinions = report.interpretation.find((request) => request.id === 'opinions');
+
+    expect(macro?.knowledge).toContain('Экономические циклы');
+    expect(macro?.knowledge).toContain('Чек-лист принятия решений');
+    // Блок — принципы, а не данные рынка: в преамбуле прямо сказано, откуда числа.
+    expect(macro?.knowledge).toContain('числа, ставки, цены и даты бери');
+    // Факты брифинга остаются на месте.
+    expect(macro?.brief).toBe('ставка ЦБ 14,00 %');
+
+    // Сектор портфеля (энергетика из структуры) добавляет тему зависимостей.
+    expect(opinions?.knowledge).toContain('Зависимости секторов');
+  });
+
+  it('без базы знаний разделы формируются как раньше', () => {
+    const report = buildFake();
+
+    expect(report.interpretation).toHaveLength(2);
+    expect(report.interpretation.every((request) => request.knowledge === undefined)).toBe(true);
+  });
+
+  it('соблюдает предел объёма справочного блока', () => {
+    const report = buildReport({
+      template: fakeTemplate(),
+      providers: fakeProviders(),
+      plan: { entries: [], maxInstruments: 15 },
+      collected: { results: new Map(), coverage: [], partial: false },
+      reportId: 'report-k3',
+      knowledge: loadKnowledgeBase(knowledgePath),
+      knowledgeMaxChars: 400,
+    });
+
+    for (const request of report.interpretation) {
+      // Лимит считается по темам: преамбула добавляется сверху.
+      expect((request.knowledge ?? '').length).toBeLessThanOrEqual(400 + 400);
+    }
   });
 });

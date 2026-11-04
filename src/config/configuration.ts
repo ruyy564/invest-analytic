@@ -51,6 +51,10 @@ export interface AppConfig {
     reviewEnabled: boolean;
     /** Ветка справки о возможностях. */
     agentHelpEnabled: boolean;
+    /** База знаний по инвестициям: справочный контекст и справка по понятиям. */
+    knowledgeEnabled: boolean;
+    knowledgeFile: string;
+    knowledgeMaxChars: number;
   };
   report: {
     /** Файл декларативного шаблона отчёта (секции, пороги, периоды). */
@@ -140,6 +144,9 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
     mcpToolTimeoutMs: env.MCP_TOOL_TIMEOUT_MS,
     reviewEnabled: env.REVIEW_ENABLED,
     agentHelpEnabled: env.AGENT_HELP_ENABLED,
+    knowledgeEnabled: env.KNOWLEDGE_ENABLED,
+    knowledgeFile: env.KNOWLEDGE_FILE,
+    knowledgeMaxChars: env.KNOWLEDGE_MAX_CHARS,
   },
   report: {
     templateFile: env.REPORT_TEMPLATE_FILE,

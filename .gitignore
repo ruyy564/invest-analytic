@@ -5,6 +5,8 @@ data/*
 # Данные источников версионируются: это файлы-справочники, а не состояние прогонов.
 !data/key-rate-seed.json
 !data/tax-keywords.yaml
+!data/ticker-aliases.yaml
+!data/investment-knowledge.yaml
 .env
 .env.local
 *.log

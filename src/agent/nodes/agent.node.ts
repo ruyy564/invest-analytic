@@ -110,7 +110,7 @@ export const createAgentNode =
   (
     model: BaseChatModel,
     tools: StructuredToolInterface[],
-    options: { accountId?: string } = {},
+    options: { accountId?: string; knowledge?: string } = {},
   ) =>
   async (state: AgentStateType) => {
     // Последний вопрос пользователя нужен для детерминированных сценариев

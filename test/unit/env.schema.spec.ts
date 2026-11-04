@@ -58,6 +58,9 @@ describe('конфигурация окружения', () => {
       mcpToolTimeoutMs: 15_000,
       reviewEnabled: true,
       agentHelpEnabled: true,
+      knowledgeEnabled: true,
+      knowledgeFile: 'data/investment-knowledge.yaml',
+      knowledgeMaxChars: 1800,
     });
     expect(config.report.templateFile).toBe('reports/portfolio-review.yaml');
   });
@@ -82,7 +85,29 @@ describe('конфигурация окружения', () => {
       mcpToolTimeoutMs: 3_000,
       reviewEnabled: false,
       agentHelpEnabled: true,
+      knowledgeEnabled: true,
+      knowledgeFile: 'data/investment-knowledge.yaml',
+      knowledgeMaxChars: 1800,
     });
+  });
+
+  it('читает настройки базы знаний из окружения', () => {
+    const config = loadConfiguration(
+      baseEnv({
+        KNOWLEDGE_ENABLED: 'false',
+        KNOWLEDGE_FILE: './data/своя-база.yaml',
+        KNOWLEDGE_MAX_CHARS: '900',
+      }),
+    );
+
+    expect(config.run.knowledgeEnabled).toBe(false);
+    expect(config.run.knowledgeFile).toBe('./data/своя-база.yaml');
+    expect(config.run.knowledgeMaxChars).toBe(900);
+  });
+
+  it('отклоняет слишком маленький лимит блока знаний', () => {
+    const issues = loadIssues(baseEnv({ KNOWLEDGE_MAX_CHARS: '100' }));
+    expect(issues.some((issue) => issue.includes('KNOWLEDGE_MAX_CHARS'))).toBe(true);
   });
 
   it('отклоняет нечисловой лимит прогона', () => {

@@ -17,6 +17,7 @@ import { NotAwaitingApprovalError } from './approval.errors.js';
 import { NO_TOOLS_ANSWER } from './prompts/off-topic.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
+import { loadAgentKnowledge } from '../knowledge/knowledge.js';
 import type { AgentStateType } from './graph/state.js';
 import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../observability/run-collector.js';
 import { ReportStoreService } from '../state/report-store.service.js';
@@ -210,6 +211,13 @@ export class AgentRunnerService {
       this.defaultAccount = await resolveDefaultAccount(this.config, this.registry);
     }
 
+    // База знаний читается один раз при сборке графа: она — данные, не состояние прогона.
+    const knowledge = loadAgentKnowledge(
+      this.config.value.run.knowledgeEnabled,
+      this.config.value.run.knowledgeFile,
+      this.config.value.run.knowledgeMaxChars,
+    );
+
     this.compiled = buildAgentGraph({
       routerModel: this.routerModel,
       answerModel: this.answerModel,
@@ -220,6 +228,10 @@ export class AgentRunnerService {
       checkpointer: this.checkpointer,
       review: { config: this.config, registry: this.registry, model: this.answerModel },
       reviewEnabled: this.config.value.run.reviewEnabled,
+      newsEnabled: this.config.value.sources.newsFeed.enabled,
+      helpEnabled: this.config.value.run.agentHelpEnabled,
+      knowledgeEnabled: knowledge.enabled,
+      knowledge: knowledge.text,
     });
     return this.compiled;
   }

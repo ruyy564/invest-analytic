@@ -2,8 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { DISCLAIMER, DATA_SOURCE } from '../agent/report/portfolio-report.js';
 import type { CollectionResult } from '../collection/executor.js';
 import type { CollectionPlan } from '../collection/plan.js';
+import {
+  DEFAULT_KNOWLEDGE_MAX_CHARS,
+  knowledgeForPrompt,
+  type KnowledgeBase,
+} from '../knowledge/knowledge.js';
 import type { CoverageEntry } from '../sources/registry.js';
 import { renderUnavailable } from './renderers.js';
+import { UNKNOWN_SECTOR } from './sector.js';
 import type { ReportSection, ReportTemplate, SectionScope } from './template.js';
 
 /** Что поставщик отдаёт движку: готовый текст секции или «нет данных». */
@@ -45,6 +51,8 @@ export interface InterpretationRequest {
   id: string;
   title: string;
   brief: string;
+  /** Справочный блок базы знаний: принципы для трактовки, не данные рынка. */
+  knowledge?: string;
 }
 
 export interface ReportBuildResult {
@@ -70,7 +78,36 @@ export interface BuildReportDeps {
   scope?: SectionScope;
   /** Тикер бумаги в разборе по бумаге. */
   scopeTarget?: string;
+  /** База знаний: из неё собирается справочный контекст интерпретируемых секций. */
+  knowledge?: KnowledgeBase;
+  /** Предел объёма справочного блока в символах. */
+  knowledgeMaxChars?: number;
 }
+
+/** Секторы, под которые подбирается справочный блок: из структуры или из бумаг. */
+const sectorsOf = (sections: readonly SectionOutput[]): string[] => {
+  const structure = sections.find((section) => section.id === 'structure')?.structured as
+    | { bySector?: { name: string }[] }
+    | undefined;
+  const fromStructure = (structure?.bySector ?? [])
+    .map((row) => row.name)
+    .filter((name) => name.length > 0 && name !== UNKNOWN_SECTOR);
+  if (fromStructure.length > 0) {
+    return [...new Set(fromStructure)];
+  }
+
+  // Разбор бумаги: структуры портфеля нет, сектор берём из её карточки.
+  const securities = sections.find((section) => section.id === 'securities')?.structured as
+    | { sector?: string }[]
+    | undefined;
+  return [
+    ...new Set(
+      (securities ?? [])
+        .map((security) => security.sector)
+        .filter((sector): sector is string => !!sector && sector !== UNKNOWN_SECTOR),
+    ),
+  ];
+};
 
 /**
  * Сборка отчёта движком: идём по секциям шаблона, берём факты у поставщиков,
@@ -153,6 +190,19 @@ export const buildReport = (deps: BuildReportDeps): ReportBuildResult => {
       structured: facts.structured,
       interpret: false,
     });
+  }
+
+  if (deps.knowledge && deps.knowledge.topics.length > 0 && interpretation.length > 0) {
+    const sectors = sectorsOf(sections);
+    const maxChars = deps.knowledgeMaxChars ?? DEFAULT_KNOWLEDGE_MAX_CHARS;
+    for (const request of interpretation) {
+      // Отбор идёт по разделу и секторам: вся база в промпт не попадает.
+      request.knowledge = knowledgeForPrompt(deps.knowledge, {
+        section: request.id,
+        sectors,
+        maxChars,
+      });
+    }
   }
 
   return {

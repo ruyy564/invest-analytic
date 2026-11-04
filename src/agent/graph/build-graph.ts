@@ -10,6 +10,7 @@ import { createClassifyNode } from '../nodes/classify.node.js';
 import { offTopicNode } from '../nodes/off-topic.node.js';
 import { createNewsNode } from '../nodes/news.node.js';
 import { createHelpNode } from '../nodes/help.node.js';
+import { createKnowledgeNode } from '../nodes/knowledge.node.js';
 import {
   createCollectNode,
   createPlanNode,
@@ -35,6 +36,10 @@ export interface BuildAgentGraphDeps {
   newsEnabled?: boolean;
   /** `false` — вопрос о возможностях уходит прежним маршрутом. */
   helpEnabled?: boolean;
+  /** `false` — справочная ветка выключена, вопрос уходит прежним маршрутом. */
+  knowledgeEnabled?: boolean;
+  /** Готовый блок знаний для системного промпта агента (чек-лист решений). */
+  knowledge?: string;
 }
 
 /** Топология: classify → (offTopic | news | agent ⇄ approve → tools | plan → approve → collect → report). */
@@ -42,16 +47,24 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
   const reviewEnabled = deps.reviewEnabled ?? true;
   const newsEnabled = deps.newsEnabled ?? true;
   const helpEnabled = deps.helpEnabled ?? true;
+  const knowledgeEnabled = deps.knowledgeEnabled ?? true;
 
   const base = new StateGraph(AgentState)
     .addNode('classify', createClassifyNode(deps.routerModel))
     .addNode('offTopic', offTopicNode)
     .addNode('help', createHelpNode({ config: deps.review.config }))
+    .addNode('knowledge', createKnowledgeNode({ config: deps.review.config }))
     .addNode(
       'news',
       createNewsNode({ config: deps.review.config, registry: deps.review.registry }),
     )
-    .addNode('agent', createAgentNode(deps.answerModel, deps.tools, { accountId: deps.accountId }))
+    .addNode(
+      'agent',
+      createAgentNode(deps.answerModel, deps.tools, {
+        accountId: deps.accountId,
+        knowledge: deps.knowledge,
+      }),
+    )
     .addNode('approve', createApproveNode(deps), {
       // В режиме без разбора узла `collect` нет: и список выходов короче.
       ends: (reviewEnabled ? ['tools', 'agent', 'collect'] : ['tools', 'agent']) as never,
@@ -62,11 +75,12 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     // Прежнее поведение: две метки, ветки разбора в графе нет вовсе.
     return base
       .addEdge(START, 'classify')
-      .addConditionalEdges('classify', afterClassify(false, newsEnabled, helpEnabled), {
+      .addConditionalEdges('classify', afterClassify(false, newsEnabled, helpEnabled, knowledgeEnabled), {
         offTopic: 'offTopic',
         agent: 'agent',
         news: 'news',
         help: 'help',
+        knowledge: 'knowledge',
       })
       .addConditionalEdges('agent', createAfterAgent(deps.policy), {
         approve: 'approve',
@@ -76,6 +90,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
       .addEdge('offTopic', END)
       .addEdge('news', END)
       .addEdge('help', END)
+      .addEdge('knowledge', END)
       .addEdge('tools', 'agent')
       .compile({ checkpointer: deps.checkpointer });
   }
@@ -85,12 +100,13 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     .addNode('collect', createCollectNode(deps.review))
     .addNode('report', createReportNode(deps.review))
     .addEdge(START, 'classify')
-    .addConditionalEdges('classify', afterClassify(true, newsEnabled, helpEnabled), {
+    .addConditionalEdges('classify', afterClassify(true, newsEnabled, helpEnabled, knowledgeEnabled), {
       offTopic: 'offTopic',
       agent: 'agent',
       plan: 'plan',
       news: 'news',
       help: 'help',
+      knowledge: 'knowledge',
     })
     .addConditionalEdges('agent', createAfterAgent(deps.policy), {
       approve: 'approve',
@@ -100,6 +116,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     .addEdge('offTopic', END)
     .addEdge('news', END)
     .addEdge('help', END)
+    .addEdge('knowledge', END)
     .addEdge('tools', 'agent')
     .addEdge('plan', 'approve')
     .addEdge('collect', 'report')

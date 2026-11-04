@@ -17,6 +17,7 @@ export const createHelpNode =
     const answer = buildCapabilitiesAnswer({
       reviewEnabled: deps.config.value.run.reviewEnabled,
       newsEnabled: deps.config.value.sources.newsFeed.enabled,
+      knowledgeEnabled: deps.config.value.run.knowledgeEnabled,
     });
     return {
       intent: 'agent_help',

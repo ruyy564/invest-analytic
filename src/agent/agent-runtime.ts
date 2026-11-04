@@ -11,6 +11,7 @@ import { MultiServerMcpFactory } from '../tools/mcp-client.factory.js';
 import { McpProxyService } from '../tools/mcp-proxy.service.js';
 import { McpRegistryService } from '../tools/mcp-registry.service.js';
 import { resolveDefaultAccount } from '../tools/resolve-account.js';
+import { loadAgentKnowledge } from '../knowledge/knowledge.js';
 
 /**
  * Сборка рабочего агента вне NestJS: те же классы и тот же `.env`, что у сервиса
@@ -105,8 +106,13 @@ export const createAgentRuntime = async (
 let compiled: Promise<ReturnType<typeof buildAgentGraph>> | undefined;
 
 export const graphForServer = (): Promise<ReturnType<typeof buildAgentGraph>> => {
-  compiled ??= createAgentRuntime().then((runtime) =>
-    buildAgentGraph({
+  compiled ??= createAgentRuntime().then((runtime) => {
+    const knowledge = loadAgentKnowledge(
+      runtime.config.run.knowledgeEnabled,
+      runtime.config.run.knowledgeFile,
+      runtime.config.run.knowledgeMaxChars,
+    );
+    return buildAgentGraph({
       routerModel: runtime.routerModel,
       answerModel: runtime.answerModel,
       tools: runtime.tools,
@@ -121,7 +127,9 @@ export const graphForServer = (): Promise<ReturnType<typeof buildAgentGraph>> =>
       reviewEnabled: runtime.config.run.reviewEnabled,
       newsEnabled: runtime.config.sources.newsFeed.enabled,
       helpEnabled: runtime.config.run.agentHelpEnabled,
-    }),
-  );
+      knowledgeEnabled: knowledge.enabled,
+      knowledge: knowledge.text,
+    });
+  });
   return compiled;
 };

@@ -66,6 +66,18 @@ describe('справка о возможностях', () => {
     expect(disabledCapabilitiesNote({})).toBeUndefined();
   });
 
+  it('не обещает объяснение понятий при выключенной базе знаний', () => {
+    const answer = buildCapabilitiesAnswer({ knowledgeEnabled: false });
+
+    expect(answer).not.toContain('Объяснение инвестиционных понятий');
+    expect(answer).toContain('Сейчас отключено: объяснение инвестиционных понятий');
+    expect(availableCapabilities({ knowledgeEnabled: false }).map((item) => item.id)).not.toContain(
+      'knowledge',
+    );
+    // При включённой базе возможность есть и подкреплена примером вопроса.
+    expect(buildCapabilitiesAnswer()).toContain('что такое диверсификация?');
+  });
+
   it('одинаково отвечает на разные формулировки', () => {
     expect(buildCapabilitiesAnswer()).toEqual(buildCapabilitiesAnswer());
   });

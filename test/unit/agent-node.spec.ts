@@ -1,7 +1,9 @@
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { createAgentNode } from '../../src/agent/nodes/agent.node.js';
 import { createHelpNode } from '../../src/agent/nodes/help.node.js';
+import { buildAgentSystemPrompt } from '../../src/agent/prompts/agent.prompt.js';
 import { isApprovedDecision } from '../../src/agent/nodes/approve.node.js';
+import { agentKnowledgePrompt, loadKnowledgeBase } from '../../src/knowledge/knowledge.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
@@ -102,3 +104,28 @@ describe('узел агента после сводки по счетам', () =
     expect(answer).not.toContain('умный помощник');
   });
 });
+
+
+describe('принципы принятия решений в промпте агента', () => {
+  const knowledge = () =>
+    agentKnowledgePrompt(loadKnowledgeBase('data/investment-knowledge.yaml'), 1_800);
+
+  it('добавляет чек-лист и правило про оценки', () => {
+    const prompt = buildAgentSystemPrompt({ knowledge: knowledge() });
+
+    expect(prompt).toContain('Чек-лист принятия решений');
+    expect(prompt).toContain('принципы трактовки, а не данные');
+    expect(prompt).toContain('помечай (оценка)');
+    // Роль и запрет торговли остаются на месте.
+    expect(prompt).toContain('Не совершай торговых операций');
+  });
+
+  it('без базы знаний промпт остаётся прежним', () => {
+    const prompt = buildAgentSystemPrompt();
+
+    expect(prompt).not.toContain('Чек-лист принятия решений');
+    expect(prompt).not.toContain('принципы трактовки');
+    expect(prompt).toContain('Не совершай торговых операций');
+  });
+});
+

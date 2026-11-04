@@ -15,6 +15,8 @@ export interface Capability {
   requiresReview?: boolean;
   /** Возможность доступна только при включённой ветке новостей. */
   requiresNews?: boolean;
+  /** Возможность доступна только при включённой базе знаний. */
+  requiresKnowledge?: boolean;
 }
 
 /** Карта возможностей: единственное место, где перечислено, что умеет сервис. */
@@ -60,6 +62,14 @@ export const CAPABILITIES: Capability[] = [
     examples: ['какие последние новости в мире инвестиций?'],
     requiresNews: true,
   },
+  {
+    id: 'knowledge',
+    title: 'Объяснение инвестиционных понятий',
+    description:
+      'циклы, мультипликаторы, диверсификация, психология решений, зависимости секторов и история кризисов — по внутренней базе знаний',
+    examples: ['что такое мультипликатор P/E?', 'что такое диверсификация?'],
+    requiresKnowledge: true,
+  },
 ];
 
 /** Вопрос про возможности агента — отвечаем детерминированно, без модели. */
@@ -83,6 +93,8 @@ export interface CapabilitiesOptions {
   reviewEnabled?: boolean;
   /** Ветка новостей включена (`NEWS_FEED_ENABLED`). */
   newsEnabled?: boolean;
+  /** База знаний включена (`KNOWLEDGE_ENABLED`). */
+  knowledgeEnabled?: boolean;
 }
 
 /** Какие возможности показывать при текущей конфигурации. */
@@ -92,7 +104,8 @@ export const availableCapabilities = (
   CAPABILITIES.filter(
     (capability) =>
       (capability.requiresReview !== true || options.reviewEnabled !== false) &&
-      (capability.requiresNews !== true || options.newsEnabled !== false),
+      (capability.requiresNews !== true || options.newsEnabled !== false) &&
+      (capability.requiresKnowledge !== true || options.knowledgeEnabled !== false),
   );
 
 /** Отключённые возможности: о них честно предупреждаем, а не обещаем. */
@@ -103,6 +116,9 @@ export const disabledCapabilitiesNote = (options: CapabilitiesOptions = {}): str
   }
   if (options.newsEnabled === false) {
     disabled.push('сводка новостей');
+  }
+  if (options.knowledgeEnabled === false) {
+    disabled.push('объяснение инвестиционных понятий');
   }
   return disabled.length > 0 ? `Сейчас отключено: ${disabled.join(', ')}.` : undefined;
 };

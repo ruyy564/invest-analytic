@@ -8,6 +8,11 @@ import { loadTickerAliases } from '../../sources/aliases.js';
 import { detectScope } from '../scope.js';
 import { CAPABILITIES_PATTERN } from '../prompts/capabilities.js';
 import {
+  KNOWLEDGE_QUESTION_PATTERN,
+  loadKnowledgeBase,
+  topicForQuestion,
+} from '../../knowledge/knowledge.js';
+import {
   CLASSIFIER_FALLBACK_PROMPT,
   CLASSIFIER_SYSTEM_PROMPT,
   heuristicIntent,
@@ -17,6 +22,14 @@ import {
 
 /** Предел ожидания классификатора: одно слово, дольше ждать бессмысленно. */
 export const CLASSIFY_TIMEOUT_MS = 8_000;
+
+/** Ветка справочных ответов включена (флаг `KNOWLEDGE_ENABLED`). */
+const knowledgeEnabled = (): boolean =>
+  process.env.KNOWLEDGE_ENABLED?.trim().toLowerCase() !== 'false';
+
+/** Файл базы знаний: тот же путь, что у разбора и справки. */
+const knowledgeFile = (): string =>
+  process.env.KNOWLEDGE_FILE?.trim() || 'data/investment-knowledge.yaml';
 
 /**
  * Классификация области вопроса дешёвой моделью с текстовым фолбэком.
@@ -67,6 +80,15 @@ export const createClassifyNode = (model: BaseChatModel) => {
     const helpEnabled = process.env.AGENT_HELP_ENABLED?.trim().toLowerCase() !== 'false';
     if (helpEnabled && CAPABILITIES_PATTERN.test(question)) {
       return { intent: 'agent_help', ...scopeFields };
+    }
+
+    // Справочный вопрос по понятию: термин базы знаний и просьба объяснить.
+    // Проверяем до эвристик — «что такое диверсификация» иначе уходит в разбор портфеля.
+    if (knowledgeEnabled()) {
+      const base = loadKnowledgeBase(knowledgeFile());
+      if (KNOWLEDGE_QUESTION_PATTERN.test(question) && topicForQuestion(base, question)) {
+        return { intent: 'knowledge_question', ...scopeFields };
+      }
     }
 
     const heuristic = heuristicIntent(question);

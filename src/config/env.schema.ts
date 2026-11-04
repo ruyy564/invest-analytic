@@ -127,6 +127,14 @@ const scalarEnvObject = z
     REVIEW_ENABLED: flag(true),
     /** Справка о возможностях агента отдельной веткой. */
     AGENT_HELP_ENABLED: flag(true),
+    /**
+     * База знаний по инвестициям: справочный контекст разбора, чек-лист в промпте
+     * агента и ответы на вопросы о понятиях.
+     */
+    KNOWLEDGE_ENABLED: flag(true),
+    KNOWLEDGE_FILE: z.string().trim().min(1).default('data/investment-knowledge.yaml'),
+    /** Предел объёма справочного блока в символах: факты брифинга важнее. */
+    KNOWLEDGE_MAX_CHARS: z.coerce.number().int().min(400).default(1_800),
 
     // Источники данных помимо брокера: ЦБ (ключевая ставка) и новостные ленты.
     SOURCES: csvList('tinkoff'),

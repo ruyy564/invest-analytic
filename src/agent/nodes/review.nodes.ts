@@ -17,6 +17,7 @@ import {
 } from '../../collection/plan.js';
 import { assetEntries, brandEntries, shareEntries } from '../../collection/reference.js';
 import { loadTickerAliases, matchersFor } from '../../sources/aliases.js';
+import { loadKnowledgeBase } from '../../knowledge/knowledge.js';
 import { PORTFOLIO_SCOPE } from '../scope.js';
 import { mapPositions } from '../../tools/mappers/positions.mapper.js';
 import type { McpRegistryService } from '../../tools/mcp-registry.service.js';
@@ -327,6 +328,11 @@ export const createReportNode =
       collected,
       scope: state.scope ?? 'portfolio',
       scopeTarget: state.scopeTarget,
+      // База знаний — данные: отсутствие файла не мешает разбору.
+      knowledge: deps.config.value.run.knowledgeEnabled
+        ? loadKnowledgeBase(deps.config.value.run.knowledgeFile)
+        : undefined,
+      knowledgeMaxChars: deps.config.value.run.knowledgeMaxChars,
     });
 
     const interpretation: Record<string, string> = {};
@@ -339,7 +345,11 @@ export const createReportNode =
           prompt,
           `Сейчас ты пишешь только раздел «${request.title}» (код раздела: ${request.id}).`,
           'Верни только текст раздела: без заголовков markdown и без префикса с кодом раздела.',
-        ].join('\n');
+          // Справочный блок — принципы трактовки; числа остаются из брифинга.
+          request.knowledge,
+        ]
+          .filter((part): part is string => typeof part === 'string' && part.length > 0)
+          .join('\n');
         for (let attempt = 0; attempt < 2; attempt += 1) {
           try {
             const response = await withTimeout(
