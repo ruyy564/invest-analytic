@@ -22,8 +22,6 @@ import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../observability/
 
 /** Лимит шагов графа (учитывает шаги цикла «модель ⇄ инструменты»). */
 export const RUN_RECURSION_LIMIT = 12;
-/** Дедлайн прогона: по истечении отдаём частичный ответ. */
-export const RUN_DEADLINE_MS = 30_000;
 
 export interface RunResult {
   status: 'completed' | 'awaiting_approval';
@@ -100,7 +98,7 @@ export class AgentRunnerService {
             metadata: { requestId, sessionId },
           },
         ),
-        RUN_DEADLINE_MS,
+        this.config.value.run.deadlineMs,
         () => new Error('deadline'),
       );
       const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);

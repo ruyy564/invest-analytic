@@ -1,12 +1,15 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { DynamicStructuredTool } from '@langchain/core/tools';
+import { DynamicStructuredTool as DynamicTool } from '@langchain/core/tools';
 import { AppConfigService } from '../config/app-config.service.js';
 import type { McpServerConfig } from '../config/env.schema.js';
 import { missingAllowedTools, selectAllowedTools, wrapTool } from './mcp-tool.adapter.js';
+import { ALL_ACCOUNTS_TOOL, collectAllAccounts } from './portfolio-snapshot.js';
+import { collectDynamics, PRICE_DYNAMICS_TOOL } from './price-dynamics.js';
+import { toZodV3 } from './tool-schema.js';
 import { ToolBudget } from './tool-budget.js';
 
 export const MCP_CLIENT_FACTORY = Symbol('MCP_CLIENT_FACTORY');
-
 /** Возвращает инструменты сервера в исходных (ненаймспейсенных) именах. */
 export type McpClientFactory = (server: McpServerConfig) => Promise<DynamicStructuredTool[]>;
 
@@ -18,12 +21,10 @@ export interface McpServerStatus {
   error?: string;
 }
 
-export const MCP_TOOL_TIMEOUT_MS = 10_000;
-export const RUN_TOOL_BUDGET = { maxCalls: 8, deadlineMs: 30_000 } as const;
-
 /**
  * Реестр MCP-серверов: discovery при первом обращении, allowlist,
  * неймспейсинг и обёртка вызовов. Недоступный сервер не ломает старт.
+ * Лимиты прогона (вызовы, время, таймаут инструмента) берутся из конфигурации.
  */
 @Injectable()
 export class McpRegistryService {
@@ -65,7 +66,7 @@ export class McpRegistryService {
           ...allowed.map((tool) =>
             wrapTool(tool, {
               server: server.name,
-              timeoutMs: MCP_TOOL_TIMEOUT_MS,
+              timeoutMs: this.config.value.run.mcpToolTimeoutMs,
               budgetFor: (sessionId) =>
                 sessionId ? this.budgets.get(sessionId) : undefined,
             }),
@@ -90,7 +91,61 @@ export class McpRegistryService {
       }
     }
 
-    this.toolsCache = tools;
+    this.toolsCache = [...tools, this.createAllAccountsTool(tools), this.createDynamicsTool(tools)];
+  }
+
+  /**
+   * Динамика цены бумаги за период: свечи считает код, модель получает готовые
+   * цифры (иначе она «вспоминает» чужие значения вместо данных брокера).
+   */
+  private createDynamicsTool(tools: DynamicStructuredTool[]): DynamicStructuredTool {
+    const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+    return new DynamicTool({
+      name: PRICE_DYNAMICS_TOOL,
+      description:
+        'Динамика цены бумаги за период: изменение в валюте и процентах, минимум и максимум ' +
+        'с датами. Используй для вопросов «почему упал/вырос X», «что с ценой за полгода».',
+      schema: toZodV3({
+        type: 'object',
+        properties: {
+          ticker: { type: 'string', description: 'Тикер или название: PLZL, Полюс, SBER' },
+          days: { type: 'number', description: 'Период в днях, по умолчанию 180' },
+        },
+        required: ['ticker'],
+      }) as never,
+      func: async (input: unknown) => {
+        const args = (input ?? {}) as { ticker?: string; days?: number };
+        const days = Number.isFinite(args.days) && Number(args.days) > 0 ? Number(args.days) : 180;
+        return collectDynamics(
+          { tool: (name) => byName.get(name), timeoutMs: this.config.value.run.mcpToolTimeoutMs },
+          args.ticker ?? '',
+          days,
+        );
+      },
+    } as never);
+  }
+
+  /**
+   * Сводка по всем открытым счетам одним инструментом: модель вызывает его сразу,
+   * не перебирая счета вручную (иначе она смотрит только первый счёт из списка).
+   * Схема — zod 3, как и у остальных инструментов (требование GigaChat).
+   */
+  private createAllAccountsTool(tools: DynamicStructuredTool[]): DynamicStructuredTool {
+    const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+    return new DynamicTool({
+      name: ALL_ACCOUNTS_TOOL,
+      description:
+        'Состав и стоимость портфеля по ВСЕМ открытым счетам брокера: ' +
+        'по каждому счёту — бумаги и количество, итоговая стоимость, доходность.',
+      schema: toZodV3({ type: 'object', properties: {} }) as never,
+      func: async () =>
+        collectAllAccounts({
+          tool: (name) => byName.get(name),
+          timeoutMs: this.config.value.run.mcpToolTimeoutMs,
+        }),
+    } as never);
   }
 
   get tools(): DynamicStructuredTool[] {
@@ -106,9 +161,12 @@ export class McpRegistryService {
     return statuses.length > 0 && statuses.every((status) => status.status === 'up');
   }
 
-  /** Бюджет на один прогон: 8 вызовов и 30 секунд. */
+  /** Бюджет на один прогон: значения из конфигурации (`RUN_TOOL_MAX_CALLS`, `RUN_DEADLINE_MS`). */
   createBudget(): ToolBudget {
-    return new ToolBudget({ ...RUN_TOOL_BUDGET });
+    return new ToolBudget({
+      maxCalls: this.config.value.run.toolMaxCalls,
+      deadlineMs: this.config.value.run.deadlineMs,
+    });
   }
 
   /** Начало прогона: создаёт бюджет для сессии. */
