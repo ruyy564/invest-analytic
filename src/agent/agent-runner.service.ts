@@ -19,9 +19,17 @@ import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
 import type { AgentStateType } from './graph/state.js';
 import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../observability/run-collector.js';
+import { ReportStoreService } from '../state/report-store.service.js';
 
 /** Лимит шагов графа (учитывает шаги цикла «модель ⇄ инструменты»). */
 export const RUN_RECURSION_LIMIT = 12;
+
+export interface RunReport {
+  reportId: string;
+  type: 'data_answer' | 'portfolio_report' | 'deep_review';
+  asOf: string;
+  coverage: { source: string; status: 'ok' | 'missing'; reason?: string }[];
+}
 
 export interface RunResult {
   status: 'completed' | 'awaiting_approval';
@@ -29,6 +37,8 @@ export interface RunResult {
   intent: AgentStateType['intent'];
   partial: boolean;
   approval?: ApprovePayload;
+  /** Метаданные отчёта: идентификатор для выгрузки, вид, время данных и покрытие. */
+  report?: RunReport;
   /** Ссылка на трейс LangSmith, если трассировка включена. */
   traceUrl?: string;
 }
@@ -79,12 +89,13 @@ export class AgentRunnerService {
     @Inject(LLM_ROUTER_MODEL) private readonly routerModel: BaseChatModel,
     @Inject(LLM_ANSWER_MODEL) private readonly answerModel: BaseChatModel,
     @Inject(CHECKPOINTER) private readonly checkpointer: BaseCheckpointSaver,
+    private readonly reports: ReportStoreService,
   ) {}
 
   async run(message: string, sessionId: string, requestId?: string): Promise<RunResult> {
     const graph = await this.graph();
     if (!graph) {
-      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'portfolio', partial: true };
+      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'data_lookup', partial: true };
     }
     const config = { ...this.configFor(sessionId) };
     this.registry.beginRun(sessionId);
@@ -118,7 +129,7 @@ export class AgentRunnerService {
   async resume(sessionId: string, decision: ApproveDecision, requestId?: string): Promise<RunResult> {
     const graph = await this.graph();
     if (!graph) {
-      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'portfolio', partial: true };
+      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'data_lookup', partial: true };
     }
     if (!this.flow.hasPending(sessionId) && !(await this.isAwaiting(graph, sessionId))) {
       throw new NotAwaitingApprovalError();
@@ -196,6 +207,8 @@ export class AgentRunnerService {
       flow: this.flow,
       accountId: this.defaultAccount,
       checkpointer: this.checkpointer,
+      review: { config: this.config, registry: this.registry, model: this.answerModel },
+      reviewEnabled: this.config.value.run.reviewEnabled,
     });
     return this.compiled;
   }
@@ -234,7 +247,7 @@ export class AgentRunnerService {
     if (approval) {
       return {
         status: 'awaiting_approval',
-        intent: values?.intent ?? 'portfolio',
+        intent: values?.intent ?? 'data_lookup',
         partial: false,
         approval,
       };
@@ -243,9 +256,41 @@ export class AgentRunnerService {
     return {
       status: 'completed',
       answer: lastAnswer(values?.messages),
-      intent: values?.intent ?? 'portfolio',
+      intent: values?.intent ?? 'data_lookup',
       partial: (values?.partial ?? false) || hasBudgetError(values?.messages),
+      report: this.reportOf(values, lastAnswer(values?.messages)),
     };
+  }
+
+  /** Метаданные отчёта; сохранение — чтобы работала выгрузка по `reportId`. */
+  private reportOf(
+    values: AgentStateType | undefined,
+    answer: string | undefined,
+  ): RunReport | undefined {
+    const reportId = values?.reportId;
+    if (!reportId) {
+      return undefined;
+    }
+    const coverage = (values?.collection?.coverage ?? []).map(({ source, status, reason }) => ({
+      source,
+      status,
+      reason,
+    }));
+    const asOf = values?.dataAsOf ?? new Date().toISOString();
+    const type = values?.reportType ?? 'deep_review';
+    const report: RunReport = { reportId, type, asOf, coverage };
+
+    if (answer) {
+      this.reports.save({
+        reportId,
+        userId: this.config.value.app.userId,
+        createdAt: new Date().toISOString(),
+        templateVersion: values?.reportTemplateVersion ?? 0,
+        markdown: answer,
+        json: JSON.stringify({ report, answer }),
+      });
+    }
+    return report;
   }
 
   private async partialResult(
@@ -254,7 +299,7 @@ export class AgentRunnerService {
   ): Promise<RunResult> {
     const graph = await this.graph();
     if (!graph) {
-      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'portfolio', partial: true };
+      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'data_lookup', partial: true };
     }
     const snapshot = await graph.getState(config);
     const values = (snapshot.values ?? {}) as AgentStateType;
@@ -264,7 +309,7 @@ export class AgentRunnerService {
       answer:
         lastAnswer(values.messages) ??
         'Не удалось подготовить ответ за отведённое время. Попробуйте уточнить вопрос.',
-      intent: values.intent ?? 'portfolio',
+      intent: values.intent ?? 'data_lookup',
       partial: true,
     };
   }

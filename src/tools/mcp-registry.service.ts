@@ -322,6 +322,19 @@ export class McpRegistryService {
     return statuses.length > 0 && statuses.every((status) => status.status === 'up');
   }
 
+  /** Инструмент по имени: сначала локальные, затем с префиксом сервера. */
+  toolByName(name: string): DynamicStructuredTool | undefined {
+    return (
+      this.toolsCache.find((tool) => tool.name === name) ??
+      this.toolsCache.find((tool) => tool.name === `tinkoff__${name}`)
+    );
+  }
+
+  /** Бюджет активного прогона сессии. */
+  budgetOf(sessionId: string): ToolBudget | undefined {
+    return this.budgets.get(sessionId);
+  }
+
   /** Бюджет на один прогон: значения из конфигурации (`RUN_TOOL_MAX_CALLS`, `RUN_DEADLINE_MS`). */
   createBudget(): ToolBudget {
     return new ToolBudget({

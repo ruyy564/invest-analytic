@@ -1,19 +1,43 @@
-import { HumanMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { MemorySaver } from '@langchain/langgraph';
 import { ApprovalFlowService } from '../../src/agent/approval-flow.service.js';
+import { withToolResults } from '../../src/agent/nodes/agent.node.js';
 import { ApprovalPolicyService } from '../../src/agent/approvals/approval-policy.service.js';
 import { buildAgentGraph } from '../../src/agent/graph/build-graph.js';
 import { OFF_TOPIC_ANSWER } from '../../src/agent/prompts/off-topic.js';
 import { AppConfigService } from '../../src/config/app-config.service.js';
+import type { McpRegistryService } from '../../src/tools/mcp-registry.service.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
 const configStub = (): AppConfigService =>
   ({
-    value: { approvals: { ttlMinutes: 15, unlisted: 'require' } },
+    value: {
+      approvals: { ttlMinutes: 15, unlisted: 'require' },
+      app: { userId: 'test-user' },
+      run: {
+        toolMaxCalls: 40,
+        deadlineMs: 90_000,
+        parallelism: 4,
+        reviewMaxInstruments: 15,
+        mcpToolTimeoutMs: 15_000,
+        reviewEnabled: true,
+      },
+      report: {
+        templateFile: 'reports/portfolio-review.yaml',
+        interpretationPromptFile: 'reports/prompts/interpretation.md',
+      },
+    },
   }) as unknown as AppConfigService;
 
-const buildGraph = (routerSteps: string[], answerSteps: (string | ReturnType<typeof HumanMessage>)[]) => {
+/** В этих тестах ветка разбора не вызывает инструменты: реестр пустой. */
+const registryStub = { toolByName: () => undefined } as unknown as McpRegistryService;
+
+const buildGraph = (
+  routerSteps: string[],
+  answerSteps: (string | ReturnType<typeof HumanMessage>)[],
+  reviewEnabled = true,
+) => {
   const policy = new ApprovalPolicyService(configStub());
   const flow = new ApprovalFlowService(configStub());
 
@@ -24,6 +48,8 @@ const buildGraph = (routerSteps: string[], answerSteps: (string | ReturnType<typ
     policy,
     flow,
     checkpointer: new MemorySaver(),
+    review: { config: configStub(), registry: registryStub },
+    reviewEnabled,
   });
 };
 
@@ -54,5 +80,61 @@ describe('граф агента', () => {
 
     expect(sessionB.messages).toHaveLength(2);
     expect(String(sessionB.messages[0]?.content)).toBe('сессия Б');
+  });
+
+  it('просьбу разобрать портфель уводит в ветку плана и останавливает на подтверждении', async () => {
+    const graph = buildGraph(['portfolio_review'], ['ответ агента не используется']);
+
+    const result = (await graph.invoke(
+      { messages: [new HumanMessage('проанализируй мой портфель')] },
+      { configurable: { thread_id: 'unit-review' } },
+    )) as { plan?: unknown[]; __interrupt__?: { value?: { question?: string } }[] };
+
+    expect(result.readingPlan?.length).toBeGreaterThan(0);
+    expect(result.__interrupt__?.[0]?.value?.question).toContain('разбора портфеля');
+  });
+
+  it('при выключенной ветке разбора вопрос о портфеле идёт прежним путём', async () => {
+    const graph = buildGraph(['portfolio_review'], ['Ответ по данным.'], false);
+
+    const result = (await graph.invoke(
+      { messages: [new HumanMessage('проанализируй мой портфель')] },
+      { configurable: { thread_id: 'unit-review-off' } },
+    )) as {
+      readingPlan?: unknown[];
+      reportId?: string;
+      __interrupt__?: { value?: unknown }[];
+    };
+
+    // Плана и отчёта нет: прогон просит подтверждение на чтение сводки, как раньше.
+    expect(result.readingPlan ?? []).toHaveLength(0);
+    expect(result.reportId).toBeUndefined();
+    expect(result.__interrupt__?.length).toBe(1);
+  });
+});
+
+describe('история для модели', () => {
+  const call = new AIMessage({
+    content: '',
+    tool_calls: [{ id: 'call-1', name: 'tinkoff__invest_get_portfolio', args: {} }],
+  });
+
+  it('достраивает ответ на вызов инструмента, прерванный подтверждением', () => {
+    // Провайдер (GigaChat) отвечает 422, если у assistant есть tool_call без ответа tool:
+    // именно так выглядит тред, который продолжили новым вопросом вместо подтверждения.
+    const fixed = withToolResults([new HumanMessage('вопрос'), call, new HumanMessage('ещё вопрос')]);
+
+    expect(fixed.map((message) => message.getType())).toEqual(['human', 'ai', 'tool', 'human']);
+    expect((fixed[2] as ToolMessage).tool_call_id).toBe('call-1');
+  });
+
+  it('готовую историю не меняет', () => {
+    const history = [
+      new HumanMessage('вопрос'),
+      call,
+      new ToolMessage({ tool_call_id: 'call-1', content: 'данные' }),
+    ];
+
+    expect(withToolResults(history)).toHaveLength(3);
   });
 });

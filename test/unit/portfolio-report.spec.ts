@@ -1,6 +1,7 @@
-import {
+﻿import {
   DATA_SOURCE,
   DISCLAIMER,
+  formatAllAccountsReport,
   formatDataAsOf,
   formatMoney,
   formatNumber,
@@ -103,3 +104,110 @@ describe('промпт отчёта', () => {
     expect(prompt).toContain('2026-10-29T15:47:13.000Z');
   });
 });
+
+describe('отчёт по всем счетам', () => {
+  const money = (amount: number) => ({ amount, currency: 'RUB', raw: String(amount), isPoints: false });
+  const position = (ticker: string, amount: number) => ({
+    instrument: { uid: ticker, ticker, name: ticker },
+    quantity: money(amount),
+  });
+
+  it('перечисляет каждый счёт, состав и общий итог', () => {
+    const report = formatAllAccountsReport(
+      [
+        {
+          accountId: 'acc-1',
+          title: 'Долгосрочный',
+          portfolio: {
+            accountId: 'acc-1',
+            currency: 'RUB',
+            totalValue: money(237100.43),
+            positions: [position('SBER', 77), position('NVTK', 19)],
+            dataAsOf: '2026-10-29T15:47:13Z',
+          },
+        },
+        {
+          accountId: 'acc-2',
+          title: 'Пустой',
+          portfolio: {
+            accountId: 'acc-2',
+            currency: 'RUB',
+            totalValue: money(0),
+            positions: [],
+            dataAsOf: '2026-10-29T15:47:13Z',
+          },
+        },
+      ],
+      { dataAsOf: '2026-10-29T15:47:13Z' },
+    );
+
+    expect(report).toContain('Долгосрочный (acc-1)');
+    expect(report).toContain('SBER: 77,00 шт.');
+    expect(report).toContain('Позиций нет: Пустой (acc-2)');
+    expect(report).toContain('Итого по всем счетам: 237 100,43 RUB');
+    expect(report).toContain(DISCLAIMER);
+  });
+
+  it('пишет «состав недоступен», а не «позиций нет», если брокер не вернул состав', () => {
+    const report = formatAllAccountsReport(
+      [
+        {
+          accountId: 'acc-3',
+          portfolio: {
+            accountId: 'acc-3',
+            currency: 'RUB',
+            totalValue: money(570.97),
+            positions: [],
+            positionsUnavailable: true,
+            dataAsOf: '2026-10-29T15:47:13Z',
+          },
+        },
+      ],
+      { dataAsOf: '2026-10-29T15:47:13Z' },
+    );
+
+    expect(report).toContain('состав недоступен');
+    expect(report).not.toContain('позиций нет');
+  });
+
+  it('перечисляет счета, по которым данные не получены', () => {
+    const report = formatAllAccountsReport([], {
+      dataAsOf: '2026-10-29T15:47:13Z',
+      failures: [{ accountId: 'acc-9', title: 'Карта', reason: 'Account not found' }],
+    });
+
+    expect(report).toContain('Не удалось получить данные');
+    expect(report).toContain('Карта (acc-9): Account not found');
+    expect(report).toContain(`Итого по всем счетам: ${UNAVAILABLE}`);
+  });
+
+  it('показывает цену и стоимость позиции, когда они известны', () => {
+    const priced = {
+      instrument: { uid: 'uid-1', ticker: 'SBER', name: 'Сбербанк', classCode: 'TQBR' },
+      quantity: money(77),
+      currentPrice: money(296.7),
+      positionValue: money(22845.9),
+    };
+    const report = formatAllAccountsReport(
+      [
+        {
+          accountId: 'acc-4',
+          title: 'Долгосрочный',
+          portfolio: {
+            accountId: 'acc-4',
+            currency: 'RUB',
+            totalValue: money(22845.9),
+            positions: [priced],
+            dataAsOf: '2026-10-29T15:47:13Z',
+          },
+        },
+      ],
+      { dataAsOf: '2026-10-29T15:47:13Z' },
+    );
+
+    expect(report).toContain('SBER: 77,00 шт. × 296,70 RUB = 22 845,90 RUB');
+    expect(report).toContain('стоимость позиций по текущим ценам: 22 845,90 RUB');
+    expect(report).not.toContain('цены и стоимость позиций недоступны');
+  });
+});
+

@@ -3,9 +3,17 @@ import { SystemMessage, type BaseMessage } from '@langchain/core/messages';
 
 /** Разбор структурированного ответа не удался ни первым, ни вторым способом. */
 export class StructuredOutputError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
     this.name = 'StructuredOutputError';
+  }
+}
+
+/** Ответ провайдера не получен или отклонён: метка берётся детерминированным фолбэком. */
+export class ClassifierUnavailableError extends StructuredOutputError {
+  constructor(options?: { cause?: unknown }) {
+    super('Классификация недоступна', options);
+    this.name = 'ClassifierUnavailableError';
   }
 }
 
@@ -41,11 +49,18 @@ export const invokeStructured = async <T extends Record<string, unknown>>(
       name: params.name,
     });
     return (await structured.invoke(params.messages)) as T;
-  } catch {
-    const response = await params.model.invoke([
-      ...params.messages,
-      new SystemMessage(params.fallback.systemPrompt),
-    ]);
+  } catch (structuredError) {
+    let response: Awaited<ReturnType<BaseChatModel['invoke']>>;
+    try {
+      response = await params.model.invoke([
+        ...params.messages,
+        new SystemMessage(params.fallback.systemPrompt),
+      ]);
+    } catch (invokeError) {
+      // Провайдер отверг и структурированный вызов, и обычный (лимит, 5xx, сеть):
+      // наружу уходит отдельная ошибка, чтобы вызывающий узел мог не падать.
+      throw new ClassifierUnavailableError({ cause: { structuredError, invokeError } });
+    }
     const parsed = params.fallback.parse(contentToText(response.content));
     if (parsed === null) {
       throw new StructuredOutputError('Модель не вернула распознаваемую структуру ответа');

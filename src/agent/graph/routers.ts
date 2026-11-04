@@ -3,8 +3,19 @@ import { END } from '@langchain/langgraph';
 import type { ApprovalPolicyService } from '../approvals/approval-policy.service.js';
 import type { AgentStateType } from './state.js';
 
-export const afterClassify = (state: AgentStateType): 'offTopic' | 'agent' =>
-  state.intent === 'off_topic' ? 'offTopic' : 'agent';
+/**
+ * Маршрут после классификации: посторонние темы — отказ, разбор портфеля — в
+ * ветку планирования, остальные вопросы — в узел ответа с инструментами.
+ * При `reviewEnabled=false` метки остаются прежними и ветки `plan` нет.
+ */
+export const afterClassify =
+  (reviewEnabled = true) =>
+  (state: AgentStateType): 'offTopic' | 'agent' | 'plan' => {
+    if (state.intent === 'off_topic') {
+      return 'offTopic';
+    }
+    return reviewEnabled && state.intent === 'portfolio_review' ? 'plan' : 'agent';
+  };
 
 /**
  * Маршрут после модели: `approve` — если хотя бы один вызов требует подтверждения
@@ -20,3 +31,4 @@ export const createAfterAgent =
     }
     return calls.some((call) => policy.requiresApproval(call.name)) ? 'approve' : 'tools';
   };
+

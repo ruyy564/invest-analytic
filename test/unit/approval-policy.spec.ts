@@ -94,13 +94,12 @@ describe('правила подтверждений', () => {
     expect(() => policy.assertKnownTools(['tinkoff__invest_list_accounts'])).toThrow(
       /отсутствует в каталоге MCP/,
     );
-    expect(() =>
-      policy.assertKnownTools([
-        'tinkoff__invest_list_accounts',
-        'tinkoff__invest_get_portfolio',
-        'tinkoff__invest_get_positions',
-      ]),
-    ).not.toThrow();
+    // Полный каталог: все инструменты, на которые ссылаются правила (кроме локальной
+    // сводки, которую собирает само приложение).
+    const catalog = policy.rulesSnapshot
+      .map((rule) => rule.tool)
+      .filter((tool) => !tool.includes('*') && tool !== 'portfolio_all_accounts');
+    expect(() => policy.assertKnownTools(catalog)).not.toThrow();
   });
 });
 

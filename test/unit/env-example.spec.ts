@@ -29,7 +29,15 @@ describe('.env.example', () => {
     ...SCALAR_ENV_KEYS,
     ...serverNames.flatMap((name) => {
       const prefix = `MCP_${name.toUpperCase()}_`;
-      return [`${prefix}URL`, `${prefix}TRANSPORT`, `${prefix}TOKEN`, `${prefix}ALLOWED_TOOLS`];
+      return [
+        `${prefix}URL`,
+        `${prefix}TRANSPORT`,
+        `${prefix}TOKEN`,
+        `${prefix}ALLOWED_TOOLS`,
+        // TLS до MCP-сервера: режим и файл дополнительного CA.
+        `${prefix}TLS_MODE`,
+        `${prefix}CA_FILE`,
+      ];
     }),
   ]);
 

@@ -52,6 +52,8 @@ export interface AppConfig {
   report: {
     /** Файл декларативного шаблона отчёта (секции, пороги, периоды). */
     templateFile: string;
+    /** Файл промпта интерпретации: им модель пишет «макро» и «итог». */
+    interpretationPromptFile: string;
   };
   /** Источники данных помимо брокера: реестр подключается по списку `SOURCES`. */
   sources: {
@@ -129,6 +131,7 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
   },
   report: {
     templateFile: env.REPORT_TEMPLATE_FILE,
+    interpretationPromptFile: env.REPORT_INTERPRETATION_PROMPT_FILE,
   },
   sources: {
     enabled: env.SOURCES,

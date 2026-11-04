@@ -99,7 +99,7 @@ describe('граф агента с подтверждением', () => {
 
     expect(result.status).toBe('completed');
     expect(result.intent).toBe('off_topic');
-    expect(result.answer).toContain('показываю только состав');
+    expect(result.answer).toContain('вне моей компетенции');
     expect(toolCalls()).toBe(0);
   });
 

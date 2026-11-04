@@ -2,6 +2,8 @@ import { McpInvalidResponseError } from '../../src/tools/errors.js';
 import { mapInstrument } from '../../src/tools/mappers/instrument.mapper.js';
 import { normalizeCurrency, parseDecimal, parseMoney } from '../../src/tools/mappers/money.js';
 import { mapPortfolio } from '../../src/tools/mappers/portfolio.mapper.js';
+import { mapPositions } from '../../src/tools/mappers/positions.mapper.js';
+import { mapMarketValues, priceOf } from '../../src/tools/mappers/market-values.mapper.js';
 
 const PORTFOLIO = {
   accountId: 'acc-1',
@@ -89,7 +91,100 @@ describe('маппер портфеля', () => {
     expect(portfolio.expectedYield).toBeUndefined();
   });
 
+  it('читает итог из totalAmountPortfolio (текущий формат API)', () => {
+    const portfolio = mapPortfolio({
+      totalAmountPortfolio: { currency: 'rub', value: '237100.43' },
+      expectedYield: { value: '11.59' },
+    });
+
+    expect(portfolio.totalValue).toMatchObject({ amount: 237100.43, currency: 'RUB' });
+    expect(portfolio.expectedYield?.amount).toBe(11.59);
+  });
+
+  it('помечает состав недоступным, если стоимость есть, а позиций в ответе нет', () => {
+    // Так ведёт себя invest_get_portfolio: только итоги, без массива positions.
+    const portfolio = mapPortfolio({ totalAmountPortfolio: { currency: 'rub', value: '237100.43' } });
+
+    expect(portfolio.positions).toEqual([]);
+    expect(portfolio.positionsUnavailable).toBe(true);
+  });
+
   it('падает на некорректном ответе', () => {
     expect(() => mapPortfolio('строкой')).toThrow(McpInvalidResponseError);
+  });
+});
+
+describe('маппер цен (invest_get_market_values)', () => {
+  const RAW = {
+    instruments: [
+      {
+        ticker: 'SBER',
+        classCode: 'TQBR',
+        priceCurrency: 'rub',
+        values: [
+          { type: 'INSTRUMENT_VALUE_LAST_PRICE', value: { value: '296.70' } },
+          { type: 'INSTRUMENT_VALUE_CLOSE_PRICE', value: { value: '290.10' } },
+        ],
+      },
+      {
+        ticker: 'Si',
+        classCode: 'SPBFUT',
+        priceCurrency: 'pt',
+        values: [{ type: 'INSTRUMENT_VALUE_LAST_PRICE', value: { value: '85000' } }],
+      },
+    ],
+  };
+
+  it('берёт последнюю цену и валюту инструмента', () => {
+    const prices = mapMarketValues(RAW);
+
+    expect(priceOf(prices, 'SBER', 'TQBR')).toMatchObject({ amount: 296.7, currency: 'RUB' });
+    expect(priceOf(prices, 'sber')).toMatchObject({ amount: 296.7 });
+    // Фьючерсы котируются в пунктах — их нельзя подписывать как рубли.
+    expect(priceOf(prices, 'Si', 'SPBFUT')?.isPoints).toBe(true);
+  });
+
+  it('понимает ответ адаптера MCP — JSON-строку', () => {
+    expect(priceOf(mapMarketValues(JSON.stringify(RAW)), 'SBER', 'TQBR')?.amount).toBe(296.7);
+  });
+
+  it('падает, если ответ не разбирается', () => {
+    expect(() => mapMarketValues('не json')).toThrow();
+  });
+});
+
+describe('маппер позиций (invest_get_positions)', () => {
+  const POSITIONS = {
+    money: [{ currency: 'rub', value: '958.08' }],
+    blocked: [],
+    securities: [
+      { blocked: '0', balance: '19', ticker: 'NVTK', classCode: 'TQBR' },
+      { blocked: '0', balance: '77', ticker: 'SBER', classCode: 'TQBR' },
+    ],
+    futures: [{ balance: '2', ticker: 'Si-12.25' }],
+    options: [],
+  };
+
+  it('берёт бумаги, фьючерсы и опционы; цены не выдумывает', () => {
+    const positions = mapPositions(POSITIONS);
+
+    expect(positions.map((position) => position.instrument.ticker)).toEqual([
+      'NVTK',
+      'SBER',
+      'SI-12.25',
+    ]);
+    expect(positions[0]).toMatchObject({
+      quantity: { amount: 19, currency: 'RUB' },
+      currentPrice: undefined,
+      positionValue: undefined,
+    });
+  });
+
+  it('понимает ответ адаптера MCP — JSON-строку', () => {
+    expect(mapPositions(JSON.stringify(POSITIONS))).toHaveLength(3);
+  });
+
+  it('падает, если ответ не разбирается', () => {
+    expect(() => mapPositions('не json')).toThrow(McpInvalidResponseError);
   });
 });

@@ -1,5 +1,5 @@
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
-import { Command, interrupt, type LangGraphRunnableConfig } from '@langchain/langgraph';
+import { Command, END, interrupt, type LangGraphRunnableConfig } from '@langchain/langgraph';
 import type {
   ApprovalFlowService,
   ApproveDecision,
@@ -15,8 +15,68 @@ export interface ApproveNodeDeps {
 }
 
 const DECLINE_TEXT =
-  'Пользователь отклонил чтение данных: данные не запрашивались. ' +
-  'Сообщи об этом и предложи переформулировать вопрос.';
+  'Пользователь НЕ подтвердил чтение данных: данные не запрашивались. ' +
+  'Скажи, что без подтверждения показать данные нельзя, и предложи подтвердить запрос. ' +
+  'Не утверждай, что данных нет или что брокер недоступен.';
+
+const DECLINE_REPORT_TEXT =
+  'Отчёт не сформирован: вы не подтвердили чтение данных, поэтому брокер не запрашивался. ' +
+  'Подтвердите запрос, чтобы получить разбор портфеля.';
+
+/** Виды данных плана — их видит пользователь в запросе подтверждения. */
+const groupLabels: Record<string, string> = {
+  accounts: 'счета',
+  portfolio: 'состав и стоимость портфеля',
+  prices: 'текущие цены',
+  candles: 'история цен',
+  reference: 'справочники бумаг',
+  analytics: 'прогнозы аналитиков',
+  dividends: 'дивиденды',
+  fundamentals: 'фундаментальные показатели',
+  signals: 'сигналы и мнения',
+  news: 'новости',
+  tax: 'налоги',
+  macro: 'ключевая ставка',
+  indices: 'индексы',
+};
+
+/**
+ * Решение приходит из разных источников: HTTP-API (`{ approved: true }`),
+ * поле Resume в Studio (объект или строка JSON), голый boolean. Пустое значение
+ * (`undefined`, `{}`) — это отказ: подтверждение без явного «да» не считается данным.
+ */
+export const isApprovedDecision = (decision: unknown): boolean => {
+  if (typeof decision === 'boolean') {
+    return decision;
+  }
+  if (typeof decision === 'string') {
+    const text = decision.trim();
+    if (text === '') {
+      return false;
+    }
+    if (/^(true|да|yes|ок|ok|approve[ds]?)$/i.test(text)) {
+      return true;
+    }
+    try {
+      return isApprovedDecision(JSON.parse(text) as unknown);
+    } catch {
+      return false;
+    }
+  }
+  if (Array.isArray(decision)) {
+    return decision.some(isApprovedDecision);
+  }
+  if (decision && typeof decision === 'object') {
+    const record = decision as Record<string, unknown>;
+    const value = record.approved ?? record.approve ?? record.decision ?? record.value;
+    if (value !== undefined) {
+      return isApprovedDecision(value);
+    }
+    // `{1: true}` — так Studio передаёт решение, если поле оставили пустым.
+    return Object.values(record).some(isApprovedDecision);
+  }
+  return false;
+};
 
 /**
  * Узел подтверждения: пауза через `interrupt`. При подтверждении управление
@@ -28,6 +88,46 @@ export const createApproveNode =
     const last = state.messages.at(-1) as AIMessage | undefined;
     const calls = last?.tool_calls ?? [];
     const threadId = String(config?.configurable?.thread_id ?? '');
+    const plan = state.readingPlan ?? [];
+
+    // Ветка разбора: подтверждается весь план чтений одним запросом.
+    if (plan.length > 0) {
+      const groups = [...new Set(plan.map((entry) => entry.group))];
+      const accounts = [...new Set(plan.map((entry) => entry.target).filter((id): id is string => Boolean(id)))];
+      const rule = deps.policy.ruleFor('portfolio__review') ?? {
+        tool: 'portfolio__review',
+        label: 'Разбор портфеля',
+        question: 'Прочитать данные для разбора портфеля?',
+        requiresApproval: true,
+      };
+
+      deps.flow.markRequested(threadId);
+      const approved = interrupt<ApprovePayload, ApproveDecision>({
+        ...deps.flow.buildPayload(
+          [
+            {
+              rule: {
+                ...rule,
+                question:
+                  `Прочитать ${plan.length} видов данных для разбора портфеля` +
+                  ` (${groups.map((group) => groupLabels[group] ?? group).join(', ')})?`,
+              },
+              args: { requests: plan.length, groups, accounts },
+            },
+          ],
+          deps.accountId,
+        ),
+      });
+      deps.flow.clear(threadId);
+
+      if (isApprovedDecision(approved)) {
+        return new Command({ goto: 'collect' });
+      }
+      return new Command({
+        goto: END,
+        update: { messages: [new AIMessage(DECLINE_REPORT_TEXT)], partial: false },
+      });
+    }
 
     const items = calls
       .filter((call) => deps.policy.requiresApproval(call.name))
@@ -47,7 +147,7 @@ export const createApproveNode =
     );
     deps.flow.clear(threadId);
 
-    if (decision.approved) {
+    if (isApprovedDecision(decision)) {
       return new Command({ goto: 'tools' });
     }
 

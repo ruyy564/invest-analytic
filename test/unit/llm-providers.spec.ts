@@ -12,6 +12,8 @@ const llmConfig = (overrides: Partial<AppConfig['llm']> = {}): AppConfig['llm'] 
     credentials: 'cred',
     scope: 'GIGACHAT_API_PERS',
     authUrl: 'https://auth.example.com/oauth',
+    // По умолчанию без SSE-потока: с ним GigaChat иногда отдаёт битый чанк.
+    streaming: false,
   },
   ...overrides,
 });
@@ -41,7 +43,19 @@ describe('параметры провайдеров', () => {
       scope: 'GIGACHAT_API_PERS',
       authUrl: 'https://auth.example.com/oauth',
       model: 'gpt-4o-mini',
+      streaming: false,
+      // Жёсткие пределы: без них ответ «висит» десятки секунд.
+      timeout: 15_000,
+      maxTokens: 1_024,
+      // Studio передаёт streaming-callbacks; без флага модель уходит в SSE.
+      disableStreaming: true,
     });
+    // Поток включается только явной настройкой окружения.
+    const streaming = buildGigachatParams(
+      llmConfig({ gigachat: { ...llmConfig().gigachat, streaming: true } }),
+      'answer',
+    );
+    expect(streaming.streaming).toBe(true);
     expect(buildOpenAiParams(llmConfig({ temperature: 0.5 }), 'answer').temperature).toBe(0.5);
   });
 });

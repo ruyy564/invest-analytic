@@ -15,6 +15,11 @@ export interface Portfolio {
   totalValue?: Money;
   expectedYield?: Money;
   positions: PortfolioPosition[];
+  /**
+   * `true`, если у счёта есть стоимость, но массив позиций в ответе не пришёл:
+   * пустым портфелем это называть нельзя (иначе теряются данные, как на реальных счетах).
+   */
+  positionsUnavailable?: boolean;
   /** Время данных: `time` из ответа, иначе момент разбора. */
   dataAsOf: string;
 }
@@ -74,12 +79,20 @@ export const mapPortfolio = (raw: unknown, now: Date = new Date()): Portfolio =>
     };
   });
 
+  // Текущий API отдаёт итог в `totalAmountPortfolio`; `totalValue` — старый формат.
+  const totalValue = asMoney(root.totalAmountPortfolio ?? root.totalValue, rawCurrency);
+  const expectedYield = asMoney(root.expectedYield, rawCurrency);
+
   return {
     accountId: asString(root.accountId),
     currency: normalizeCurrency(rawCurrency),
-    totalValue: asMoney(root.totalValue, rawCurrency),
-    expectedYield: asMoney(root.expectedYield, rawCurrency),
+    totalValue,
+    expectedYield,
     positions,
+    // Инструмент `invest_get_portfolio` некоторых версий API отдаёт только итоги:
+    // непустой счёт без массива позиций — это «данных нет», а не «позиций нет».
+    positionsUnavailable:
+      positionsRaw.length === 0 && (totalValue?.amount ?? 0) > 0 && root.positions === undefined,
     dataAsOf: asString(root.time) ?? now.toISOString(),
   };
 };

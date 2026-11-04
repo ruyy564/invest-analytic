@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service.js';
 import { GlobalStoreService } from './global-store.service.js';
 import { createCheckpointer } from './checkpointer.factory.js';
 import { CleanupService } from './cleanup.service.js';
+import { ReportStoreService } from './report-store.service.js';
 
 /** Чекпоинтер состояния прогонов: sqlite (по умолчанию) или memory. */
 export const CHECKPOINTER = Symbol('CHECKPOINTER');
@@ -20,8 +21,9 @@ export const GLOBAL_STORE = Symbol('GLOBAL_STORE');
     },
     { provide: GLOBAL_STORE, useExisting: GlobalStoreService },
     CleanupService,
+    ReportStoreService,
   ],
-  exports: [CHECKPOINTER, GLOBAL_STORE, GlobalStoreService, CleanupService],
+  exports: [CHECKPOINTER, GLOBAL_STORE, GlobalStoreService, CleanupService, ReportStoreService],
 })
 export class StateModule {}
 

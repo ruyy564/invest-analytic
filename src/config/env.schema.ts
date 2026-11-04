@@ -118,6 +118,12 @@ const scalarEnvObject = z
     MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
     /** Декларативный шаблон отчёта: состав и порядок секций задаются файлом. */
     REPORT_TEMPLATE_FILE: z.string().trim().min(1).default('reports/portfolio-review.yaml'),
+    /** Промпт интерпретации: «макро» и «итог» формулирует модель. */
+    REPORT_INTERPRETATION_PROMPT_FILE: z
+      .string()
+      .trim()
+      .min(1)
+      .default('reports/prompts/interpretation.md'),
     REVIEW_ENABLED: flag(true),
 
     // Источники данных помимо брокера: ЦБ (ключевая ставка) и новостные ленты.
