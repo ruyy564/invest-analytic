@@ -100,6 +100,9 @@ export interface TaxWatchDeps {
   now?: Date;
 }
 
+/** Сколько счетов опрашивать по налогам: каждый счёт — отдельный вызов операций. */
+export const TAX_MAX_ACCOUNTS = 5;
+
 /**
  * Налоговое наблюдение: факты удержаний из операций брокера + публикации об
  * изменениях законодательства по словарю.
@@ -111,12 +114,21 @@ export const collectTaxFacts = async (deps: TaxWatchDeps): Promise<TaxFacts> => 
   const to = now.toISOString();
   const coverage: SourceCoverageEntry[] = [];
   const withheld: TaxWithholding[] = [];
+  const accounts = [...deps.accounts].slice(0, TAX_MAX_ACCOUNTS);
+
+  if (deps.accounts.length > accounts.length) {
+    coverage.push({
+      source: 'tinkoff.operations',
+      status: 'missing',
+      reason: `операции запрошены по первым ${accounts.length} счетам из ${deps.accounts.length}`,
+    });
+  }
 
   const operationsTool = deps.tool('invest_get_operations');
   if (!operationsTool) {
     coverage.push({ source: 'tinkoff.operations', status: 'missing', reason: 'инструмент недоступен' });
   } else {
-    for (const accountId of deps.accounts) {
+    for (const accountId of accounts) {
       try {
         const raw = await withTimeout(
           operationsTool.invoke({ accountId, from, to } as never),

@@ -54,7 +54,8 @@ export const mapNews = (
 
 /**
  * Новости брокера: общая лента и лента по тикерам. Даты в API нет — период
- * определяется по времени публикации, поэтому листаем курсором.
+ * определяется по времени публикации. По тикеру листаем одну страницу:
+ * глубина выборки важнее для общей ленты, а каждая страница — вызов из бюджета.
  */
 export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): NewsSourceAdapter => {
   const call = async (args: Record<string, unknown>): Promise<{ items: SourceItem[]; nextCursor?: string }> => {
@@ -100,7 +101,10 @@ export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): News
 
       for (const ticker of tickers.slice(0, 5)) {
         try {
-          batches.push(...(await collect(ticker, { ...query, maxItems: Math.min(5, query.maxItems) })));
+          // По бумаге достаточно первой страницы: период считается по дате публикации.
+          batches.push(
+            ...(await collect(ticker, { ...query, pages: 1, maxItems: Math.min(3, query.maxItems) })),
+          );
         } catch {
           // Один тикер не должен ломать сводку: остальные ленты соберём.
         }

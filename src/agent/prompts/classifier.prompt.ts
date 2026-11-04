@@ -45,4 +45,27 @@ export const parseIntentText = (text: string): Intent | null => {
   return null;
 };
 
+/**
+ * Явные маркеры сценария: такие вопросы не отдаём на откуп модели.
+ * Провайдеры (GigaChat в их числе) иногда относят «проанализируй мой портфель»
+ * к посторонним темам — детерминированное правило надёжнее.
+ */
+export const REVIEW_PATTERN =
+  /проанализируй|проанализировать|разбери|разбор\s+портфел|диверсификац|ребаланс|что\s+(?:мне\s+)?делать\s+с\s+портфел|оцени\s+(?:мой\s+)?портфел|насколько\s+(?:он\s+)?диверсифицирован|каких\s+бумаг\s+не\s+хватает/i;
+
+/** Посторонние темы, на которых модель ошибается реже, чем правило. */
+export const OFF_TOPIC_PATTERN =
+  /погод|гороскоп|анекдот|рецепт|футбол|медицин|симптом|политик[аиу]\b|выборы\s+в\s+сша/i;
+
+/** Метка по явным маркерам вопроса; `null` — решает модель. */
+export const heuristicIntent = (text: string): Intent | null => {
+  if (REVIEW_PATTERN.test(text)) {
+    return { intent: 'portfolio_review' };
+  }
+  if (OFF_TOPIC_PATTERN.test(text)) {
+    return { intent: 'off_topic' };
+  }
+  return null;
+};
+
 export const buildClassifierMessages = (messages: BaseMessage[]): BaseMessage[] => messages;

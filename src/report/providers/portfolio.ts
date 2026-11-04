@@ -116,10 +116,34 @@ export const distribute = <T>(
 };
 
 
+/**
+ * Свёртка позиций по тикеру: одна бумага на нескольких счетах показывается
+ * одной строкой, иначе таблица дублирует её и завышает число позиций.
+ */
+export const aggregateHoldings = (holdings: Holding[]): Holding[] => {
+  const aggregated = new Map<string, Holding>();
+  for (const holding of holdings) {
+    const key = `${holding.ticker}|${holding.currency}`;
+    const existing = aggregated.get(key);
+    if (!existing) {
+      aggregated.set(key, { ...holding });
+      continue;
+    }
+    existing.quantity += holding.quantity;
+    if (holding.value) {
+      existing.value = {
+        ...holding.value,
+        amount: Math.round(((existing.value?.amount ?? 0) + holding.value.amount) * 100) / 100,
+      };
+    }
+  }
+  return [...aggregated.values()];
+};
+
 export const snapshotProvider: FactProvider = {
   id: 'portfolio.snapshot',
   section(ctx: FactContext): SectionFacts | undefined {
-    const holdings = holdingsOf(ctx).filter((holding) => holding.quantity !== 0);
+    const holdings = aggregateHoldings(holdingsOf(ctx)).filter((holding) => holding.quantity !== 0);
     if (holdings.length === 0) {
       return { missing: 'в портфеле нет позиций или состав недоступен' };
     }

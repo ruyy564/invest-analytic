@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { ConfigError } from '../../src/config/config.error.js';
-import { buildCollectionPlan, planKey } from '../../src/collection/plan.js';
+import { buildCollectionPlan, planKey, ANALYTICS_MAX_INSTRUMENTS } from '../../src/collection/plan.js';
 import type { CollectionResult } from '../../src/collection/executor.js';
 import { buildReport, composeMarkdown, missingProviders } from '../../src/report/engine.js';
 import { createProviderMap } from '../../src/report/providers/index.js';
@@ -271,8 +271,17 @@ describe('шаблон управляет отчётом', () => {
       providers: ['market.analytics', 'market.dynamics'],
     });
 
-    expect(built.entries.filter((entry) => entry.group === 'analytics')).toHaveLength(15);
-    expect(built.entries.filter((entry) => entry.group === 'candles')).toHaveLength(15);
+    // Аналитика — только по крупнейшим бумагам (дорогая часть плана), свечи — по лимиту разбора.
+    expect(built.entries.filter((entry) => entry.group === 'analytics')).toHaveLength(
+      ANALYTICS_MAX_INSTRUMENTS,
+    );
+    expect(built.entries.filter((entry) => entry.group === 'dividends')).toHaveLength(
+      ANALYTICS_MAX_INSTRUMENTS,
+    );
+    // Свечи тоже дорогие (поиск бумаги + выгрузка), поэтому идут по тому же лимиту.
+    expect(built.entries.filter((entry) => entry.group === 'candles')).toHaveLength(
+      ANALYTICS_MAX_INSTRUMENTS,
+    );
     expect(built.maxInstruments).toBe(15);
   });
 });

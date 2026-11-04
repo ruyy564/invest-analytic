@@ -111,7 +111,7 @@ const scalarEnvObject = z
     TINKOFF_ACCOUNT_ID: z.string().trim().optional(),
 
     // Лимиты прогона: разбор портфеля требует заметно больше вызовов, чем точечный вопрос.
-    RUN_TOOL_MAX_CALLS: z.coerce.number().int().positive().default(40),
+    RUN_TOOL_MAX_CALLS: z.coerce.number().int().positive().default(120),
     RUN_DEADLINE_MS: z.coerce.number().int().positive().default(90_000),
     RUN_PARALLELISM: z.coerce.number().int().positive().max(16).default(4),
     REVIEW_MAX_INSTRUMENTS: z.coerce.number().int().positive().default(15),

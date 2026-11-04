@@ -67,17 +67,16 @@ describe('определение сектора бумаги', () => {
     expect([...map.entries()]).toEqual([['SBER', 'финансы']]);
   });
 
-  it('строит записи справочника только для инструментов с uid', () => {
+  it('строит записи справочника актива по uid', () => {
     const entries = sectorEntries([
-      { ticker: 'SBER', uid: 'uid-sber' },
+      { ticker: 'SBER', classCode: 'TQBR', uid: 'uid-sber' },
       { ticker: 'NOUID' },
-      { ticker: 'EMPTY', uid: '' },
     ]);
 
     expect(entries).toEqual([
       {
         tool: 'invest_get_asset',
-        args: { instrumentId: 'uid-sber' },
+        args: { instrumentId: 'uid-sber', idType: 'INSTRUMENT_ID_TYPE_UID' },
         group: 'reference',
         priority: 'optional',
         target: 'SBER',
@@ -94,7 +93,9 @@ describe('сектор в отчёте', () => {
       maxInstruments: 15,
       providers: ['portfolio.structure', 'portfolio.gaps'],
     });
-    plan.entries.push(...sectorEntries([{ ticker: 'SBER', uid: 'uid-sber' }]));
+    plan.entries.push(
+      ...sectorEntries([{ ticker: 'SBER', classCode: 'TQBR', uid: 'uid-sber' }]),
+    );
 
     const results = new Map<string, string>();
     for (const entry of plan.entries) {

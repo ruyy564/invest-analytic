@@ -39,8 +39,8 @@ export const sectorLabel = (raw: string | undefined): string => {
 };
 
 /**
- * Сектор из ответа справочника актива: ищем `brand.sector`, `asset.brand.sector`
- * или `sector` в корне — форма ответа у брокера менялась, разбор терпимый.
+ * Сектор из ответа справочника. Форма ответа у брокера менялась, поэтому
+ * порядок такой: известные пути → любой `"sector"` в ответе → ничего.
  */
 export const sectorOf = (payload: unknown): string | undefined => {
   const root = asRecord(payload);
@@ -54,7 +54,29 @@ export const sectorOf = (payload: unknown): string | undefined => {
     asText(asRecord(brand.sector).name),
   ];
 
-  return candidates.find((value) => value !== undefined && value !== 'SECTOR_UNSPECIFIED');
+  const direct = candidates.find(
+    (value) => value !== undefined && value !== 'SECTOR_UNSPECIFIED',
+  );
+  if (direct) {
+    return direct;
+  }
+
+  // Последний шанс: сектор лежит глубже, чем мы предполагали.
+  try {
+    const match = /"sector"\s*:\s*"(SECTOR_[A-Z_]+)"/.exec(JSON.stringify(payload));
+    const value = match?.[1];
+    return value && value !== 'SECTOR_UNSPECIFIED' ? value : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Идентификатор бренда: сектор можно добрать через `invest_get_brand`. */
+export const brandUidOf = (payload: unknown): string | undefined => {
+  const root = asRecord(payload);
+  const asset = asRecord(root.asset ?? root);
+  const brand = asRecord(asset.brand ?? root.brand);
+  return asText(brand.uid) ?? asText(asset.brandUid) ?? asText(root.brandUid);
 };
 
 /** Идентификатор актива из ответа `invest_get_asset` или позиции. */
@@ -62,6 +84,37 @@ export const assetUidOf = (payload: unknown): string | undefined => {
   const root = asRecord(payload);
   const asset = asRecord(root.asset ?? root);
   return asText(asset.uid) ?? asText(root.uid) ?? asText(asset.instrumentUid);
+};
+
+/** Разбор собранных ответов справочника: сектор и бренд по тикерам. */
+export const sectorLookup = (
+  entries: { target?: string; text: string }[],
+): { byTicker: Map<string, string>; brandByTicker: Map<string, string> } => {
+  const byTicker = new Map<string, string>();
+  const brandByTicker = new Map<string, string>();
+
+  for (const { target, text } of entries) {
+    if (!target) {
+      continue;
+    }
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      continue;
+    }
+    const sector = sectorOf(payload);
+    if (sector) {
+      byTicker.set(target, sectorLabel(sector));
+      continue;
+    }
+    const brandUid = brandUidOf(payload);
+    if (brandUid) {
+      brandByTicker.set(target, brandUid);
+    }
+  }
+
+  return { byTicker, brandByTicker };
 };
 
 /** Карта «тикер → сектор» из собранных ответов справочника. */

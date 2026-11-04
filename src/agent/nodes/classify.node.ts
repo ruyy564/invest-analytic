@@ -7,6 +7,7 @@ import { withTimeout } from '../../tools/mcp-tool.adapter.js';
 import {
   CLASSIFIER_FALLBACK_PROMPT,
   CLASSIFIER_SYSTEM_PROMPT,
+  heuristicIntent,
   parseIntentText,
 } from '../prompts/classifier.prompt.js';
 
@@ -32,6 +33,23 @@ export const createClassifyNode = (model: BaseChatModel) => {
   const logger = new Logger('ClassifyNode');
 
   return async (state: AgentStateType): Promise<{ intent: AgentStateType['intent'] }> => {
+    // Явные маркеры сценария решаем сами: модель иногда относит «проанализируй
+    // мой портфель» к посторонним темам, а это ядро продукта.
+    const lastHuman = [...state.messages]
+      .reverse()
+      .find(
+        (message) =>
+          (message as unknown as { _getType?: () => string })._getType?.() === 'human',
+      );
+    const question =
+      typeof lastHuman?.content === 'string'
+        ? lastHuman.content
+        : JSON.stringify(lastHuman?.content ?? '');
+    const heuristic = heuristicIntent(question);
+    if (heuristic) {
+      return { intent: heuristic.intent };
+    }
+
     try {
       const response = await withTimeout(
         model.invoke([

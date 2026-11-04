@@ -1,5 +1,15 @@
 import type { CoverageEntry } from '../sources/registry.js';
 
+/** Тикер без класса: `SBER_TQBR` → `SBER`. */
+export const baseTicker = (instrumentId: string): string => instrumentId.split('_')[0];
+
+/** Идентификатор инструмента для MCP: `TICKER_CLASSCODE`, если класс известен. */
+export const instrumentKey = (ticker: string, classCode?: string): string =>
+  classCode ? `${ticker}_${classCode}` : ticker;
+
+/** Сколько бумаг получают расширенную аналитику (прогноз, дивиденды, инсайдеры). */
+export const ANALYTICS_MAX_INSTRUMENTS = 5;
+
 /** Приоритет записи плана: обязательные источники выполняются первыми. */
 export type PlanPriority = 'mandatory' | 'optional';
 
@@ -92,12 +102,15 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
   }
 
   const detailed = topTickers(ctx.tickers, ctx.maxInstruments);
+  // Пери-тикерная аналитика — самая дорогая часть плана (3 запроса на бумагу):
+  // берём только крупнейшие позиции, остальным хватает цен и структуры.
+  const analysable = topTickers(ctx.tickers, ANALYTICS_MAX_INSTRUMENTS);
   const wants = (provider: string): boolean => ctx.providers.includes(provider);
 
   if (wants('news.digest')) {
     add({
       tool: 'market__news_digest',
-      args: { tickers: [...detailed] },
+      args: { tickers: [...new Set(detailed.map(baseTicker))] },
       group: 'news',
       priority: 'mandatory',
     });
@@ -115,38 +128,41 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
     });
   }
   if (wants('market.dynamics')) {
-    for (const ticker of detailed) {
+    for (const id of analysable) {
+      // Свечи дорогие: инструмент ищет бумагу и может перебрать два класса.
       add({
         tool: 'market__price_dynamics',
-        args: { ticker, days: 180 },
+        // Инструмент сам подбирает класс бумаги, поэтому передаём базовый тикер.
+        args: { ticker: baseTicker(id), days: 180 },
         group: 'candles',
         priority: 'optional',
-        target: ticker,
+        target: baseTicker(id),
       });
     }
   }
   if (wants('market.analytics')) {
-    for (const ticker of detailed) {
+    for (const id of analysable) {
+      const target = baseTicker(id);
       add({
         tool: 'invest_get_forecast',
-        args: { instrumentId: ticker },
+        args: { instrumentId: id },
         group: 'analytics',
         priority: 'optional',
-        target: ticker,
+        target,
       });
       add({
         tool: 'invest_get_share_dividends',
-        args: { instrumentId: ticker },
+        args: { instrumentId: id },
         group: 'dividends',
         priority: 'optional',
-        target: ticker,
+        target,
       });
       add({
         tool: 'invest_get_insider_deals',
-        args: { instrumentId: ticker },
+        args: { instrumentId: id },
         group: 'signals',
         priority: 'optional',
-        target: ticker,
+        target,
       });
     }
     add({ tool: 'invest_list_signals', args: {}, group: 'signals', priority: 'optional' });
@@ -159,21 +175,30 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
 export const planSize = (plan: CollectionPlan): number => plan.entries.length;
 
 /**
- * Записи справочника для определения секторов: по одной на инструмент.
- * Тикер попадает в `target`, идентификатор актива — в аргумент.
+ * Записи справочника для определения секторов: `invest_get_asset` по uid актива.
+ * Проверено на живом MCP: `invest_get_share` отдаёт только `instrument` без бренда,
+ * а полный актив (`AssetFull`) содержит `brand.sector`.
  */
 export const sectorEntries = (
   instruments: readonly { ticker: string; uid?: string }[],
 ): PlanEntry[] =>
-  instruments
-    .filter((instrument) => instrument.uid !== undefined && instrument.uid !== '')
-    .map((instrument) => ({
-      tool: 'invest_get_asset',
-      args: { instrumentId: instrument.uid },
-      group: 'reference' as PlanGroup,
-      priority: 'optional' as PlanPriority,
-      target: instrument.ticker,
-    }));
+  instruments.flatMap((instrument) => {
+    if (!instrument.uid) {
+      return [];
+    }
+    return [
+      {
+        tool: 'invest_get_asset',
+        args: {
+          instrumentId: instrument.uid,
+          idType: 'INSTRUMENT_ID_TYPE_UID',
+        },
+        group: 'reference' as PlanGroup,
+        priority: 'optional' as PlanPriority,
+        target: instrument.ticker,
+      },
+    ];
+  });
 
 /** Виды данных, которые затронет прогон: их видит пользователь в подтверждении. */
 export const planGroups = (plan: CollectionPlan): PlanGroup[] =>

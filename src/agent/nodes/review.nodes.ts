@@ -10,6 +10,7 @@ import {
 } from '../../collection/executor.js';
 import {
   buildCollectionPlan,
+  instrumentKey,
   planKey,
   sectorEntries,
   type CollectionPlan,
@@ -26,6 +27,7 @@ import {
   templateProviders,
   type ReportTemplate,
 } from '../../report/template.js';
+import { sectorLookup } from '../../report/sector.js';
 import type { AgentStateType } from '../graph/state.js';
 import { ANSWER_TIMEOUT_MS } from './agent.node.js';
 
@@ -58,17 +60,18 @@ const accountIds = async (deps: ReviewDeps): Promise<string[]> => {
   }
 };
 
-/** Инструменты из собранных позиций: тикер и uid актива (для справочника). */
+/** Инструменты из собранных позиций: тикер, класс и uid актива (для справочника). */
 export const instrumentsOf = (
   plan: CollectionPlan,
   collected: CollectionResult,
-): { ticker: string; uid?: string }[] => {
-  const found = new Map<string, { ticker: string; uid?: string }>();
+): { ticker: string; classCode?: string; uid?: string }[] => {
+  const found = new Map<string, { ticker: string; classCode?: string; uid?: string }>();
   for (const { text } of resultsInGroup(plan, collected, 'portfolio')) {
     try {
       for (const position of mapPositions(text, 'rub')) {
         found.set(position.instrument.ticker, {
           ticker: position.instrument.ticker,
+          classCode: position.instrument.classCode,
           uid: position.instrument.uid,
         });
       }
@@ -126,10 +129,14 @@ export const createCollectNode =
     // цены, пери-тикерная аналитика, новости по бумагам и справочник секторов.
     // Уже выполненные запросы первой фазы не повторяем: бюджет прогона общий.
     const instruments = instrumentsOf(basePlan, first);
-    const tickers = instruments.map((instrument) => instrument.ticker);
+    // Для запросов MCP передаём `TICKER_CLASSCODE`: по одному тикеру брокер
+    // отвечает «Instrument not found» (AGRO, SBER есть в разных режимах торгов).
+    const ids = instruments.map((instrument) =>
+      instrumentKey(instrument.ticker, instrument.classCode),
+    );
     const perTicker = buildCollectionPlan({
       accounts: [],
-      tickers,
+      tickers: ids,
       maxInstruments: deps.config.value.run.reviewMaxInstruments,
       providers: ['market.dynamics', 'market.analytics', 'news.digest'],
     });
@@ -151,8 +158,38 @@ export const createCollectNode =
     };
     const second = await executePlan(phase2, executeDeps);
 
+    // Добор секторов через бренд: справочник бумаги не всегда содержит сектор,
+    // но отдаёт `brand.uid` — сектор есть в ответе `invest_get_brand`.
     const results: Record<string, string> = Object.fromEntries(first.results);
     for (const [key, value] of second.results) {
+      results[key] = value;
+    }
+
+    const referenceSeen = new Map([...first.results, ...second.results]);
+    const lookup = sectorLookup(
+      phase2.entries
+        .filter((entry) => entry.group === 'reference')
+        .flatMap((entry) => {
+          const text = referenceSeen.get(planKey(entry));
+          return text === undefined ? [] : [{ target: entry.target, text }];
+        }),
+    );
+    const brandEntries: PlanEntry[] = [...lookup.brandByTicker]
+      .filter(([ticker]) => !lookup.byTicker.has(ticker))
+      .map(([ticker, brandUid]) => ({
+        tool: 'invest_get_brand',
+        args: { brandUid },
+        group: 'reference' as PlanEntry['group'],
+        priority: 'optional' as PlanEntry['priority'],
+        target: ticker,
+      }));
+    const third = brandEntries.length
+      ? await executePlan(
+          { entries: brandEntries, maxInstruments: deps.config.value.run.reviewMaxInstruments },
+          executeDeps,
+        )
+      : { results: new Map<string, string>(), coverage: [], partial: false };
+    for (const [key, value] of third.results) {
       results[key] = value;
     }
 

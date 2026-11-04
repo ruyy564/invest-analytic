@@ -36,13 +36,23 @@ export interface AccountRef {
   title?: string;
 }
 
-/** Открытые счета из `invest_list_accounts` (в порядке ответа брокера). */
+/** Типы счетов, по которым есть портфель (карты и накопительные счета — не портфель). */
+const BROKER_ACCOUNT_TYPES = new Set([
+  'ACCOUNT_TYPE_TINKOFF',
+  'ACCOUNT_TYPE_TINKOFF_IIS',
+  'ACCOUNT_TYPE_INVEST_BOX',
+  'ACCOUNT_TYPE_DFA',
+]);
+
+/** Открытые брокерские счета из `invest_list_accounts` (в порядке ответа брокера). */
 export const openAccounts = (raw: unknown): AccountRef[] => {
   const root = asJson(raw) as { accounts?: unknown } | undefined;
   const accounts = Array.isArray(root?.accounts) ? root.accounts : [];
   return accounts
-    .map((item) => item as { id?: string; name?: string; status?: string })
+    .map((item) => item as { id?: string; name?: string; status?: string; type?: string })
     .filter((item) => item.id && (item.status ?? 'ACCOUNT_STATUS_OPEN') === 'ACCOUNT_STATUS_OPEN')
+    // Брокер отдаёт в общем списке ещё карты и накопительные счета: у них нет портфеля.
+    .filter((item) => !item.type || BROKER_ACCOUNT_TYPES.has(item.type))
     .map((item) => ({ accountId: item.id as string, title: item.name }));
 };
 
