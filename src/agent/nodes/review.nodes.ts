@@ -16,6 +16,7 @@ import {
   type PlanEntry,
 } from '../../collection/plan.js';
 import { assetEntries, brandEntries, shareEntries } from '../../collection/reference.js';
+import { loadTickerAliases, matchersFor } from '../../sources/aliases.js';
 import { mapPositions } from '../../tools/mappers/positions.mapper.js';
 import type { McpRegistryService } from '../../tools/mcp-registry.service.js';
 import { openAccounts } from '../../tools/portfolio-snapshot.js';
@@ -124,6 +125,8 @@ export const createCollectNode =
     // цены, пери-тикерная аналитика, новости по бумагам и справочник секторов.
     // Уже выполненные запросы первой фазы не повторяем: бюджет прогона общий.
     const instruments = instrumentsOf(basePlan, first);
+    // Алиасы эмитентов: в новостях бумагу чаще называют по имени, а не по тикеру.
+    const aliases = loadTickerAliases(deps.config.value.sources.tickerAliasesFile);
     // Для запросов MCP передаём `TICKER_CLASSCODE`: по одному тикеру брокер
     // отвечает «Instrument not found» (AGRO, SBER есть в разных режимах торгов).
     const ids = instruments.map((instrument) =>
@@ -134,11 +137,12 @@ export const createCollectNode =
       tickers: ids,
       maxInstruments: deps.config.value.run.reviewMaxInstruments,
       providers: ['securities.detail', 'securities.opinions'],
-      // Названия компаний нужны лентам: по ним фильтруются новости бумаги.
-      names: Object.fromEntries(
-        instruments.flatMap((instrument) =>
-          instrument.name ? [[instrument.ticker, instrument.name] as const] : [],
-        ),
+      // Подстроки для лент: тикер, название из позиции и алиасы эмитента.
+      matchers: Object.fromEntries(
+        instruments.map((instrument) => [
+          instrument.ticker,
+          matchersFor(instrument, aliases),
+        ] as const),
       ),
     });
     const perTickerGroups = new Set(['prices', 'candles', 'analytics', 'dividends', 'news']);

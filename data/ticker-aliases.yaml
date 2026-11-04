@@ -1,0 +1,58 @@
+# Ленты для поиска новостей по эмитентам
+# Формат строки: ТИКЕР: алиас, алиас, ...
+# Нужны, чтобы находить публикации, где бумага названа по имени, а не по тикеру.
+SBER: Сбер, Сбербанк, Sberbank
+GAZP: Газпром, Gazprom
+LKOH: ЛУКОЙЛ, Лукойл, Lukoil
+NVTK: НОВАТЭК, Новатэк, Novatek
+ROSN: Роснефть, Rosneft
+TATN: Татнефть, Tatneft
+PLZL: Полюс, Polyus
+GMKN: Норникель, ГМК, Nornickel
+CHMF: Северсталь, Severstal
+NLMK: НЛМК, NLMK
+MAGN: ММК, Магнитогорский металлургический
+ALRS: АЛРОСА, Alrosa
+RUAL: РУСАЛ, Rusal
+YDEX: Яндекс, Yandex
+OZON: Озон, Ozon
+VKCO: VK, ВКонтакте
+MTSS: МТС, MTS
+RTKM: Ростелеком, Rostelecom
+MGTS: МГТС
+AFKS: АФК Система, Система
+MOEX: Московская биржа, Мосбиржа
+VTBR: ВТБ, VTB
+SBERP: Сбер ап
+TCSG: Т-Технологии, Тинькофф, TCS
+CBOM: МКБ, Московский кредитный банк
+BSPB: Банк Санкт-Петербург
+PHOR: ФосАгро, PhosAgro
+AKRN: Акрон, Acron
+FEES: Россети, ФСК, Россети Московский регион, МОЭСК, Ленэнерго
+MRKP: Россети Московский регион, МОЭСК, МРСК
+MRKC: Россети Центр
+IRAO: Интер РАО, Inter RAO
+HYDR: РусГидро, Rushydro
+UPRO: Юнипро, Unipro
+SNGS: Сургутнефтегаз, Surgutneftegas
+TRNFP: Транснефть, Transneft
+SIBN: Газпром нефть, Gazprom Neft
+FLOT: Совкомфлот, Совкомфлот
+AFLT: Аэрофлот, Aeroflot
+SU: Аэрофлот
+FIVE: X5, Пятёрочка, Перекрёсток
+X5: X5, Пятёрочка, Перекрёсток
+AGRO: Русагро, Rusagro
+FIXR: Фикс Прайс
+TSPX: Т-Технологии
+OZPH: Озон Фармацевтика
+SMLT: Самолет, Самолёт
+PIKK: ПИК, PIK
+LSRG: ЛСР, LSR
+AFKS: АФК Система
+WUSH: Вуш, Whoosh
+POSI: Positive Technologies, Позитив
+ASTR: Астра, Astra Linux
+DIAS: Диасофт
+SOFL: Софтлайн

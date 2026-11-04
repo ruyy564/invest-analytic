@@ -40,6 +40,30 @@
 | `interfax` | общие новости | `https://www.interfax.ru/rss.asp` | RSS 2.0 |
 | `rbc` | новости экономики и рынков | `https://rssexport.rbc.ru/rbcnews/news/30/full.rss` | RSS 2.0 |
 | `smartlab` | мнения сообщества, разборы налогов | `https://smart-lab.ru/rss/` | RSS 2.0 |
+| `smartlab_tag` | разборы и новости **по конкретному тикеру** | `https://smart-lab.ru/rss/tag/<TICKER>` | RSS 2.0 |
+| `rbc_news` | РБК: новости и разборы по эмитентам (канал) | `https://rsshub.rssforever.com/telegram/channel/rbc_news` | RSS через мост |
+| `bcs` | БКС Экспресс: аналитика и идеи по бумагам | `https://rsshub.rssforever.com/telegram/channel/bcs_express` | RSS через мост |
+| `tbank` | Т-Банк (Т-Инвестиции): новости, налоги, обзоры | `https://rsshub.rssforever.com/telegram/channel/tbank` | RSS через мост |
+
+### Почему Telegram читается через мост
+
+Публичное превью `https://t.me/s/<канал>` отдаётся только браузеру: из процесса
+соединение с `t.me` не устанавливается (блокировка/таймаут), а прямых ключей
+Telegram API у сервиса нет. Поэтому каналы читаются как обычные RSS-ленты через
+публичный мост RSSHub. Адрес любого источника переопределяется переменной
+`NEWS_<ID>_URL` — например `NEWS_BCS_URL=https://другой-мост/telegram/channel/bcs_express`.
+
+### Как новости привязываются к бумаге
+
+1. `smartlab_tag` — лента smart-lab **по тикеру** (`/rss/tag/SBER`): основной источник
+   новостей бумаги, там разборы отчётности, торговые планы и идеи.
+2. Брокер: `invest_get_news` по тикеру (`supportsTickerQuery`).
+3. Остальные ленты: заголовок и аннотация проверяются на подстроки — тикер,
+   название из позиции и алиасы из `data/ticker-aliases.yaml` («Сбер», «ЛУКОЙЛ»,
+   «Полюс», «Россети Московский регион»). Файл расширяется без правки кода.
+4. Общие сводки («утренний дайджест», «итоги торгов», «неделя на рынке»,
+   «корпоративные события») отбрасываются: бумага в них упоминается, но новостью
+   это не является.
 
 Резервные пути для ставки: HTML-таблица `https://www.cbr.ru/hd_base/KeyRate/`
 (параметры `UniDbQuery.From`/`To`, дата в формате `дд.мм.гггг`) и сид-файл
@@ -65,12 +89,13 @@ KEY_RATE_HTML_URL=https://www.cbr.ru/hd_base/KeyRate/
 KEY_RATE_CACHE_TTL_HOURS=24
 
 # ленты, участвующие в сводке новостей
-NEWS_SOURCES=interfax,rbc,smartlab
+NEWS_SOURCES=interfax,rbc,smartlab,rbc_news,bcs,tbank
 NEWS_SCAN_PAGES=3
 NEWS_DIGEST_MAX_ITEMS=10
 
-# словарь налоговых терминов
+# словарь налоговых терминов и алиасы эмитентов для поиска новостей
 TAX_KEYWORDS_FILE=data/tax-keywords.yaml
+TICKER_ALIASES_FILE=data/ticker-aliases.yaml
 ```
 
 Адрес конкретной ленты можно переопределить переменной `NEWS_<ID>_URL`

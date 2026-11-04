@@ -55,8 +55,8 @@ export interface PlanContext {
   maxInstruments: number;
   /** Какие поставщики фактов нужны шаблону отчёта. */
   providers: readonly string[];
-  /** Названия компаний по тикерам: нужны лентам для фильтра новостей. */
-  names?: Readonly<Record<string, string>>;
+  /** Названия и алиасы компаний по тикерам: нужны лентам для фильтра новостей. */
+  matchers?: Readonly<Record<string, readonly string[]>>;
 }
 
 /** Стабильный ключ записи: одинаковые запросы не выполняются дважды. */
@@ -116,10 +116,10 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
     // Новости — только по конкретной бумаге: общая лента не влияет на решения.
     for (const id of analysable) {
       const ticker = baseTicker(id);
-      const name = ctx.names?.[ticker];
+      const values = ctx.matchers?.[ticker] ?? [];
       add({
         tool: 'market__news_digest',
-        args: { tickers: [ticker], ...(name ? { names: [name] } : {}) },
+        args: { tickers: [ticker], ...(values.length > 0 ? { names: [...values] } : {}) },
         group: 'news',
         priority: 'mandatory',
         target: ticker,

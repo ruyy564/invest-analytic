@@ -1,4 +1,7 @@
 import { createFeedSource, parseFeed, stripMarkup } from '../../src/sources/feed.js';
+import { FEED_DEFAULTS, feedUrl } from '../../src/sources/defaults.js';
+import { createSmartLabTagSource } from '../../src/sources/smartlab-tag.js';
+import { isDigestTitle } from '../../src/sources/noise.js';
 import { dedupeKey, mergeNews, SourceRegistry } from '../../src/sources/registry.js';
 import type { NewsSourceAdapter, SourceItem } from '../../src/sources/types.js';
 import { mapNews } from '../../src/sources/tinkoff.js';
@@ -196,4 +199,104 @@ describe('новости по бумагам', () => {
     const generalDigest = await registry.newsDigest({ pages: 1, maxItems: 10 });
     expect(generalDigest.items.map((entry) => entry.title)).toEqual(['Спорт и политика']);
   });
+
+describe('лента smart-lab по тикеру', () => {
+  const RSS_BY_TICKER: Record<string, string> = {
+    PLZL: `<?xml version="1.0"?><rss version="2.0"><channel>
+      <item><title>Полюс: рост выручки на фоне снижения прибыли</title>
+        <description>Разбор отчётности золотодобытчика</description>
+        <pubDate>Wed, 04 Nov 2026 10:00:00 +0300</pubDate></item>
+      <item><title>Неделя на рынке: итоги и прогнозы</title>
+        <description>Общий обзор</description>
+        <pubDate>Tue, 03 Nov 2026 10:00:00 +0300</pubDate></item>
+    </channel></rss>`,
+    SBER: `<?xml version="1.0"?><rss version="2.0"><channel>
+      <item><title>Дал трём ИИ по миллиону</title>
+        <description>Личный пост без отношения к бумаге</description>
+        <pubDate>Wed, 04 Nov 2026 09:00:00 +0300</pubDate></item>
+    </channel></rss>`,
+  };
+
+  const source = createSmartLabTagSource({
+    fetchText: async (url) => {
+      const ticker = url.split('/').pop() ?? '';
+      return RSS_BY_TICKER[ticker] ?? '<rss><channel></channel></rss>';
+    },
+  });
+
+  it('запрашивает ленту по тикеру и отбрасывает общие посты', async () => {
+    const items = await source.fetchNews({
+      tickers: ['PLZL'],
+      matchers: ['PLZL', 'Полюс'],
+      pages: 1,
+      maxItems: 10,
+    });
+
+    expect(items.map((entry) => entry.title)).toEqual([
+      'Полюс: рост выручки на фоне снижения прибыли',
+    ]);
+    expect(items[0]?.source).toBe('smartlab');
+  });
+
+  it('не подставляет бумаге посты, где её нет в тексте', async () => {
+    const items = await source.fetchNews({
+      tickers: ['SBER'],
+      matchers: ['SBER', 'Сбер'],
+      pages: 1,
+      maxItems: 10,
+    });
+
+    expect(items).toEqual([]);
+  });
+
+  it('без тикеров лента не читается', async () => {
+    expect(await source.fetchNews({ pages: 1, maxItems: 10 })).toEqual([]);
+  });
+});
+
+describe('шумовые заголовки', () => {
+  it('отбрасывает общие сводки и оставляет новости по бумаге', () => {
+    expect(isDigestTitle('Утренняя сводка новостей от БКС')).toBe(true);
+    expect(isDigestTitle('Неделя на рынке: Трамп против санкций')).toBe(true);
+    expect(isDigestTitle('Корпоративные события на предстоящей неделе')).toBe(true);
+    expect(isDigestTitle('Итоги торгов акциями на Мосбирже')).toBe(true);
+    expect(isDigestTitle('Полюс: рост выручки на фоне снижения прибыли')).toBe(false);
+    expect(isDigestTitle('Лукойл (LKOH): высокие дивиденды впереди')).toBe(false);
+  });
+});
+
+describe('ленты по умолчанию', () => {
+  it('каналы РБК, БКС и Т-Банка читаются через RSS-мост Telegram', () => {
+    expect(FEED_DEFAULTS.rbc_news.url).toContain('/telegram/channel/rbc_news');
+    expect(FEED_DEFAULTS.bcs.url).toContain('/telegram/channel/bcs_express');
+    expect(FEED_DEFAULTS.tbank.url).toContain('/telegram/channel/tbank');
+  });
+
+  it('адрес ленты переопределяется переменной NEWS_<ID>_URL', () => {
+    const env = { NEWS_BCS_URL: 'https://mirror.example/feed' } as NodeJS.ProcessEnv;
+
+    expect(feedUrl(FEED_DEFAULTS.bcs, env)).toBe('https://mirror.example/feed');
+    expect(feedUrl(FEED_DEFAULTS.bcs, {} as NodeJS.ProcessEnv)).toBe(FEED_DEFAULTS.bcs.url);
+  });
+
+  it('фильтрует ленту по подстрокам бумаги: тикер и название', async () => {
+    const source = createFeedSource({
+      id: 'bcs',
+      url: 'https://example/feed',
+      format: 'rss',
+      fetchText: async () => RSS,
+    });
+
+    const byName = await source.fetchNews({ matchers: ['Сбер'], pages: 1, maxItems: 10 });
+    expect(byName.map((entry) => entry.title)).toEqual(['Сбербанк отчитался за квартал']);
+
+    const byNothing = await source.fetchNews({
+      matchers: ['Полюс'],
+      pages: 1,
+      maxItems: 10,
+    });
+    expect(byNothing).toEqual([]);
+  });
+});
+
 });

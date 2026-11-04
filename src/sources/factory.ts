@@ -1,11 +1,12 @@
 import type { DynamicStructuredTool } from '@langchain/core/tools';
 import type { AppConfig } from '../config/configuration.js';
 import { createCbrSource } from './cbr.js';
-import { createFeedSource, type FeedFormat } from './feed.js';
-import { FEED_DEFAULTS, feedUrl } from './defaults.js';
+import { createFeedSource, defaultFetchText, type FeedFormat } from './feed.js';
+import { FEED_DEFAULTS, feedFallbackUrl, feedUrl } from './defaults.js';
 import { KeyRateCache } from './key-rate-cache.js';
 import { SourceRegistry } from './registry.js';
 import { createTinkoffNewsSource } from './tinkoff.js';
+import { createSmartLabTagSource } from './smartlab-tag.js';
 
 export interface SourceFactoryDeps {
   config: AppConfig;
@@ -35,6 +36,18 @@ export const buildSourceRegistry = (deps: SourceFactoryDeps): SourceRegistry => 
     );
   }
 
+  if (enabled.has('smartlab_tag')) {
+    // Лента smart-lab по тикеру: единственный источник, который знает бумагу
+    // заранее, поэтому именно он даёт news по каждой позиции.
+    news.push(
+      createSmartLabTagSource({
+        template: env.NEWS_SMARTLAB_TAG_URL?.trim() || undefined,
+        fetchText: deps.fetchText ?? defaultFetchText,
+        summaryLimit: 600,
+      }),
+    );
+  }
+
   for (const id of config.sources.news.ids) {
     if (!enabled.has(id)) {
       continue;
@@ -47,9 +60,11 @@ export const buildSourceRegistry = (deps: SourceFactoryDeps): SourceRegistry => 
       createFeedSource({
         id: feed.id,
         url: feedUrl(feed, env),
+        fallbackUrl: feedFallbackUrl(feed, env),
         format: feed.format as FeedFormat,
         topics: feed.topics,
         mapping: feed.mapping,
+        summaryLimit: feed.summaryLimit,
         fetchText: deps.fetchText,
       }),
     );

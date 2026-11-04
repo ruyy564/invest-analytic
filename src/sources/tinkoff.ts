@@ -2,6 +2,7 @@ import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { withTimeout } from '../tools/mcp-tool.adapter.js';
 import { asJson } from '../tools/portfolio-snapshot.js';
 import type { NewsQuery, NewsSourceAdapter, SourceItem, SourceTopic } from './types.js';
+import { isDigestTitle } from './noise.js';
 
 export interface TinkoffNewsSourceOptions {
   /** Инструмент по короткому имени, например `invest_get_news`. */
@@ -42,7 +43,7 @@ export const mapNews = (
     if (!title || publishedAt === undefined || Number.isNaN(Date.parse(publishedAt))) {
       return [];
     }
-    if (GENERIC_NEWS.test(title)) {
+    if (GENERIC_NEWS.test(title) || isDigestTitle(title)) {
       return [];
     }
     const content = typeof item.content === 'string' ? item.content.replace(/\s+/g, ' ').trim() : '';
@@ -126,9 +127,7 @@ export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): News
             // Один тикер не должен ломать сводку: остальные соберём.
           }
         }
-        if (batches.length === 0) {
-          throw new Error('новостей по бумагам портфеля нет');
-        }
+        // Пустой ответ — не ошибка: у бумаги может просто не быть новостей.
         return batches;
       }
 

@@ -52,7 +52,7 @@ describe('конфигурация окружения', () => {
 
     expect(config.run).toEqual({
       toolMaxCalls: 200,
-      deadlineMs: 150_000,
+      deadlineMs: 240_000,
       parallelism: 4,
       reviewMaxInstruments: 15,
       mcpToolTimeoutMs: 15_000,
@@ -115,9 +115,10 @@ describe('конфигурация окружения', () => {
       news: {
         ids: ['interfax', 'rbc', 'smartlab'],
         scanPages: 3,
-        maxItems: 10,
+        maxItems: 15,
       },
       taxKeywordsFile: 'data/tax-keywords.yaml',
+      tickerAliasesFile: 'data/ticker-aliases.yaml',
     });
   });
 

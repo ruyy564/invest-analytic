@@ -71,6 +71,8 @@ export interface AppConfig {
       maxItems: number;
     };
     taxKeywordsFile: string;
+    /** Алиасы тикеров: подстроки для поиска новостей по эмитенту. */
+    tickerAliasesFile: string;
   };
   state: {
     backend: StateBackend;
@@ -148,6 +150,7 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
       maxItems: env.NEWS_DIGEST_MAX_ITEMS,
     },
     taxKeywordsFile: env.TAX_KEYWORDS_FILE,
+    tickerAliasesFile: env.TICKER_ALIASES_FILE,
   },
   state: {
     backend: env.STATE_BACKEND,

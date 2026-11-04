@@ -112,7 +112,7 @@ const scalarEnvObject = z
 
     // Лимиты прогона: разбор портфеля требует заметно больше вызовов, чем точечный вопрос.
     RUN_TOOL_MAX_CALLS: z.coerce.number().int().positive().default(200),
-    RUN_DEADLINE_MS: z.coerce.number().int().positive().default(150_000),
+    RUN_DEADLINE_MS: z.coerce.number().int().positive().default(240_000),
     RUN_PARALLELISM: z.coerce.number().int().positive().max(16).default(4),
     REVIEW_MAX_INSTRUMENTS: z.coerce.number().int().positive().default(15),
     MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
@@ -141,8 +141,9 @@ const scalarEnvObject = z
     KEY_RATE_CACHE_TTL_HOURS: z.coerce.number().int().positive().default(24),
     NEWS_SOURCES: csvList('interfax,rbc,smartlab'),
     NEWS_SCAN_PAGES: z.coerce.number().int().positive().max(20).default(3),
-    NEWS_DIGEST_MAX_ITEMS: z.coerce.number().int().positive().max(100).default(10),
+    NEWS_DIGEST_MAX_ITEMS: z.coerce.number().int().positive().max(100).default(15),
     TAX_KEYWORDS_FILE: z.string().trim().min(1).default('data/tax-keywords.yaml'),
+  TICKER_ALIASES_FILE: z.string().trim().min(1).default('data/ticker-aliases.yaml'),
 
     STATE_BACKEND: z
       .enum(SUPPORTED_STATE_BACKENDS, {

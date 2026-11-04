@@ -195,6 +195,15 @@ export class McpRegistryService {
           pages: this.config.value.sources.news.scanPages,
           maxItems: this.config.value.sources.news.maxItems,
         });
+        const total = result.periods.reduce((sum, period) => sum + period.items.length, 0);
+        if (total === 0) {
+          // В отчёте видно только «новостей нет», причина — в логе.
+          console.warn(
+            '[news] пусто:',
+            JSON.stringify(args.tickers ?? []),
+            JSON.stringify(result.coverage.filter((entry) => entry.status !== 'ok' || !entry.items)),
+          );
+        }
         return formatNewsDigest(result);
       },
     } as never);
