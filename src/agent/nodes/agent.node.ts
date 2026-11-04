@@ -3,7 +3,6 @@ import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from '@langch
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import { bindToolsCompat } from '../../llm/bind-tools.js';
 import { buildAgentSystemPrompt } from '../prompts/agent.prompt.js';
-import { CAPABILITIES_ANSWER, CAPABILITIES_PATTERN } from '../prompts/off-topic.js';
 import { ALL_ACCOUNTS_TOOL } from '../../tools/portfolio-snapshot.js';
 import type { AgentStateType } from '../graph/state.js';
 import { withTimeout } from '../../tools/mcp-tool.adapter.js';
@@ -114,15 +113,11 @@ export const createAgentNode =
     options: { accountId?: string } = {},
   ) =>
   async (state: AgentStateType) => {
-    // «Что ты умеешь» — фиксированный ответ: на общий вопрос GigaChat отвечает
-    // своей визиткой и игнорирует системный промпт.
+    // Последний вопрос пользователя нужен для детерминированных сценариев
+    // («что у меня в портфеле»), где модель отвечает уточнением вместо вызова.
     const lastHuman = [...state.messages]
       .reverse()
       .find((message) => messageType(message) === 'human');
-    if (lastHuman && CAPABILITIES_PATTERN.test(textOf(lastHuman.content))) {
-      return { messages: [new AIMessage(CAPABILITIES_ANSWER)] };
-    }
-
     const history = withToolResults(state.messages);
     const report = reportText(history);
     // Отчёт уже сформирован кодом — отдаём его как есть, без генерации и таймаутов.

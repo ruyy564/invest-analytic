@@ -1,5 +1,6 @@
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { createAgentNode } from '../../src/agent/nodes/agent.node.js';
+import { createHelpNode } from '../../src/agent/nodes/help.node.js';
 import { isApprovedDecision } from '../../src/agent/nodes/approve.node.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
@@ -84,17 +85,20 @@ describe('узел агента после сводки по счетам', () =
     expect(String((result.messages[0] as AIMessage).content)).toContain('77 акций');
   });
 
-  it('на «что ты умеешь» отвечает фиксированным списком возможностей', async () => {
-    // На общий вопрос GigaChat отвечает своей визиткой, игнорируя промпт.
-    const model = new ScriptedChatModel(['Я — ваш умный помощник.']);
-
-    const result = await createAgentNode(model, [fakeTool('portfolio_all_accounts')])({
-      messages: [new HumanMessage('что ты можешь?')],
+  it('на «что ты умеешь» отвечает нода справки, а не модель', async () => {
+    // Справка живёт в отдельной ноде: модель на общий вопрос отвечает визиткой.
+    const node = createHelpNode({
+      config: {
+        value: { run: { reviewEnabled: true }, sources: { newsFeed: { enabled: true } } },
+      },
     } as never);
 
-    const answer = String((result.messages[0] as AIMessage).content);
+    const result = await node();
+
+    const answer = String((result.messages?.[0] as AIMessage).content);
     expect(answer).toContain('Что умею');
-    expect(answer).toContain('портфель по всем счетам');
+    expect(answer).toContain('Портфель и счета');
+    expect(result.intent).toBe('agent_help');
     expect(answer).not.toContain('умный помощник');
   });
 });

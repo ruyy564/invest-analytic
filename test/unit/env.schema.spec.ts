@@ -1,4 +1,4 @@
-import { ConfigError } from '../../src/config/config.error.js';
+﻿import { ConfigError } from '../../src/config/config.error.js';
 import { loadConfiguration } from '../../src/config/configuration.js';
 
 const baseEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
@@ -57,6 +57,7 @@ describe('конфигурация окружения', () => {
       reviewMaxInstruments: 15,
       mcpToolTimeoutMs: 15_000,
       reviewEnabled: true,
+      agentHelpEnabled: true,
     });
     expect(config.report.templateFile).toBe('reports/portfolio-review.yaml');
   });
@@ -80,6 +81,7 @@ describe('конфигурация окружения', () => {
       reviewMaxInstruments: 5,
       mcpToolTimeoutMs: 3_000,
       reviewEnabled: false,
+      agentHelpEnabled: true,
     });
   });
 

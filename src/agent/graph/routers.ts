@@ -9,10 +9,13 @@ import type { AgentStateType } from './state.js';
  * При `reviewEnabled=false` метки остаются прежними и ветки `plan` нет.
  */
 export const afterClassify =
-  (reviewEnabled = true, newsEnabled = true) =>
-  (state: AgentStateType): 'offTopic' | 'agent' | 'plan' | 'news' => {
+  (reviewEnabled = true, newsEnabled = true, helpEnabled = true) =>
+  (state: AgentStateType): 'offTopic' | 'agent' | 'plan' | 'news' | 'help' => {
     if (state.intent === 'off_topic') {
       return 'offTopic';
+    }
+    if (helpEnabled && state.intent === 'agent_help') {
+      return 'help';
     }
     if (newsEnabled && state.intent === 'market_news') {
       return 'news';

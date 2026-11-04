@@ -9,6 +9,7 @@ export const INTENT_SCHEMA = z.object({
     'security_analysis',
     'portfolio_review',
     'market_news',
+    'agent_help',
     'off_topic',
   ]),
 });
@@ -27,6 +28,8 @@ export const CLASSIFIER_SYSTEM_PROMPT = [
   'market_news — просьба показать последние новости инвестиционного рынка за период',
   '(сегодня, неделя, месяц, полгода) без привязки к портфелю и без конкретной бумаги:',
   '«какие последние новости в мире инвестиций», «что нового на рынке за неделю».',
+  'agent_help — вопрос о возможностях самого сервиса: «что ты умеешь», «чем можешь помочь»,',
+  '«что здесь можно узнать».',
   'off_topic — только посторонние темы: погода, политика, медицина, развлечения,',
   'личные советы не про инвестиции, просьбы совершить сделку.',
   'Если сомневаешься и в вопросе есть бумага, тикер, цена, портфель или инвестиции —',
@@ -34,11 +37,14 @@ export const CLASSIFIER_SYSTEM_PROMPT = [
 ].join(' ');
 
 export const CLASSIFIER_FALLBACK_PROMPT =
-  'Ответь ровно одним словом: data_lookup, security_analysis, portfolio_review, market_news или off_topic. Без пояснений.';
+  'Ответь ровно одним словом: data_lookup, security_analysis, portfolio_review, market_news, agent_help или off_topic. Без пояснений.';
 
 /** Разбор метки из текстового ответа модели (фолбэк без structured output). */
 export const parseIntentText = (text: string): Intent | null => {
   const normalized = text.toLowerCase().replace(/[\s-]+/g, '_');
+  if (/agent_help|что_умеет|возможност/.test(normalized)) {
+    return { intent: 'agent_help' };
+  }
   if (/portfolio_review|разбор_портфел|анализ_портфел/.test(normalized)) {
     return { intent: 'portfolio_review' };
   }

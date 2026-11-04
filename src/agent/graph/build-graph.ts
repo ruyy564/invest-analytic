@@ -1,4 +1,4 @@
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import { END, START, StateGraph, type BaseCheckpointSaver } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
@@ -9,6 +9,7 @@ import { createApproveNode } from '../nodes/approve.node.js';
 import { createClassifyNode } from '../nodes/classify.node.js';
 import { offTopicNode } from '../nodes/off-topic.node.js';
 import { createNewsNode } from '../nodes/news.node.js';
+import { createHelpNode } from '../nodes/help.node.js';
 import {
   createCollectNode,
   createPlanNode,
@@ -32,16 +33,20 @@ export interface BuildAgentGraphDeps {
   reviewEnabled?: boolean;
   /** `false` — новостной вопрос уходит прежним маршрутом (`data_lookup`). */
   newsEnabled?: boolean;
+  /** `false` — вопрос о возможностях уходит прежним маршрутом. */
+  helpEnabled?: boolean;
 }
 
 /** Топология: classify → (offTopic | news | agent ⇄ approve → tools | plan → approve → collect → report). */
 export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
   const reviewEnabled = deps.reviewEnabled ?? true;
   const newsEnabled = deps.newsEnabled ?? true;
+  const helpEnabled = deps.helpEnabled ?? true;
 
   const base = new StateGraph(AgentState)
     .addNode('classify', createClassifyNode(deps.routerModel))
     .addNode('offTopic', offTopicNode)
+    .addNode('help', createHelpNode({ config: deps.review.config }))
     .addNode(
       'news',
       createNewsNode({ config: deps.review.config, registry: deps.review.registry }),
@@ -57,10 +62,11 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     // Прежнее поведение: две метки, ветки разбора в графе нет вовсе.
     return base
       .addEdge(START, 'classify')
-      .addConditionalEdges('classify', afterClassify(false, newsEnabled), {
+      .addConditionalEdges('classify', afterClassify(false, newsEnabled, helpEnabled), {
         offTopic: 'offTopic',
         agent: 'agent',
         news: 'news',
+        help: 'help',
       })
       .addConditionalEdges('agent', createAfterAgent(deps.policy), {
         approve: 'approve',
@@ -69,6 +75,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
       })
       .addEdge('offTopic', END)
       .addEdge('news', END)
+      .addEdge('help', END)
       .addEdge('tools', 'agent')
       .compile({ checkpointer: deps.checkpointer });
   }
@@ -78,11 +85,12 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     .addNode('collect', createCollectNode(deps.review))
     .addNode('report', createReportNode(deps.review))
     .addEdge(START, 'classify')
-    .addConditionalEdges('classify', afterClassify(true, newsEnabled), {
+    .addConditionalEdges('classify', afterClassify(true, newsEnabled, helpEnabled), {
       offTopic: 'offTopic',
       agent: 'agent',
       plan: 'plan',
       news: 'news',
+      help: 'help',
     })
     .addConditionalEdges('agent', createAfterAgent(deps.policy), {
       approve: 'approve',
@@ -91,6 +99,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     })
     .addEdge('offTopic', END)
     .addEdge('news', END)
+    .addEdge('help', END)
     .addEdge('tools', 'agent')
     .addEdge('plan', 'approve')
     .addEdge('collect', 'report')

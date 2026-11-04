@@ -125,6 +125,8 @@ const scalarEnvObject = z
       .min(1)
       .default('reports/prompts/interpretation.md'),
     REVIEW_ENABLED: flag(true),
+    /** Справка о возможностях агента отдельной веткой. */
+    AGENT_HELP_ENABLED: flag(true),
 
     // Источники данных помимо брокера: ЦБ (ключевая ставка) и новостные ленты.
     SOURCES: csvList('tinkoff'),

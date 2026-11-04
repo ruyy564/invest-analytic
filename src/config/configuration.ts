@@ -47,7 +47,10 @@ export interface AppConfig {
     parallelism: number;
     reviewMaxInstruments: number;
     mcpToolTimeoutMs: number;
+    /** Глубокий разбор портфеля отдельной веткой. */
     reviewEnabled: boolean;
+    /** Ветка справки о возможностях. */
+    agentHelpEnabled: boolean;
   };
   report: {
     /** Файл декларативного шаблона отчёта (секции, пороги, периоды). */
@@ -136,6 +139,7 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
     reviewMaxInstruments: env.REVIEW_MAX_INSTRUMENTS,
     mcpToolTimeoutMs: env.MCP_TOOL_TIMEOUT_MS,
     reviewEnabled: env.REVIEW_ENABLED,
+    agentHelpEnabled: env.AGENT_HELP_ENABLED,
   },
   report: {
     templateFile: env.REPORT_TEMPLATE_FILE,

@@ -120,6 +120,7 @@ export const graphForServer = (): Promise<ReturnType<typeof buildAgentGraph>> =>
       },
       reviewEnabled: runtime.config.run.reviewEnabled,
       newsEnabled: runtime.config.sources.newsFeed.enabled,
+      helpEnabled: runtime.config.run.agentHelpEnabled,
     }),
   );
   return compiled;

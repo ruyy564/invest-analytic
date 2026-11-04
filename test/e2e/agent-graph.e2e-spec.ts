@@ -121,6 +121,23 @@ describe('граф агента с подтверждением', () => {
     expect(toolCalls()).toBe(0);
   });
 
+  it('вопрос о возможностях отвечает справкой без данных и подтверждения', async () => {
+    const { runner, toolCalls } = await createHarness(['ответ модели не используется']);
+
+    const result = await runner.run('что ты умеешь?', 's-help');
+
+    expect(result.status).toBe('completed');
+    expect(result.intent).toBe('agent_help');
+    expect(result.approval).toBeUndefined();
+    expect(result.answer).toContain('Что умею');
+    expect(result.answer).toContain('Портфель и счета');
+    expect(result.answer).toContain('Новости рынка');
+    // Справка не собирает данные и не создаёт отчёт.
+    expect(result.report).toBeUndefined();
+    expect(result.partial).toBe(false);
+    expect(toolCalls()).toBe(0);
+  });
+
   it('вопрос про новости рынка отвечает сводкой без подтверждения', async () => {
     const { runner, toolCalls } = await createHarness(['ответ модели не используется']);
 

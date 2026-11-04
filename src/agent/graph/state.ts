@@ -7,6 +7,7 @@ export const INTENTS = [
   'security_analysis',
   'portfolio_review',
   'market_news',
+  'agent_help',
   'off_topic',
 ] as const;
 export type Intent = (typeof INTENTS)[number];

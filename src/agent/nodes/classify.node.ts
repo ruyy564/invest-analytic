@@ -6,6 +6,7 @@ import type { AgentStateType } from '../graph/state.js';
 import { withTimeout } from '../../tools/mcp-tool.adapter.js';
 import { loadTickerAliases } from '../../sources/aliases.js';
 import { detectScope } from '../scope.js';
+import { CAPABILITIES_PATTERN } from '../prompts/capabilities.js';
 import {
   CLASSIFIER_FALLBACK_PROMPT,
   CLASSIFIER_SYSTEM_PROMPT,
@@ -60,6 +61,13 @@ export const createClassifyNode = (model: BaseChatModel) => {
       scopeTarget: scoped.target,
       scopeLabel: scoped.label,
     };
+
+    // Справка о возможностях: решаем правилом ДО модели и раньше остальных меток —
+    // иначе «что ты умеешь» уходит в отказ по теме.
+    const helpEnabled = process.env.AGENT_HELP_ENABLED?.trim().toLowerCase() !== 'false';
+    if (helpEnabled && CAPABILITIES_PATTERN.test(question)) {
+      return { intent: 'agent_help', ...scopeFields };
+    }
 
     const heuristic = heuristicIntent(question);
     if (heuristic) {
