@@ -24,15 +24,19 @@ const PERIOD_MS = (days: number): number => days * 24 * 60 * 60 * 1000;
 
 /**
  * Сводка новостей по бумагам портфеля и по общей ленте: один сбор, затем
- * раскладка по периодам по времени публикации.
+ * раскладка по периодам по времени публикации. Названия компаний нужны,
+ * чтобы ленты (РБК, «Интерфакс») фильтровали заголовки по бумаге.
  */
 export const collectNewsDigest = async (
   registry: SourceRegistry,
-  params: { tickers?: string[]; pages: number; maxItems: number; now?: Date },
+  params: { tickers?: string[]; names?: string[]; pages: number; maxItems: number; now?: Date },
 ): Promise<NewsDigestResult> => {
   const now = params.now ?? new Date();
+  const tickers = params.tickers ?? [];
+  const matchers = [...tickers, ...(params.names ?? [])].filter((value) => value.trim().length > 1);
   const { items, coverage } = await registry.newsDigest({
-    tickers: params.tickers ?? [],
+    tickers,
+    matchers,
     pages: params.pages,
     maxItems: Math.max(params.maxItems, 20),
     sinceDays: 180,
@@ -57,12 +61,19 @@ export const formatNewsDigest = (result: NewsDigestResult): string => {
     lines.push('Новостей по портфелю за последние полгода не найдено.');
   }
 
+  // Одна публикация показывается один раз — в самом свежем периоде, куда попала:
+  // иначе свежие новости дублируются в неделе, месяце и полугодии.
+  const seen = new Set<string>();
   for (const period of result.periods) {
-    if (period.items.length === 0) {
+    const items = period.items.filter((item) => !seen.has(item.title));
+    for (const item of items) {
+      seen.add(item.title);
+    }
+    if (items.length === 0) {
       continue;
     }
     lines.push(`Новости ${period.title}:`);
-    for (const item of period.items) {
+    for (const item of items) {
       lines.push(`• ${item.publishedAt.slice(0, 10)} [${item.source}] ${item.title}`);
     }
   }

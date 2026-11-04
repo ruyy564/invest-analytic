@@ -36,7 +36,7 @@ MCP_NEWS_ALLOWED_TOOLS=search_news,get_article
 | Торговые инструменты | `invest_create_*`, `invest_post_*`, `invest_cancel_*`, `invest_replace_*`, `invest_deposit_*`, `invest_transfer_*`, `invest_sell*`, `invest_buy*` запрещены в allowlist |
 | Неймспейсинг | Имя для агента — `<server>__<tool>`, например `tinkoff__invest_get_portfolio` |
 | Таймаут | `MCP_TOOL_TIMEOUT_MS` (по умолчанию 15 000 мс) на вызов инструмента |
-| Бюджет | `RUN_TOOL_MAX_CALLS` вызовов и `RUN_DEADLINE_MS` на прогон (по умолчанию 40 и 90 000 мс) |
+| Бюджет | `RUN_TOOL_MAX_CALLS` вызовов и `RUN_DEADLINE_MS` на прогон (по умолчанию 200 и 150 000 мс) |
 | Параллельность | `RUN_PARALLELISM` одновременных вызовов при сборе данных |
 | Глубина разбора | `REVIEW_MAX_INSTRUMENTS` бумаг с расширенной аналитикой |
 | Покрытие каталога | `missingTools` — есть в allowlist, нет в каталоге; `unlistedTools` — read-only тулы каталога вне allowlist (видны в логе и health) |

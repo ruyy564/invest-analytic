@@ -17,6 +17,12 @@ export interface SourceItem {
 export interface NewsQuery {
   /** Тикеры, по которым нужны новости; пусто — общая лента. */
   tickers?: string[];
+  /**
+   * Подстроки для фильтра общей ленты: тикер и название компании. Ленты
+   * (РБК, «Интерфакс») не умеют искать по бумаге, но могут отфильтровать
+   * заголовки — так в отчёт не попадают спорт и политика.
+   */
+  matchers?: string[];
   /** Сколько страниц ленты максимум листать. */
   pages: number;
   /** Сколько элементов оставить на одну выборку. */
@@ -29,6 +35,14 @@ export interface NewsQuery {
 export interface NewsSourceAdapter {
   readonly id: string;
   readonly topics: readonly SourceTopic[];
+  /**
+   * Источник умеет искать новости по конкретной бумаге. Общие ленты (РБК,
+   * «Интерфакс», Smart-lab) этого не умеют — при запросе по тикерам их
+   * ответы не относятся к портфелю и в сводку не попадают.
+   */
+  readonly supportsTickerQuery?: boolean;
+  /** Источник умеет фильтровать общую ленту по подстрокам (`matchers`). */
+  readonly supportsMatcherQuery?: boolean;
   fetchNews(query: NewsQuery): Promise<SourceItem[]>;
 }
 

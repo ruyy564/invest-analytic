@@ -2,17 +2,34 @@
 # Состав, порядок, пороги и периоды задаются здесь — код отчёта не меняется.
 # Схема и примеры: docs/reports.md
 id: portfolio-review
-version: 1
+version: 2
 periods: [1d, 7d, 30d, 180d]
 thresholds:
   concentration_high: 0.50
   concentration_medium: 0.25
   min_class_share: 0.05
 sections:
-  - id: snapshot
-    title: Снимок портфеля
-    provider: portfolio.snapshot
+  # С чего начинается разбор: бумага, сектор, доля, движение за 180 дней.
+  - id: table
+    title: Состав портфеля
+    provider: portfolio.table
     render: table
+  # Экономический цикл: ставка ЦБ и что она значит для классов активов.
+  - id: macro
+    title: Экономический цикл и рынок
+    provider: macro.context
+    render: text
+    interpret: true
+  # По каждой бумаге: периоды, аналитики, дивиденды, её собственные новости.
+  - id: securities
+    title: Разбор по бумагам
+    provider: securities.detail
+    render: text
+  - id: opinions
+    title: Оценка бумаг и секторов
+    provider: securities.opinions
+    render: text
+    interpret: true
   - id: structure
     title: Структура портфеля
     provider: portfolio.structure
@@ -21,25 +38,6 @@ sections:
     title: Концентрация
     provider: portfolio.concentration
     render: kpi
-  - id: dynamics
-    title: Динамика за периоды
-    provider: market.dynamics
-    render: list
-  - id: news
-    title: Новости
-    provider: news.digest
-    render: list
-    params:
-      max: 12
-  - id: analytics
-    title: Аналитика и мнения
-    provider: market.analytics
-    render: table
-  - id: macro
-    title: Рыночный контекст и макро
-    provider: macro.context
-    render: text
-    interpret: true
   - id: tax
     title: Налоговый контекст
     provider: tax.context
@@ -48,8 +46,9 @@ sections:
     title: Пробелы в портфеле
     provider: portfolio.gaps
     render: list
+  # Итог: диверсификация, тип стратегии и что поменять.
   - id: verdict
-    title: Итог и совет по структуре
+    title: Итог: диверсификация и стратегия
     provider: facts.brief
     render: text
     interpret: true

@@ -186,7 +186,7 @@ describe('граф агента с подтверждением', () => {
     expect(result.intent).toBe('portfolio_review');
     expect(result.report?.type).toBe('deep_review');
     expect(result.report?.coverage.some((entry) => entry.status === 'ok')).toBe(true);
-    expect(result.answer).toContain('## Снимок портфеля');
+    expect(result.answer).toContain('## Состав портфеля');
     expect(result.answer).toContain('SBER');
     // Сектор взят из справочника активов, а не «не определён».
     expect(result.answer).toContain('финансы');
@@ -195,7 +195,7 @@ describe('граф агента с подтверждением', () => {
     const stored = moduleRef
       .get(ReportStoreService)
       .get(result.report?.reportId ?? '', 'default');
-    expect(stored?.markdown).toContain('## Итог и совет по структуре');
-    expect(stored?.templateVersion).toBe(1);
+    expect(stored?.markdown).toContain('## Итог: диверсификация и стратегия');
+    expect(stored?.templateVersion).toBe(2);
   });
 });

@@ -40,10 +40,13 @@ export interface TaxFacts {
   asOf: string;
 }
 
-/** Совпадение заголовка или аннотации с любым термином словаря. */
+/**
+ * Совпадение заголовка с термином словаря. Проверяем только заголовок:
+ * в аннотациях лент слово «налог» встречается в постах про что угодно.
+ */
 export const matchesKeywords = (item: SourceItem, keywords: readonly string[]): boolean => {
-  const haystack = `${item.title} ${item.summary ?? ''}`.toLowerCase();
-  return keywords.some((keyword) => haystack.includes(keyword.toLowerCase()));
+  const title = item.title.toLowerCase();
+  return keywords.some((keyword) => title.includes(keyword.toLowerCase()));
 };
 
 interface RawOperation {

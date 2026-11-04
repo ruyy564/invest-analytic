@@ -179,13 +179,19 @@ export class McpRegistryService {
             items: { type: 'string' },
             description: 'Тикеры портфеля, по которым нужны новости',
           },
+          names: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Названия компаний бумаг: по ним фильтруются общие ленты',
+          },
           days: { type: 'number', description: 'Глубина выборки в днях, по умолчанию 180' },
         },
       }) as never,
       func: async (input: unknown) => {
-        const args = (input ?? {}) as { tickers?: string[]; days?: number };
+        const args = (input ?? {}) as { tickers?: string[]; names?: string[]; days?: number };
         const result = await collectNewsDigest(registry, {
           tickers: Array.isArray(args.tickers) ? args.tickers : [],
+          names: Array.isArray(args.names) ? args.names : [],
           pages: this.config.value.sources.news.scanPages,
           maxItems: this.config.value.sources.news.maxItems,
         });

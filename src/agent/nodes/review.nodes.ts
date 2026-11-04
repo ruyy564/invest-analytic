@@ -1,5 +1,5 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { AIMessage, SystemMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 import { readFileSync } from 'node:fs';
 import type { AppConfigService } from '../../config/app-config.service.js';
@@ -12,10 +12,10 @@ import {
   buildCollectionPlan,
   instrumentKey,
   planKey,
-  sectorEntries,
   type CollectionPlan,
   type PlanEntry,
 } from '../../collection/plan.js';
+import { assetEntries, brandEntries, shareEntries } from '../../collection/reference.js';
 import { mapPositions } from '../../tools/mappers/positions.mapper.js';
 import type { McpRegistryService } from '../../tools/mcp-registry.service.js';
 import { openAccounts } from '../../tools/portfolio-snapshot.js';
@@ -27,9 +27,7 @@ import {
   templateProviders,
   type ReportTemplate,
 } from '../../report/template.js';
-import { sectorLookup } from '../../report/sector.js';
 import type { AgentStateType } from '../graph/state.js';
-import { ANSWER_TIMEOUT_MS } from './agent.node.js';
 
 export interface ReviewDeps {
   config: AppConfigService;
@@ -60,12 +58,12 @@ const accountIds = async (deps: ReviewDeps): Promise<string[]> => {
   }
 };
 
-/** Инструменты из собранных позиций: тикер, класс и uid актива (для справочника). */
+/** Инструменты из собранных позиций: тикер, класс, название и uid актива. */
 export const instrumentsOf = (
   plan: CollectionPlan,
   collected: CollectionResult,
-): { ticker: string; classCode?: string; uid?: string }[] => {
-  const found = new Map<string, { ticker: string; classCode?: string; uid?: string }>();
+): { ticker: string; classCode?: string; uid?: string; name?: string }[] => {
+  const found = new Map<string, { ticker: string; classCode?: string; uid?: string; name?: string }>();
   for (const { text } of resultsInGroup(plan, collected, 'portfolio')) {
     try {
       for (const position of mapPositions(text, 'rub')) {
@@ -73,6 +71,7 @@ export const instrumentsOf = (
           ticker: position.instrument.ticker,
           classCode: position.instrument.classCode,
           uid: position.instrument.uid,
+          name: position.instrument.name,
         });
       }
     } catch {
@@ -134,69 +133,66 @@ export const createCollectNode =
       accounts: [],
       tickers: ids,
       maxInstruments: deps.config.value.run.reviewMaxInstruments,
-      providers: ['market.dynamics', 'market.analytics', 'news.digest'],
+      providers: ['securities.detail', 'securities.opinions'],
+      // Названия компаний нужны лентам: по ним фильтруются новости бумаги.
+      names: Object.fromEntries(
+        instruments.flatMap((instrument) =>
+          instrument.name ? [[instrument.ticker, instrument.name] as const] : [],
+        ),
+      ),
     });
-    const perTickerGroups = new Set([
-      'prices',
-      'candles',
-      'analytics',
-      'dividends',
-      'signals',
-      'news',
-    ]);
+    const perTickerGroups = new Set(['prices', 'candles', 'analytics', 'dividends', 'news']);
     const seen = new Set(first.results.keys());
     const phase2: CollectionPlan = {
-      entries: [
-        ...perTicker.entries.filter((entry) => perTickerGroups.has(entry.group)),
-        ...sectorEntries(instruments),
-      ].filter((entry) => !seen.has(planKey(entry))),
+      entries: perTicker.entries.filter(
+        (entry) => perTickerGroups.has(entry.group) && !seen.has(planKey(entry)),
+      ),
       maxInstruments: deps.config.value.run.reviewMaxInstruments,
     };
     const second = await executePlan(phase2, executeDeps);
 
-    // Добор секторов через бренд: справочник бумаги не всегда содержит сектор,
-    // но отдаёт `brand.uid` — сектор есть в ответе `invest_get_brand`.
     const results: Record<string, string> = Object.fromEntries(first.results);
     for (const [key, value] of second.results) {
       results[key] = value;
     }
 
-    const referenceSeen = new Map([...first.results, ...second.results]);
-    const lookup = sectorLookup(
-      phase2.entries
-        .filter((entry) => entry.group === 'reference')
-        .flatMap((entry) => {
-          const text = referenceSeen.get(planKey(entry));
-          return text === undefined ? [] : [{ target: entry.target, text }];
-        }),
-    );
-    const brandEntries: PlanEntry[] = [...lookup.brandByTicker]
-      .filter(([ticker]) => !lookup.byTicker.has(ticker))
-      .map(([ticker, brandUid]) => ({
-        tool: 'invest_get_brand',
-        args: { brandUid },
-        group: 'reference' as PlanEntry['group'],
-        priority: 'optional' as PlanEntry['priority'],
-        target: ticker,
-      }));
-    const third = brandEntries.length
-      ? await executePlan(
-          { entries: brandEntries, maxInstruments: deps.config.value.run.reviewMaxInstruments },
-          executeDeps,
-        )
-      : { results: new Map<string, string>(), coverage: [], partial: false };
-    for (const [key, value] of third.results) {
-      results[key] = value;
-    }
+    // Справочник секторов: share → asset → brand, каждый круг по ответам предыдущего.
+    const texts = new Map<string, string>([...first.results, ...second.results]);
+    const referencePlans: CollectionPlan[] = [];
+    const extraCoverage = [...second.coverage];
+    let extraPartial = second.partial;
+
+    const round = async (entries: PlanEntry[]): Promise<PlanEntry[]> => {
+      if (entries.length === 0) {
+        return [];
+      }
+      const plan: CollectionPlan = {
+        entries,
+        maxInstruments: deps.config.value.run.reviewMaxInstruments,
+      };
+      const outcome = await executePlan(plan, executeDeps);
+      referencePlans.push(plan);
+      extraCoverage.push(...outcome.coverage);
+      extraPartial = extraPartial || outcome.partial;
+      for (const [key, value] of outcome.results) {
+        results[key] = value;
+        texts.set(key, value);
+      }
+      return entries;
+    };
+
+    const shares = await round(shareEntries(instruments));
+    const assets = await round(assetEntries(shares, texts, planKey));
+    await round(brandEntries(assets, texts, planKey));
 
     return {
-      readingPlan: [...basePlan.entries, ...phase2.entries],
+      readingPlan: [...basePlan.entries, ...phase2.entries, ...referencePlans.flatMap((plan) => plan.entries)],
       collection: {
         results,
-        coverage: [...first.coverage, ...second.coverage],
-        partial: first.partial || second.partial,
+        coverage: [...first.coverage, ...extraCoverage],
+        partial: first.partial || extraPartial,
       },
-      partial: first.partial || second.partial,
+      partial: first.partial || extraPartial,
       dataAsOf: new Date().toISOString(),
     };
   };
@@ -210,11 +206,10 @@ export const collectionFromState = (state: AgentStateType): CollectionResult => 
 
 /** Промпт интерпретации: файл `reports/prompts/interpretation.md` или встроенный. */
 export const INTERPRETATION_FALLBACK = [
-  'Ты пишешь два раздела отчёта по портфелю: «рыночный контекст и макро» и «итог и совет».',
-  'Опирайся ТОЛЬКО на факты в брифинге. Не придумывай числа, ставки, цены и события.',
-  'Фазу цикла и привлекательность секторов помечай словом (оценка).',
-  'Совет давай в терминах классов активов и долей; не предлагай конкретные сделки.',
-  'Формат ответа: две строки вида `macro: …` и `verdict: …`, без заголовков и списков.',
+  'Ты пишешь один раздел отчёта по портфелю частного инвестора: макро и цикл, оценку бумаг и секторов или итог по диверсификации и стратегии.',
+  'Опирайся ТОЛЬКО на факты брифинга: числа, ставки, цены и события не придумывай.',
+  'Если факта нет — пиши «данных нет», а не оценку. Оценки помечай словом (оценка).',
+  'Отвечай по-русски, верни только текст раздела: без заголовков markdown и без префикса с кодом раздела.',
 ].join(' ');
 
 export const loadInterpretationPrompt = (path: string): string => {
@@ -225,28 +220,18 @@ export const loadInterpretationPrompt = (path: string): string => {
   }
 };
 
-/** Разбор ответа модели: строки `id: текст` для секций интерпретации. */
-export const parseInterpretation = (
-  text: string,
-  ids: readonly string[],
-): Record<string, string> => {
-  const result: Record<string, string> = {};
-  const lines = text.split(/\r?\n/);
-  for (const id of ids) {
-    const pattern = new RegExp(`^\\s*${id}\\s*:`, 'i');
-    const line = lines.find((candidate) => pattern.test(candidate));
-    if (line) {
-      const value = line.replace(pattern, '').trim();
-      if (value.length > 0) {
-        result[id] = value;
-      }
-    }
-  }
-  if (Object.keys(result).length === 0 && text.trim().length > 0 && ids.length === 1) {
-    result[ids[0]] = text.trim();
-  }
-  return result;
-};
+/** Интерпретация идёт отдельными вызовами: разделов три, ответа ждём до минуты. */
+export const INTERPRETATION_TIMEOUT_MS = 60_000;
+
+/**
+ * Ответ модели на конкретный раздел: снимаем заголовок и префикс `id:`.
+ * Раздел уже подписан шаблоном, дублировать имя не нужно.
+ */
+export const cleanSection = (text: string, id: string): string =>
+  text
+    .replace(/^\s*#+\s+.*(\r?\n|$)/, '')
+    .replace(new RegExp(`^\\s*[*_#>-]*\\s*${id}\\s*[*_]*\\s*[:\\-—]\\s*`, 'i'), '')
+    .trim();
 
 /** Узел отчёта: сборка по шаблону + один вызов модели на интерпретацию. */
 export const createReportNode =
@@ -265,25 +250,41 @@ export const createReportNode =
       collected,
     });
 
-    let interpretation: Record<string, string> = {};
+    const interpretation: Record<string, string> = {};
     if (report.interpretation.length > 0 && deps.model) {
-      try {
-        const prompt = loadInterpretationPrompt(deps.config.value.report.interpretationPromptFile);
-        const brief = report.interpretation
-          .map((request) => `## ${request.id} (${request.title})\n${request.brief}`)
-          .join('\n\n');
-        const response = await withTimeout(
-          deps.model.invoke([new SystemMessage(prompt), new AIMessage(brief)]),
-          ANSWER_TIMEOUT_MS,
-          () => new Error('llm timeout'),
-        );
-        const text = typeof response.content === 'string' ? response.content : '';
-        interpretation = parseInterpretation(
-          text,
-          report.interpretation.map((request) => request.id),
-        );
-      } catch {
-        // Без интерпретации отчёт остаётся частичным, но остаётся отчётом.
+      const prompt = loadInterpretationPrompt(deps.config.value.report.interpretationPromptFile);
+      // По вызову на раздел: модель отвечает свободным текстом, а не разметкой
+      // «macro: …». Вызовы идут последовательно — GigaChat не любит параллель.
+      for (const request of report.interpretation) {
+        const instructions = [
+          prompt,
+          `Сейчас ты пишешь только раздел «${request.title}» (код раздела: ${request.id}).`,
+          'Верни только текст раздела: без заголовков markdown и без префикса с кодом раздела.',
+        ].join('\n');
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            const response = await withTimeout(
+              deps.model?.invoke([
+                new SystemMessage(instructions),
+                new HumanMessage(request.brief),
+              ]) ?? Promise.reject(new Error('модель недоступна')),
+              INTERPRETATION_TIMEOUT_MS,
+              () => new Error('llm timeout'),
+            );
+            const text = typeof response.content === 'string' ? response.content : '';
+            const cleaned = cleanSection(text, request.id);
+            if (cleaned.length > 0) {
+              interpretation[request.id] = cleaned;
+              break;
+            }
+            console.warn(`[report] раздел ${request.id}: пустой ответ модели`);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : JSON.stringify(error);
+            console.warn(`[report] раздел ${request.id} не сформирован:`, message.slice(0, 200));
+            // Одна повторная попытка: сеть и лимиты модели дают сбои на короткое время.
+            await new Promise((resolve) => setTimeout(resolve, 800));
+          }
+        }
       }
     }
 

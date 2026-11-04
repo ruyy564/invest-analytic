@@ -80,10 +80,13 @@ const DEFAULTS: Record<string, unknown> = {
   invest_get_portfolio: PORTFOLIO_FIXTURE,
   invest_get_positions: POSITIONS_JSON,
   invest_get_market_values: MARKET_VALUES_JSON,
-  // Справочник актива: сектор приходит в brand.sector (enum T-Invest).
-  invest_get_asset: { uid: 'uid-sber', brand: { uid: 'brand-sber', sector: 'SECTOR_FINANCIAL' } },
-  // Справочники бумаг: у брокера отдают только `instrument`, без бренда.
-  invest_get_share: { instrument: { ticker: 'SBER', classCode: 'TQBR' } },
+  // Справочник бумаги: uid актива приходит только в `responseView: FULL`.
+  invest_get_share: {
+    instrument: { ticker: 'SBER', classCode: 'TQBR', assetUid: 'asset-sber' },
+  },
+  // Карточка актива отдаёт uid бренда, а сектор лежит уже в бренде.
+  invest_get_asset: { asset: { uid: 'asset-sber', brand: { uid: 'brand-sber' } } },
+  invest_get_brand: { uid: 'brand-sber', name: 'Сбербанк', sector: 'financial' },
   invest_get_forecast: FORECAST_JSON,
   // Поиск бумаги и свечи: динамика считается по дневным свечам.
   invest_find_instrument: {

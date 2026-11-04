@@ -70,9 +70,30 @@ export class SourceRegistry {
    * прерывает сбор: причина попадает в покрытие.
    */
   async newsDigest(query: NewsQuery, topic: SourceTopic = 'news'): Promise<NewsDigest> {
-    const sources = this.newsSourcesFor(topic);
+    const tickers = (query.tickers ?? []).filter((ticker) => ticker.length > 0);
+    const matchers = (query.matchers ?? []).filter((matcher) => matcher.trim().length > 1);
+    const all = this.newsSourcesFor(topic);
+    // Новости по бумагам: брокер ищет по тикеру, ленты — фильтруют заголовки по
+    // подстрокам (тикер и название компании). Общий поток РБК/«Интерфакса» сюда
+    // не попадает: спорт и политика к портфелю отношения не имеют.
+    const sources =
+      tickers.length > 0 || matchers.length > 0
+        ? all.filter(
+            (source) =>
+              source.supportsTickerQuery || (matchers.length > 0 && source.supportsMatcherQuery),
+          )
+        : all;
     const batches: { source: string; items: SourceItem[] }[] = [];
     const coverage: SourceCoverageEntry[] = [];
+
+    if (sources.length === 0) {
+      return {
+        items: [],
+        coverage: [
+          { source: 'news', status: 'missing', reason: 'нет источника новостей по бумаге' },
+        ],
+      };
+    }
 
     await Promise.all(
       sources.map(async (source) => {

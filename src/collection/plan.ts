@@ -5,8 +5,14 @@ export const baseTicker = (instrumentId: string): string => instrumentId.split('
 export const instrumentKey = (ticker: string, classCode?: string): string =>
   classCode ? `${ticker}_${classCode}` : ticker;
 
-/** Сколько бумаг получают расширенную аналитику (прогноз, дивиденды, инсайдеры). */
+/** Сколько бумаг получают расширенную аналитику (прогноз, дивиденды, новости). */
 export const ANALYTICS_MAX_INSTRUMENTS = 5;
+
+/** Сколько бумаг получают историю цен: разбор по бумагам нужен большинству. */
+export const CANDLES_MAX_INSTRUMENTS = 10;
+
+/** Глубина истории цен для периодов 1д / 7д / 30д / 180д. */
+export const CANDLES_DAYS = 180;
 
 /** Приоритет записи плана: обязательные источники выполняются первыми. */
 export type PlanPriority = 'mandatory' | 'optional';
@@ -49,6 +55,8 @@ export interface PlanContext {
   maxInstruments: number;
   /** Какие поставщики фактов нужны шаблону отчёта. */
   providers: readonly string[];
+  /** Названия компаний по тикерам: нужны лентам для фильтра новостей. */
+  names?: Readonly<Record<string, string>>;
 }
 
 /** Стабильный ключ записи: одинаковые запросы не выполняются дважды. */
@@ -99,19 +107,24 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
     });
   }
 
-  const detailed = topTickers(ctx.tickers, ctx.maxInstruments);
-  // Пери-тикерная аналитика — самая дорогая часть плана (3 запроса на бумагу):
-  // берём только крупнейшие позиции, остальным хватает цен и структуры.
+  // Ценовая история дешевле аналитики: один вызов на бумагу без поиска инструмента.
+  const priced = topTickers(ctx.tickers, Math.min(ctx.maxInstruments, CANDLES_MAX_INSTRUMENTS));
   const analysable = topTickers(ctx.tickers, ANALYTICS_MAX_INSTRUMENTS);
   const wants = (provider: string): boolean => ctx.providers.includes(provider);
 
-  if (wants('news.digest')) {
-    add({
-      tool: 'market__news_digest',
-      args: { tickers: [...new Set(detailed.map(baseTicker))] },
-      group: 'news',
-      priority: 'mandatory',
-    });
+  if (wants('securities.opinions')) {
+    // Новости — только по конкретной бумаге: общая лента не влияет на решения.
+    for (const id of analysable) {
+      const ticker = baseTicker(id);
+      const name = ctx.names?.[ticker];
+      add({
+        tool: 'market__news_digest',
+        args: { tickers: [ticker], ...(name ? { names: [name] } : {}) },
+        group: 'news',
+        priority: 'mandatory',
+        target: ticker,
+      });
+    }
   }
   if (wants('tax.context')) {
     add({ tool: 'market__tax_watch', args: {}, group: 'tax', priority: 'optional' });
@@ -125,20 +138,27 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
       priority: 'optional',
     });
   }
-  if (wants('market.dynamics')) {
-    for (const id of analysable) {
-      // Свечи дорогие: инструмент ищет бумагу и может перебрать два класса.
+  if (wants('securities.detail')) {
+    // Свечи — одна запись на бумагу: `TICKER_CLASSCODE` уже известен из позиций,
+    // поиск инструмента не нужен, а период считает код, а не модель.
+    const to = new Date();
+    const from = new Date(to.getTime() - CANDLES_DAYS * 24 * 60 * 60 * 1000);
+    for (const id of priced) {
       add({
-        tool: 'market__price_dynamics',
-        // Инструмент сам подбирает класс бумаги, поэтому передаём базовый тикер.
-        args: { ticker: baseTicker(id), days: 180 },
+        tool: 'invest_get_candles',
+        args: {
+          instrumentId: id,
+          interval: 'CANDLE_INTERVAL_DAY',
+          from: from.toISOString(),
+          to: to.toISOString(),
+        },
         group: 'candles',
         priority: 'optional',
         target: baseTicker(id),
       });
     }
   }
-  if (wants('market.analytics')) {
+  if (wants('securities.opinions')) {
     for (const id of analysable) {
       const target = baseTicker(id);
       add({
@@ -155,42 +175,13 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
         priority: 'optional',
         target,
       });
-      add({
-        tool: 'invest_get_insider_deals',
-        args: { instrumentId: id },
-        group: 'signals',
-        priority: 'optional',
-        target,
-      });
     }
-    add({ tool: 'invest_list_signals', args: {}, group: 'signals', priority: 'optional' });
   }
 
   return { entries, maxInstruments: ctx.maxInstruments };
 };
 
 /**
- * Записи справочника для определения секторов: `invest_get_asset` по uid актива.
- * Проверено на живом MCP: `invest_get_share` отдаёт только `instrument` без бренда,
- * а полный актив (`AssetFull`) содержит `brand.sector`.
+ * Записи справочника для определения секторов вынесены в `reference.ts`:
+ * сектор отдаёт бренд, поэтому путь — `share → asset → brand`.
  */
-export const sectorEntries = (
-  instruments: readonly { ticker: string; uid?: string }[],
-): PlanEntry[] =>
-  instruments.flatMap((instrument) => {
-    if (!instrument.uid) {
-      return [];
-    }
-    return [
-      {
-        tool: 'invest_get_asset',
-        args: {
-          instrumentId: instrument.uid,
-          idType: 'INSTRUMENT_ID_TYPE_UID',
-        },
-        group: 'reference' as PlanGroup,
-        priority: 'optional' as PlanPriority,
-        target: instrument.ticker,
-      },
-    ];
-  });

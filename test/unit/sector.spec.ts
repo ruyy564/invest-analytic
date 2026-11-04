@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import { buildCollectionPlan, planKey, sectorEntries } from '../../src/collection/plan.js';
+import { buildCollectionPlan, planKey } from '../../src/collection/plan.js';
+import { assetEntries, brandEntries, shareEntries } from '../../src/collection/reference.js';
 import { buildReport } from '../../src/report/engine.js';
 import { createProviderMap } from '../../src/report/providers/index.js';
 import { sectorByTicker, sectorLabel, sectorOf, UNKNOWN_SECTOR } from '../../src/report/sector.js';
@@ -67,21 +68,51 @@ describe('определение сектора бумаги', () => {
     expect([...map.entries()]).toEqual([['SBER', 'финансы']]);
   });
 
-  it('строит записи справочника актива по uid', () => {
-    const entries = sectorEntries([
-      { ticker: 'SBER', classCode: 'TQBR', uid: 'uid-sber' },
-      { ticker: 'NOUID' },
+  it('строит первый шаг справочника: бумага → uid актива', () => {
+    const entries = shareEntries([
+      { ticker: 'SBER', classCode: 'TQBR' },
+      { ticker: 'SU26238', classCode: 'TQCB' },
     ]);
 
-    expect(entries).toEqual([
-      {
-        tool: 'invest_get_asset',
-        args: { instrumentId: 'uid-sber', idType: 'INSTRUMENT_ID_TYPE_UID' },
-        group: 'reference',
-        priority: 'optional',
-        target: 'SBER',
+    expect(entries[0]).toEqual({
+      tool: 'invest_get_share',
+      // uid актива приходит только с `responseView: FULL`.
+      args: {
+        instrumentId: 'SBER_TQBR',
+        idType: 'INSTRUMENT_ID_TYPE_ID',
+        responseView: ['FULL'],
       },
+      group: 'reference',
+      priority: 'optional',
+      target: 'SBER',
+    });
+    expect(entries).toHaveLength(2);
+  });
+
+  it('достаёт сектор бренда из цепочки share → asset → brand', () => {
+    const shares = shareEntries([{ ticker: 'SBER', classCode: 'TQBR' }]);
+    const shareTexts = new Map([
+      [
+        planKey(shares[0]),
+        JSON.stringify({ instrument: { ticker: 'SBER', classCode: 'TQBR', assetUid: 'asset-1' } }),
+      ],
     ]);
+    const assets = assetEntries(shares, shareTexts, planKey);
+
+    expect(assets[0]?.tool).toBe('invest_get_asset');
+    expect(assets[0]?.args).toEqual({ id: 'asset-1' });
+
+    const assetTexts = new Map([
+      [planKey(assets[0]), JSON.stringify({ asset: { uid: 'asset-1', brand: { uid: 'brand-1' } } })],
+    ]);
+    const brands = brandEntries(assets, assetTexts, planKey);
+
+    expect(brands[0]?.tool).toBe('invest_get_brand');
+    expect(brands[0]?.args).toEqual({ id: 'brand-1' });
+    // Бренд отдаёт сектор строкой — приводим к русскому названию.
+    expect(sectorByTicker([{ target: 'SBER', text: JSON.stringify({ sector: 'financial' }) }])).toEqual(
+      new Map([['SBER', 'финансы']]),
+    );
   });
 });
 
@@ -93,9 +124,15 @@ describe('сектор в отчёте', () => {
       maxInstruments: 15,
       providers: ['portfolio.structure', 'portfolio.gaps'],
     });
-    plan.entries.push(
-      ...sectorEntries([{ ticker: 'SBER', classCode: 'TQBR', uid: 'uid-sber' }]),
-    );
+    // Справочник секторов: share → asset → brand.
+    const shares = shareEntries([{ ticker: 'SBER', classCode: 'TQBR' }]);
+    const shareTexts = new Map([
+      [planKey(shares[0]), JSON.stringify({ instrument: { assetUid: 'uid-sber' } })],
+    ]);
+    const assets = assetEntries(shares, shareTexts, planKey);
+    const assetTexts = new Map([[planKey(assets[0]), JSON.stringify(ASSET_SBER)]]);
+    const brands = brandEntries(assets, assetTexts, planKey);
+    plan.entries.push(...shares, ...assets, ...brands);
 
     const results = new Map<string, string>();
     for (const entry of plan.entries) {
@@ -108,8 +145,14 @@ describe('сектор в отчёте', () => {
       if (entry.tool === 'invest_get_market_values') {
         results.set(planKey(entry), JSON.stringify(MARKET_VALUES));
       }
+      if (entry.tool === 'invest_get_share') {
+        results.set(planKey(entry), JSON.stringify({ instrument: { assetUid: 'uid-sber' } }));
+      }
       if (entry.tool === 'invest_get_asset') {
         results.set(planKey(entry), JSON.stringify(ASSET_SBER));
+      }
+      if (entry.tool === 'invest_get_brand') {
+        results.set(planKey(entry), JSON.stringify({ sector: 'financial' }));
       }
     }
 

@@ -56,6 +56,16 @@ describe('налоговое наблюдение', () => {
     expect(matchesKeywords(item({ title: 'Погода в Москве' }), DEFAULT_TAX_KEYWORDS)).toBe(false);
   });
 
+  it('не считает налоговой новость с термином только в аннотации', () => {
+    // Раньше достаточно было слова «налог» в summary — в раздел попадал мусор.
+    expect(
+      matchesKeywords(
+        item({ title: 'Аукс, тебе конечно лайк, но есть нюанс', summary: 'рассуждаем про налоги' }),
+        DEFAULT_TAX_KEYWORDS,
+      ),
+    ).toBe(false);
+  });
+
   it('читает словарь из файла и падает на встроенный, если файла нет', () => {
     const dir = mkdtempSync(join(tmpdir(), 'tax-'));
     const path = join(dir, 'keywords.yaml');

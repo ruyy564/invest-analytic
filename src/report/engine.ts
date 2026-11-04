@@ -121,7 +121,8 @@ export const buildReport = (deps: BuildReportDeps): ReportBuildResult => {
       sections.push({
         id: section.id,
         title: section.title,
-        markdown: renderUnavailable('секцию формулирует модель'),
+        // Текста нет: его даст модель. Заглушка в отчёт не попадает.
+        markdown: '',
         structured: facts.structured,
         interpret: true,
       });
@@ -157,7 +158,10 @@ export const composeMarkdown = (
 
   for (const section of report.sections) {
     lines.push(`## ${section.title}`);
-    lines.push(interpretation[section.id] ?? section.markdown);
+    const text =
+      interpretation[section.id] ??
+      (section.interpret ? 'Раздел не сформирован: модель не дала ответ.' : section.markdown);
+    lines.push(text);
     lines.push('');
   }
 

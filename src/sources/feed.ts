@@ -201,6 +201,9 @@ export const createFeedSource = (options: FeedSourceOptions): NewsSourceAdapter 
   return {
     id: options.id,
     topics: options.topics ?? ['news'],
+    // Общая лента: поиска по тикеру нет, но фильтр по подстрокам работает.
+    supportsTickerQuery: false,
+    supportsMatcherQuery: true,
     async fetchNews(query: NewsQuery): Promise<SourceItem[]> {
       const raw = await fetchText(options.url);
       const items = parseFeed(raw, {
@@ -213,8 +216,22 @@ export const createFeedSource = (options: FeedSourceOptions): NewsSourceAdapter 
       const since = query.sinceDays
         ? Date.now() - query.sinceDays * 24 * 60 * 60 * 1000
         : undefined;
+      // Фильтр по бумагам: заголовок или аннотация должны упоминать тикер
+      // либо название компании — иначе это общая лента про спорт и политику.
+      const matchers = (query.matchers ?? [])
+        .map((matcher) => matcher.trim().toLowerCase())
+        .filter((matcher) => matcher.length > 1);
+      const relevant = (item: { title: string; summary?: string }): boolean => {
+        if (matchers.length === 0) {
+          return true;
+        }
+        const haystack = `${item.title} ${item.summary ?? ''}`.toLowerCase();
+        return matchers.some((matcher) => haystack.includes(matcher));
+      };
+
       return items
         .filter((item) => !since || Date.parse(item.publishedAt) >= since)
+        .filter(relevant)
         .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
         .slice(0, query.maxItems);
     },

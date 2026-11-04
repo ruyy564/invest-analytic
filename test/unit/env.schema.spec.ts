@@ -51,8 +51,8 @@ describe('конфигурация окружения', () => {
     const config = loadConfiguration(baseEnv());
 
     expect(config.run).toEqual({
-      toolMaxCalls: 120,
-      deadlineMs: 90_000,
+      toolMaxCalls: 200,
+      deadlineMs: 150_000,
       parallelism: 4,
       reviewMaxInstruments: 15,
       mcpToolTimeoutMs: 15_000,

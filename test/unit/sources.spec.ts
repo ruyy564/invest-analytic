@@ -171,3 +171,29 @@ describe('сводка новостей по периодам', () => {
     expect(formatNewsDigest(result)).toContain('Новости свежие:');
   });
 });
+
+describe('новости по бумагам', () => {
+  it('не смешивает общую ленту с новостями по тикеру', async () => {
+    // Общая лента не умеет искать по бумаге: при запросе по тикеру её не берём.
+    const general: NewsSourceAdapter = {
+      id: 'rbc',
+      topics: ['news'],
+      supportsTickerQuery: false,
+      fetchNews: async () => [item({ title: 'Спорт и политика', source: 'rbc' })],
+    };
+    const broker: NewsSourceAdapter = {
+      id: 'tinkoff',
+      topics: ['news'],
+      supportsTickerQuery: true,
+      fetchNews: async (query) =>
+        query.tickers?.length ? [item({ title: `Новость ${query.tickers[0]}`, source: 'tinkoff' })] : [],
+    };
+    const registry = new SourceRegistry([general, broker]);
+
+    const byTicker = await registry.newsDigest({ tickers: ['SBER'], pages: 1, maxItems: 10 });
+    expect(byTicker.items.map((entry) => entry.title)).toEqual(['Новость SBER']);
+
+    const generalDigest = await registry.newsDigest({ pages: 1, maxItems: 10 });
+    expect(generalDigest.items.map((entry) => entry.title)).toEqual(['Спорт и политика']);
+  });
+});

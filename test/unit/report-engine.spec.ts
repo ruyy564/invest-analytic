@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { ConfigError } from '../../src/config/config.error.js';
-import { buildCollectionPlan, planKey, ANALYTICS_MAX_INSTRUMENTS } from '../../src/collection/plan.js';
+import { buildCollectionPlan, planKey, ANALYTICS_MAX_INSTRUMENTS, CANDLES_MAX_INSTRUMENTS } from '../../src/collection/plan.js';
 import type { CollectionResult } from '../../src/collection/executor.js';
 import { buildReport, composeMarkdown, missingProviders } from '../../src/report/engine.js';
 import { createProviderMap } from '../../src/report/providers/index.js';
@@ -40,7 +40,7 @@ const plan = () => {
     accounts: ['acc-1'],
     tickers: ['SBER', 'SU26238'],
     maxInstruments: 15,
-    providers: ['portfolio.snapshot', 'portfolio.structure', 'portfolio.concentration', 'portfolio.gaps'],
+    providers: ['portfolio.table', 'portfolio.structure', 'portfolio.concentration', 'portfolio.gaps'],
   });
   return built;
 };
@@ -95,19 +95,19 @@ sections:
     expect(template.periods).toEqual(['1d', '7d', '30d', '180d']);
     expect(template.thresholds.concentrationHigh).toBe(0.5);
     expect(template.sections.map((section) => section.id)).toEqual([
-      'snapshot',
+      'table',
+      'macro',
+      'securities',
+      'opinions',
       'structure',
       'concentration',
-      'dynamics',
-      'news',
-      'analytics',
-      'macro',
       'tax',
       'gaps',
       'verdict',
     ]);
     expect(template.sections.filter((section) => section.interpret).map((section) => section.id)).toEqual([
       'macro',
+      'opinions',
       'verdict',
     ]);
   });
@@ -147,23 +147,25 @@ describe('сборка отчёта движком', () => {
 
   it('идёт по секциям шаблона и считает числа по собранным данным', () => {
     const report = build();
-    const snapshot = report.sections.find((section) => section.id === 'snapshot');
+    const table = report.sections.find((section) => section.id === 'table');
 
     expect(report.reportId).toBe('report-1');
-    expect(report.templateVersion).toBe(1);
-    expect(report.sections).toHaveLength(10);
-    expect(snapshot?.markdown).toContain('SBER');
+    expect(report.templateVersion).toBe(2);
+    expect(report.sections).toHaveLength(9);
+    expect(table?.markdown).toContain('SBER');
     // 100 × 300 + 10 × 900 = 39 000
-    expect(snapshot?.markdown).toContain('39 000,00');
+    expect(table?.markdown).toContain('39 000,00');
+    // Сектор в таблице: справочник в этом сборе не собирался — честное «не определён».
+    expect(table?.markdown).toContain('сектор не определён');
   });
 
   it('помечает отчёт частичным, если источники не собраны', () => {
     const report = build();
 
     expect(report.partial).toBe(true);
-    // Интерпретировать нечего: данных макро и итога нет — секции честно пустые.
-    expect(report.interpretation).toEqual([]);
-    expect(report.sections.find((section) => section.id === 'news')?.markdown).toContain('Данных нет');
+    // Макро нет (ставка не собрана), а бумаги и итог есть — их и интерпретируем.
+    expect(report.interpretation.map((request) => request.id)).toEqual(['opinions', 'verdict']);
+    expect(report.sections.find((section) => section.id === 'tax')?.markdown).toContain('Данных нет');
   });
 
   it('отдаёт секции интерпретации, когда для них есть факты', () => {
@@ -171,7 +173,7 @@ describe('сборка отчёта движком', () => {
       accounts: ['acc-1'],
       tickers: ['SBER'],
       maxInstruments: 15,
-      providers: ['macro.context', 'facts.brief', 'news.digest'],
+      providers: ['macro.context', 'facts.brief', 'securities.opinions'],
     });
     const results = new Map<string, string>();
     for (const entry of built.entries) {
@@ -191,20 +193,30 @@ describe('сборка отчёта движком', () => {
       reportId: 'report-3',
     });
 
-    expect(report.interpretation.map((request) => request.id)).toEqual(['macro', 'verdict']);
-    expect(report.interpretation[0].brief).toContain('Ключевая ставка ЦБ');
+    // Позиций в этом сборе нет: остаётся только макро.
+    expect(report.interpretation.map((request) => request.id)).toEqual(['macro']);
+    expect(report.interpretation[0].brief).toContain('ставка ЦБ 14,00 %');
   });
 
   it('подставляет интерпретацию модели и добавляет дисклеймер', () => {
     const report = build();
     const text = composeMarkdown(report, {
       macro: 'Ставка снижается (оценка).',
+      opinions: 'SBER — растёт.',
       verdict: 'Совет: добрать облигации.',
     });
 
-    expect(text).toContain('## Рыночный контекст и макро');
+    expect(text).toContain('## Экономический цикл и рынок');
     expect(text).toContain('Ставка снижается (оценка).');
     expect(text).toContain('не является индивидуальной инвестиционной рекомендацией');
+  });
+
+  it('не оставляет заглушек вместо интерпретации', () => {
+    const report = build();
+    const text = composeMarkdown(report, {});
+
+    expect(text).not.toContain('секцию формулирует модель');
+    expect(text).toContain('Раздел не сформирован');
   });
 
   it('сообщает об отсутствии данных, если позиции не собраны', () => {
@@ -218,8 +230,8 @@ describe('сборка отчёта движком', () => {
       reportId: 'report-2',
     });
 
-    const snapshot = report.sections.find((section) => section.id === 'snapshot');
-    expect(snapshot?.markdown).toContain('Данных нет');
+    const table = report.sections.find((section) => section.id === 'table');
+    expect(table?.markdown).toContain('Данных нет');
     expect(report.partial).toBe(true);
   });
 });
@@ -242,7 +254,7 @@ describe('шаблон управляет отчётом', () => {
         'sections:',
         '  - id: snapshot',
         '    title: Только снимок',
-        '    provider: portfolio.snapshot',
+        '    provider: portfolio.table',
         '    render: table',
       ].join('\n'),
       'utf8',
@@ -268,7 +280,7 @@ describe('шаблон управляет отчётом', () => {
       accounts: ['acc-1'],
       tickers,
       maxInstruments: 15,
-      providers: ['market.analytics', 'market.dynamics'],
+      providers: ['securities.detail', 'securities.opinions'],
     });
 
     // Аналитика — только по крупнейшим бумагам (дорогая часть плана), свечи — по лимиту разбора.
@@ -278,9 +290,12 @@ describe('шаблон управляет отчётом', () => {
     expect(built.entries.filter((entry) => entry.group === 'dividends')).toHaveLength(
       ANALYTICS_MAX_INSTRUMENTS,
     );
-    // Свечи тоже дорогие (поиск бумаги + выгрузка), поэтому идут по тому же лимиту.
-    expect(built.entries.filter((entry) => entry.group === 'candles')).toHaveLength(
+    expect(built.entries.filter((entry) => entry.group === 'news')).toHaveLength(
       ANALYTICS_MAX_INSTRUMENTS,
+    );
+    // Свечи — один вызов на бумагу, без поиска инструмента.
+    expect(built.entries.filter((entry) => entry.group === 'candles')).toHaveLength(
+      CANDLES_MAX_INSTRUMENTS,
     );
     expect(built.maxInstruments).toBe(15);
   });
@@ -313,15 +328,24 @@ describe('факты поставщиков', () => {
     expect(facts?.markdown).toContain('ниже порога');
   });
 
-  it('распознаёт консенсус аналитиков', () => {
+  it('распознаёт консенсус аналитиков и считает потенциал', () => {
     const built = buildCollectionPlan({
       accounts: ['acc-1'],
-      tickers: ['SBER'],
+      tickers: ['SBER_TQBR'],
       maxInstruments: 15,
-      providers: ['market.analytics'],
+      providers: ['securities.opinions'],
     });
     const results = new Map<string, string>();
     for (const entry of built.entries) {
+      if (entry.tool === 'invest_get_portfolio') {
+        results.set(planKey(entry), PORTFOLIO);
+      }
+      if (entry.tool === 'invest_get_positions') {
+        results.set(planKey(entry), POSITIONS);
+      }
+      if (entry.tool === 'invest_get_market_values') {
+        results.set(planKey(entry), PRICES);
+      }
       if (entry.tool === 'invest_get_forecast') {
         results.set(
           planKey(entry),
@@ -340,14 +364,14 @@ describe('факты поставщиков', () => {
       }
     }
 
-    const facts = createProviderMap().get('market.analytics')?.section({
+    const facts = createProviderMap().get('securities.opinions')?.section({
       plan: built,
       collected: { results, coverage: [], partial: false },
       template: loadReportTemplate(templatePath),
       now: new Date('2026-11-04T12:00:00Z'),
     });
 
-    expect(facts?.markdown).toContain('покупать');
-    expect(facts?.brief).toContain('потенциал 31,05 %');
+    expect(facts?.markdown).toContain('SBER');
+    expect(facts?.brief).toContain('потенциал +31,05 %');
   });
 });

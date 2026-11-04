@@ -21,6 +21,12 @@ interface RawNews {
   instrumentId?: string[];
 }
 
+/**
+ * Общие обзоры рынка: брокер помечает их всеми тикерами, но к конкретной бумаге
+ * они не относятся — в разбор по бумагам такие заголовки не берём.
+ */
+export const GENERIC_NEWS = /итоги торгов|суммарные итоги|режим основных торгов|обзор рынка|итоги дня/i;
+
 /** Ответ `invest_get_news` → элементы общего вида и курсор следующей страницы. */
 export const mapNews = (
   raw: unknown,
@@ -34,6 +40,9 @@ export const mapNews = (
     const title = typeof item.title === 'string' ? item.title.trim() : '';
     const publishedAt = typeof item.ts === 'string' ? new Date(item.ts).toISOString() : undefined;
     if (!title || publishedAt === undefined || Number.isNaN(Date.parse(publishedAt))) {
+      return [];
+    }
+    if (GENERIC_NEWS.test(title)) {
       return [];
     }
     const content = typeof item.content === 'string' ? item.content.replace(/\s+/g, ' ').trim() : '';
@@ -53,9 +62,9 @@ export const mapNews = (
 };
 
 /**
- * Новости брокера: общая лента и лента по тикерам. Даты в API нет — период
- * определяется по времени публикации. По тикеру листаем одну страницу:
- * глубина выборки важнее для общей ленты, а каждая страница — вызов из бюджета.
+ * Новости брокера: только по бумагам портфеля. Общая лента сюда не попадает —
+ * спорт, политика и кино не влияют на портфель. Даты в API нет, период
+ * определяется по времени публикации; по тикеру листаем одну страницу.
  */
 export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): NewsSourceAdapter => {
   const call = async (args: Record<string, unknown>): Promise<{ items: SourceItem[]; nextCursor?: string }> => {
@@ -95,29 +104,36 @@ export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): News
   return {
     id: 'tinkoff',
     topics: options.topics ?? ['news', 'tax'],
+    // Брокер умеет отдавать новости по конкретной бумаге.
+    supportsTickerQuery: true,
     async fetchNews(query: NewsQuery): Promise<SourceItem[]> {
-      const tickers = (query.tickers ?? []).filter((ticker) => ticker.length > 0);
+      const tickers = (query.tickers ?? []).filter((ticker) => ticker.length > 0).slice(0, 5);
       const batches: SourceItem[] = [];
 
-      for (const ticker of tickers.slice(0, 5)) {
-        try {
-          // По бумаге достаточно первой страницы: период считается по дате публикации.
-          batches.push(
-            ...(await collect(ticker, { ...query, pages: 1, maxItems: Math.min(3, query.maxItems) })),
-          );
-        } catch {
-          // Один тикер не должен ломать сводку: остальные ленты соберём.
+      if (tickers.length > 0) {
+        // Только новости по бумагам портфеля: общая лента не влияет на решения
+        // и забивает отчёт спортом/политикой.
+        for (const ticker of tickers) {
+          try {
+            batches.push(
+              ...(await collect(ticker, {
+                ...query,
+                pages: 1,
+                maxItems: Math.min(3, query.maxItems),
+              })),
+            );
+          } catch {
+            // Один тикер не должен ломать сводку: остальные соберём.
+          }
         }
-      }
-      try {
-        batches.push(...(await collect(undefined, query)));
-      } catch {
         if (batches.length === 0) {
-          throw new Error('новости брокера недоступны');
+          throw new Error('новостей по бумагам портфеля нет');
         }
+        return batches;
       }
 
-      return batches;
+      // Общая лента нужна только когда бумаги неизвестны (первая фаза плана).
+      return collect(undefined, query);
     },
   };
 };

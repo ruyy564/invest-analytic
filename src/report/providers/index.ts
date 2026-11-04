@@ -2,44 +2,37 @@ import type { FactProvider } from '../engine.js';
 import {
   concentrationProvider,
   gapsProvider,
-  snapshotProvider,
   structureProvider,
+  tableProvider,
 } from './portfolio.js';
-import {
-  analyticsProvider,
-  briefProvider,
-  dynamicsProvider,
-  macroProvider,
-  newsProvider,
-  taxProvider,
-} from './market.js';
+import { macroProvider, taxProvider } from './market.js';
+import { opinionsProvider, securitiesProvider } from './securities.js';
+import { briefProvider } from './verdict.js';
 
 /** Реестр поставщиков фактов: имена совпадают с `provider` в шаблоне отчёта. */
 export const createProviderMap = (): Map<string, FactProvider> =>
   new Map(
     [
-      snapshotProvider,
+      tableProvider,
       structureProvider,
       concentrationProvider,
       gapsProvider,
-      dynamicsProvider,
-      analyticsProvider,
-      newsProvider,
-      taxProvider,
+      securitiesProvider,
+      opinionsProvider,
       macroProvider,
+      taxProvider,
       briefProvider,
     ].map((provider) => [provider.id, provider] as const),
   );
 
 export {
-  snapshotProvider,
+  tableProvider,
   structureProvider,
   concentrationProvider,
   gapsProvider,
-  dynamicsProvider,
-  analyticsProvider,
-  newsProvider,
-  taxProvider,
+  securitiesProvider,
+  opinionsProvider,
   macroProvider,
+  taxProvider,
   briefProvider,
 };
