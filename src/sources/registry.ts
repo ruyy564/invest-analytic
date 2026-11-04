@@ -14,6 +14,9 @@ export interface SourceCoverageEntry {
   reason?: string;
 }
 
+/** Короткое имя того же типа: используется сбором и отчётом. */
+export type CoverageEntry = SourceCoverageEntry;
+
 export interface NewsDigest {
   items: SourceItem[];
   coverage: SourceCoverageEntry[];

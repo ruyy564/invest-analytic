@@ -1,6 +1,6 @@
 # Шаблон отчёта «разбор портфеля».
-# Состав и порядок секций задаются здесь, а не в коде: см. docs/reports.md.
-# Полный набор секций и порогов добавляется в задаче 4.2 (каркас шаблона).
+# Состав, порядок, пороги и периоды задаются здесь — код отчёта не меняется.
+# Схема и примеры: docs/reports.md
 id: portfolio-review
 version: 1
 periods: [1d, 7d, 30d, 180d]
@@ -8,4 +8,48 @@ thresholds:
   concentration_high: 0.50
   concentration_medium: 0.25
   min_class_share: 0.05
-sections: []
+sections:
+  - id: snapshot
+    title: Снимок портфеля
+    provider: portfolio.snapshot
+    render: table
+  - id: structure
+    title: Структура портфеля
+    provider: portfolio.structure
+    render: distribution
+  - id: concentration
+    title: Концентрация
+    provider: portfolio.concentration
+    render: kpi
+  - id: dynamics
+    title: Динамика за периоды
+    provider: market.dynamics
+    render: list
+  - id: news
+    title: Новости
+    provider: news.digest
+    render: list
+    params:
+      max: 12
+  - id: analytics
+    title: Аналитика и мнения
+    provider: market.analytics
+    render: table
+  - id: macro
+    title: Рыночный контекст и макро
+    provider: macro.context
+    render: text
+    interpret: true
+  - id: tax
+    title: Налоговый контекст
+    provider: tax.context
+    render: text
+  - id: gaps
+    title: Пробелы в портфеле
+    provider: portfolio.gaps
+    render: list
+  - id: verdict
+    title: Итог и совет по структуре
+    provider: facts.brief
+    render: text
+    interpret: true

@@ -1,0 +1,291 @@
+import { join } from 'node:path';
+import { ConfigError } from '../../src/config/config.error.js';
+import { buildCollectionPlan, planKey } from '../../src/collection/plan.js';
+import type { CollectionResult } from '../../src/collection/executor.js';
+import { buildReport, composeMarkdown, missingProviders } from '../../src/report/engine.js';
+import { createProviderMap } from '../../src/report/providers/index.js';
+import { parseYaml } from '../../src/report/yaml.js';
+import { loadReportTemplate, parseReportTemplate } from '../../src/report/template.js';
+
+const templatePath = join(import.meta.dirname, '..', '..', 'reports', 'portfolio-review.yaml');
+
+const POSITIONS = JSON.stringify({
+  securities: [
+    { balance: '100', ticker: 'SBER', classCode: 'TQBR' },
+    { balance: '10', ticker: 'SU26238', classCode: 'TQCB' },
+  ],
+});
+
+const PORTFOLIO = JSON.stringify({ totalAmountCurrencies: [{ currency: 'rub', units: '150000' }] });
+
+const PRICES = JSON.stringify({
+  instruments: [
+    {
+      ticker: 'SBER',
+      classCode: 'TQBR',
+      priceCurrency: 'rub',
+      values: [{ type: 'INSTRUMENT_VALUE_LAST_PRICE', value: { currency: 'rub', value: '300' } }],
+    },
+    {
+      ticker: 'SU26238',
+      classCode: 'TQCB',
+      priceCurrency: 'rub',
+      values: [{ type: 'INSTRUMENT_VALUE_LAST_PRICE', value: { currency: 'rub', value: '900' } }],
+    },
+  ],
+});
+
+const plan = () => {
+  const built = buildCollectionPlan({
+    accounts: ['acc-1'],
+    tickers: ['SBER', 'SU26238'],
+    maxInstruments: 15,
+    providers: ['portfolio.snapshot', 'portfolio.structure', 'portfolio.concentration', 'portfolio.gaps'],
+  });
+  return built;
+};
+
+const collection = (built: ReturnType<typeof plan>): CollectionResult => {
+  const results = new Map<string, string>();
+  for (const entry of built.entries) {
+    if (entry.tool === 'invest_get_portfolio') {
+      results.set(planKey(entry), PORTFOLIO);
+    }
+    if (entry.tool === 'invest_get_positions') {
+      results.set(planKey(entry), POSITIONS);
+    }
+    if (entry.tool === 'invest_get_market_values') {
+      results.set(planKey(entry), PRICES);
+    }
+    if (entry.tool === 'invest_list_accounts') {
+      results.set(planKey(entry), JSON.stringify({ accounts: [{ id: 'acc-1' }] }));
+    }
+  }
+  return { results, coverage: [], partial: false };
+};
+
+describe('разбор шаблона отчёта', () => {
+  it('читает YAML-подмножество: комментарии, вложенность, список объектов', () => {
+    const parsed = parseYaml(`# комментарий
+id: test
+periods: [1d, 7d]
+thresholds:
+  concentration_high: 0.5
+sections:
+  - id: a
+    title: Первая
+    provider: portfolio.snapshot
+    interpret: true
+`) as Record<string, unknown>;
+
+    expect(parsed.id).toBe('test');
+    expect(parsed.periods).toEqual(['1d', '7d']);
+    expect((parsed.thresholds as Record<string, unknown>).concentration_high).toBe(0.5);
+    expect((parsed.sections as unknown[])[0]).toMatchObject({
+      id: 'a',
+      provider: 'portfolio.snapshot',
+      interpret: true,
+    });
+  });
+
+  it('загружает реальный шаблон проекта и видит все секции', () => {
+    const template = loadReportTemplate(templatePath);
+
+    expect(template.id).toBe('portfolio-review');
+    expect(template.periods).toEqual(['1d', '7d', '30d', '180d']);
+    expect(template.thresholds.concentrationHigh).toBe(0.5);
+    expect(template.sections.map((section) => section.id)).toEqual([
+      'snapshot',
+      'structure',
+      'concentration',
+      'dynamics',
+      'news',
+      'analytics',
+      'macro',
+      'tax',
+      'gaps',
+      'verdict',
+    ]);
+    expect(template.sections.filter((section) => section.interpret).map((section) => section.id)).toEqual([
+      'macro',
+      'verdict',
+    ]);
+  });
+
+  it('отклоняет шаблон без провайдера и с дублем секции', () => {
+    expect(() =>
+      parseReportTemplate(
+        {
+          id: 'x',
+          version: 1,
+          periods: ['1d'],
+          sections: [{ id: 'a' }, { id: 'a', provider: 'p' }],
+        },
+        'test.yaml',
+      ),
+    ).toThrow(ConfigError);
+  });
+
+  it('все провайдеры шаблона зарегистрированы', () => {
+    expect(missingProviders(loadReportTemplate(templatePath), createProviderMap())).toEqual([]);
+  });
+});
+
+
+describe('сборка отчёта движком', () => {
+  const build = (providers = createProviderMap()) => {
+    const built = plan();
+    return buildReport({
+      template: loadReportTemplate(templatePath),
+      providers,
+      plan: built,
+      collected: collection(built),
+      now: new Date('2026-11-04T12:00:00Z'),
+      reportId: 'report-1',
+    });
+  };
+
+  it('идёт по секциям шаблона и считает числа по собранным данным', () => {
+    const report = build();
+    const snapshot = report.sections.find((section) => section.id === 'snapshot');
+
+    expect(report.reportId).toBe('report-1');
+    expect(report.templateVersion).toBe(1);
+    expect(report.sections).toHaveLength(10);
+    expect(snapshot?.markdown).toContain('SBER');
+    // 100 × 300 + 10 × 900 = 39 000
+    expect(snapshot?.markdown).toContain('39 000,00');
+  });
+
+  it('помечает отчёт частичным, если источники не собраны', () => {
+    const report = build();
+
+    expect(report.partial).toBe(true);
+    // Интерпретировать нечего: данных макро и итога нет — секции честно пустые.
+    expect(report.interpretation).toEqual([]);
+    expect(report.sections.find((section) => section.id === 'news')?.markdown).toContain('Данных нет');
+  });
+
+  it('отдаёт секции интерпретации, когда для них есть факты', () => {
+    const built = buildCollectionPlan({
+      accounts: ['acc-1'],
+      tickers: ['SBER'],
+      maxInstruments: 15,
+      providers: ['macro.context', 'facts.brief', 'news.digest'],
+    });
+    const results = new Map<string, string>();
+    for (const entry of built.entries) {
+      if (entry.tool === 'macro__key_rate') {
+        results.set(planKey(entry), 'Ключевая ставка ЦБ: 14,00 % годовых\nДействует с 2026-07-27');
+      }
+      if (entry.tool === 'market__news_digest') {
+        results.set(planKey(entry), 'Новости свежие:\n• 2026-11-04 [interfax] Заголовок');
+      }
+    }
+
+    const report = buildReport({
+      template: loadReportTemplate(templatePath),
+      providers: createProviderMap(),
+      plan: built,
+      collected: { results, coverage: [], partial: false },
+      reportId: 'report-3',
+    });
+
+    expect(report.interpretation.map((request) => request.id)).toEqual(['macro', 'verdict']);
+    expect(report.interpretation[0].brief).toContain('Ключевая ставка ЦБ');
+  });
+
+  it('подставляет интерпретацию модели и добавляет дисклеймер', () => {
+    const report = build();
+    const text = composeMarkdown(report, {
+      macro: 'Ставка снижается (оценка).',
+      verdict: 'Совет: добрать облигации.',
+    });
+
+    expect(text).toContain('## Рыночный контекст и макро');
+    expect(text).toContain('Ставка снижается (оценка).');
+    expect(text).toContain('не является индивидуальной инвестиционной рекомендацией');
+  });
+
+  it('сообщает об отсутствии данных, если позиции не собраны', () => {
+    const built = plan();
+    const empty: CollectionResult = { results: new Map(), coverage: [], partial: false };
+    const report = buildReport({
+      template: loadReportTemplate(templatePath),
+      providers: createProviderMap(),
+      plan: built,
+      collected: empty,
+      reportId: 'report-2',
+    });
+
+    const snapshot = report.sections.find((section) => section.id === 'snapshot');
+    expect(snapshot?.markdown).toContain('Данных нет');
+    expect(report.partial).toBe(true);
+  });
+});
+
+describe('факты поставщиков', () => {
+  const ctx = () => {
+    const built = plan();
+    return {
+      plan: built,
+      collected: collection(built),
+      template: loadReportTemplate(templatePath),
+      now: new Date('2026-11-04T12:00:00Z'),
+    };
+  };
+
+  it('считает концентрацию по порогам шаблона', () => {
+    const facts = createProviderMap().get('portfolio.concentration')?.section(ctx());
+
+    expect(facts?.structured).toMatchObject({
+      level: expect.stringMatching(/высокая|умеренная|низкая/),
+    });
+    expect(facts?.markdown).toContain('Топ-3 позиции');
+  });
+
+  it('находит пробел по классу активов', () => {
+    const facts = createProviderMap().get('portfolio.gaps')?.section(ctx());
+
+    expect(facts?.markdown).toContain('фонды');
+    expect(facts?.markdown).toContain('ниже порога');
+  });
+
+  it('распознаёт консенсус аналитиков', () => {
+    const built = buildCollectionPlan({
+      accounts: ['acc-1'],
+      tickers: ['SBER'],
+      maxInstruments: 15,
+      providers: ['market.analytics'],
+    });
+    const results = new Map<string, string>();
+    for (const entry of built.entries) {
+      if (entry.tool === 'invest_get_forecast') {
+        results.set(
+          planKey(entry),
+          JSON.stringify({
+            consensus: {
+              ticker: 'SBER',
+              recommendation: 'RECOMMENDATION_BUY',
+              consensus: { value: '382.37' },
+              minTarget: { value: '320' },
+              maxTarget: { value: '430' },
+              currentPrice: { value: '291.77' },
+              priceChangeRel: { value: '31.05' },
+            },
+          }),
+        );
+      }
+    }
+
+    const facts = createProviderMap().get('market.analytics')?.section({
+      plan: built,
+      collected: { results, coverage: [], partial: false },
+      template: loadReportTemplate(templatePath),
+      now: new Date('2026-11-04T12:00:00Z'),
+    });
+
+    expect(facts?.markdown).toContain('покупать');
+    expect(facts?.brief).toContain('потенциал 31,05 %');
+  });
+});
