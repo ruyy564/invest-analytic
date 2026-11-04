@@ -3,6 +3,7 @@ import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { DynamicStructuredTool as DynamicTool } from '@langchain/core/tools';
 import { AppConfigService } from '../config/app-config.service.js';
 import type { McpServerConfig } from '../config/env.schema.js';
+import { isForbiddenTool } from '../config/env.schema.js';
 import { missingAllowedTools, selectAllowedTools, wrapTool } from './mcp-tool.adapter.js';
 import { ALL_ACCOUNTS_TOOL, collectAllAccounts } from './portfolio-snapshot.js';
 import { collectDynamics, PRICE_DYNAMICS_TOOL } from './price-dynamics.js';
@@ -17,9 +18,26 @@ export interface McpServerStatus {
   name: string;
   status: 'up' | 'down';
   tools: string[];
+  /** Инструменты из allowlist, которых нет в каталоге сервера. */
   missingTools: string[];
+  /** Read-only инструменты каталога, не попавшие в allowlist. */
+  unlistedTools: string[];
   error?: string;
 }
+
+/**
+ * Read-only инструменты каталога, которые не попали в allowlist: сигнал, что
+ * allowlist отстал от каталога сервера. Торговые не учитываются — они запрещены всегда.
+ */
+export const unlistedReadOnlyTools = (
+  catalog: readonly { name: string }[],
+  allowedTools: readonly string[],
+): string[] => {
+  const allowed = new Set(allowedTools);
+  return catalog
+    .map((tool) => tool.name)
+    .filter((name) => !allowed.has(name) && !isForbiddenTool(name));
+};
 
 /**
  * Реестр MCP-серверов: discovery при первом обращении, allowlist,
@@ -57,9 +75,15 @@ export class McpRegistryService {
         const discovered = await this.factory(server);
         const allowed = selectAllowedTools(discovered, server.allowedTools);
         const missing = missingAllowedTools(discovered, server.allowedTools);
+        const unlisted = unlistedReadOnlyTools(discovered, server.allowedTools);
         if (missing.length > 0) {
           this.logger.warn(
             `MCP ${server.name}: в каталоге нет инструментов из allowlist: ${missing.join(', ')}`,
+          );
+        }
+        if (unlisted.length > 0) {
+          this.logger.warn(
+            `MCP ${server.name}: read-only инструменты каталога вне allowlist: ${unlisted.join(', ')}`,
           );
         }
         tools.push(
@@ -77,6 +101,7 @@ export class McpRegistryService {
           status: 'up',
           tools: allowed.map((tool) => tool.name),
           missingTools: missing,
+          unlistedTools: unlisted,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -86,6 +111,7 @@ export class McpRegistryService {
           status: 'down',
           tools: [],
           missingTools: [...server.allowedTools],
+          unlistedTools: [],
           error: message,
         });
       }

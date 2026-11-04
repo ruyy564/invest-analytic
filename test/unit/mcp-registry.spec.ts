@@ -61,9 +61,27 @@ describe('реестр MCP-серверов', () => {
         status: 'up',
         tools: ['invest_get_portfolio', 'invest_get_positions'],
         missingTools: [],
+        unlistedTools: [],
       },
     ]);
     expect(registry.isHealthy()).toBe(true);
+  });
+
+  it('сообщает о read-only инструментах каталога, не попавших в allowlist', async () => {
+    const registry = new McpRegistryService(configStub([server()]), async () => [
+      fakeTool('invest_get_portfolio'),
+      fakeTool('invest_get_positions'),
+      fakeTool('invest_get_news'),
+      fakeTool('invest_create_order'),
+    ]);
+
+    await registry.ensureInitialized();
+
+    // Новости — read-only, но в allowlist их нет; торговую заявку не считаем.
+    expect(registry.serverStatuses[0]).toMatchObject({
+      missingTools: [],
+      unlistedTools: ['invest_get_news'],
+    });
   });
 
   it('помечает недоступный сервер как down и не отдаёт его инструменты', async () => {

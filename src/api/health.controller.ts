@@ -33,12 +33,20 @@ export class HealthController {
     };
 
     for (const server of this.registry.serverStatuses) {
+      const coverage =
+        server.status === 'up'
+          ? [
+              `инструментов: ${server.tools.length}`,
+              server.missingTools.length > 0 ? `нет в каталоге: ${server.missingTools.length}` : '',
+              server.unlistedTools.length > 0 ? `вне allowlist: ${server.unlistedTools.length}` : '',
+            ]
+              .filter((part) => part !== '')
+              .join(', ')
+          : '';
+
       components[`mcp:${server.name}`] = {
         status: server.status === 'up' ? 'up' : 'down',
-        details:
-          server.status === 'up'
-            ? `инструментов: ${server.tools.length}`
-            : (server.error ?? 'недоступен'),
+        details: server.status === 'up' ? coverage : (server.error ?? 'недоступен'),
       };
     }
 
