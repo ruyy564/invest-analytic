@@ -1,7 +1,10 @@
 node_modules/
 dist/
 coverage/
-data/
+data/*
+# Данные источников версионируются: это файлы-справочники, а не состояние прогонов.
+!data/key-rate-seed.json
+!data/tax-keywords.yaml
 .env
 .env.local
 *.log
@@ -10,6 +13,7 @@ data/
 certs/
 health.json
 tmp/
+.browser-profile/
 
 # LangGraph API
 .langgraph_api

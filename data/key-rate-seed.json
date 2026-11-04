@@ -1,0 +1,13 @@
+{
+  "comment": "История решений по ключевой ставке ЦБ. Обновляется: node scripts/fetch-key-rate.mjs",
+  "updatedAt": "2026-11-04T00:00:00Z",
+  "source": "https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx (KeyRateXML)",
+  "points": [
+    { "date": "2026-01-05", "rate": 16.0 },
+    { "date": "2026-02-16", "rate": 15.5 },
+    { "date": "2026-03-23", "rate": 15.0 },
+    { "date": "2026-04-27", "rate": 14.5 },
+    { "date": "2026-07-24", "rate": 14.25 },
+    { "date": "2026-07-27", "rate": 14.0 }
+  ]
+}
