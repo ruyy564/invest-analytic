@@ -11,14 +11,7 @@ import {
 } from '../../src/sources/cbr.js';
 import { KeyRateCache } from '../../src/sources/key-rate-cache.js';
 import { SourceRegistry } from '../../src/sources/registry.js';
-import { collectKeyRate, formatKeyRate, loadTaxKeywords } from '../../src/tools/thematic/key-rate.js';
-import {
-  collectTaxFacts,
-  formatTaxFacts,
-  matchesKeywords,
-  sumTaxOperations,
-} from '../../src/tools/thematic/tax-watch.js';
-import type { SourceItem } from '../../src/sources/types.js';
+import { collectKeyRate, formatKeyRate } from '../../src/tools/thematic/key-rate.js';
 
 const SOAP_XML = `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
 <soap:Body><KeyRateXMLResponse><KeyRateXMLResult>

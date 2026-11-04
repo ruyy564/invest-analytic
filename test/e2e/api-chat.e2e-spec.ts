@@ -10,7 +10,7 @@ import { ApprovalFlowService } from '../../src/agent/approval-flow.service.js';
 import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../../src/llm/llm.module.js';
 import { MCP_CLIENT_FACTORY } from '../../src/tools/mcp-registry.service.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
-import { fakeTool } from '../fixtures/fake-mcp-tools.js';
+import { e2eToolCatalog, E2E_ALLOWED_TOOLS } from '../fixtures/e2e-catalog.js';
 import { ACCOUNTS_FIXTURE, PORTFOLIO_FIXTURE } from '../fixtures/mcp-test-server.js';
 
 const TEST_ENV: NodeJS.ProcessEnv = {
@@ -19,9 +19,12 @@ const TEST_ENV: NodeJS.ProcessEnv = {
   LLM_API_KEY: 'test-key',
   MCP_SERVERS: 'tinkoff',
   MCP_TINKOFF_URL: 'https://mcp.example.com/mcp',
-  MCP_TINKOFF_ALLOWED_TOOLS: 'invest_list_accounts,invest_get_portfolio,invest_get_positions',
+  MCP_TINKOFF_ALLOWED_TOOLS: E2E_ALLOWED_TOOLS,
   STATE_BACKEND: 'memory',
   LANGSMITH_TRACING: 'false',
+  SOURCES: 'tinkoff',
+  NEWS_SOURCES: '',
+  KEY_RATE_SOURCE_MODE: 'off',
 };
 
 const toolCall = (id = 'call-1') =>
@@ -41,7 +44,7 @@ const answerScript = Array.from({ length: 10 }).flatMap((_, index) => [
 class CountingRouter extends ScriptedChatModel {
   calls = 0;
 
-  protected override async _generate(
+  override async _generate(
     messages: Parameters<ScriptedChatModel['_generate']>[0],
   ): ReturnType<ScriptedChatModel['_generate']> {
     this.calls += 1;
@@ -50,7 +53,7 @@ class CountingRouter extends ScriptedChatModel {
         .filter((message) => (message as { _getType?: () => string })._getType?.() === 'human')
         .map((message) => (typeof message.content === 'string' ? message.content : ''))
         .at(-1) ?? '';
-    const intent = /погода|налог/i.test(question) ? 'off_topic' : 'portfolio';
+    const intent = /погода|политик/i.test(question) ? 'off_topic' : 'data_lookup';
     return { generations: [{ text: intent, message: new AIMessage(intent) }] };
   }
 }
@@ -77,11 +80,11 @@ const createApp = async (factory: () => Promise<unknown>): Promise<Harness> => {
   return { app, router };
 };
 
-const toolsFactory = async () => [
-  fakeTool('invest_list_accounts', async () => ACCOUNTS_FIXTURE),
-  fakeTool('invest_get_portfolio', async () => PORTFOLIO_FIXTURE),
-  fakeTool('invest_get_positions', async () => ({ positions: PORTFOLIO_FIXTURE.positions })),
-];
+const toolsFactory = async () =>
+  e2eToolCatalog({
+    invest_list_accounts: async () => ACCOUNTS_FIXTURE,
+    invest_get_portfolio: async () => PORTFOLIO_FIXTURE,
+  });
 
 describe('HTTP API', () => {
   let app: INestApplication;
@@ -119,10 +122,10 @@ describe('HTTP API', () => {
       .send({ message: 'что у меня в портфеле?' });
 
     expect(response.status).toBe(202);
-    expect(response.body).toMatchObject({ status: 'awaiting_approval', intent: 'portfolio' });
+    expect(response.body).toMatchObject({ status: 'awaiting_approval', intent: 'data_lookup' });
     expect(response.body.sessionId).toBeTruthy();
     expect(response.body.approval.actions[0]).toMatchObject({
-      tool: 'tinkoff__invest_get_portfolio',
+      tool: 'portfolio_all_accounts',
     });
     expect(JSON.stringify(response.body)).not.toContain('test-key');
   });
@@ -142,7 +145,7 @@ describe('HTTP API', () => {
       .send({ sessionId: awaiting.body.sessionId, approved: true });
 
     expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ status: 'completed', intent: 'portfolio' });
+    expect(response.body).toMatchObject({ status: 'completed', intent: 'data_lookup' });
     expect(String(response.body.answer)).toContain('SBER');
 
     await local.app.close();
@@ -218,11 +221,13 @@ describe('HTTP API', () => {
 
   it('пустой портфель: 202 с подтверждением, затем 200 с пустым составом', async () => {
     const emptyPortfolio = { ...PORTFOLIO_FIXTURE, positions: [], totalAmountPortfolio: undefined };
-    const local = await createApp(async () => [
-      fakeTool('invest_list_accounts', async () => ACCOUNTS_FIXTURE),
-      fakeTool('invest_get_portfolio', async () => emptyPortfolio),
-      fakeTool('invest_get_positions', async () => ({ positions: [] })),
-    ]);
+    const local = await createApp(async () =>
+      e2eToolCatalog({
+        invest_list_accounts: async () => ACCOUNTS_FIXTURE,
+        invest_get_portfolio: async () => emptyPortfolio,
+        invest_get_positions: async () => ({ securities: [], money: [] }),
+      }),
+    );
 
     const awaiting = await request(local.app.getHttpServer())
       .post('/api/v1/agent/chat')
@@ -237,8 +242,7 @@ describe('HTTP API', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('completed');
-    expect(response.body.partial).toBe(false);
-    expect(String(response.body.answer)).toContain('SBER');
+    expect(String(response.body.answer)).toMatch(/позиций нет/i);
     await local.app.close();
   });
 

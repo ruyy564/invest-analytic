@@ -39,7 +39,7 @@ export class ScriptedChatModel extends BaseChatModel {
     return this;
   }
 
-  protected async _generate(
+  async _generate(
     _messages: BaseMessage[],
     _options: this['ParsedCallOptions'],
     _runManager?: CallbackManagerForLLMRun,

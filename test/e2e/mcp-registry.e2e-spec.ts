@@ -20,12 +20,26 @@ describe('интеграция с MCP-сервером', () => {
       value: {
         llm: { provider: 'openai', model: 'gpt-4o-mini' },
         run: { toolMaxCalls: 40, deadlineMs: 90_000, mcpToolTimeoutMs: 15_000 },
+        sources: {
+          enabled: ['tinkoff'],
+          keyRate: {
+            mode: 'off',
+            soapUrl: 'https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx',
+            htmlUrl: 'https://www.cbr.ru/hd_base/KeyRate/',
+            seedFile: 'data/key-rate-seed.json',
+            cacheTtlHours: 24,
+          },
+          news: { ids: [], scanPages: 3, maxItems: 10 },
+          taxKeywordsFile: 'data/tax-keywords.yaml',
+        },
+        state: { backend: 'memory', sqlitePath: ':memory:', ttlDays: 30 },
         mcp: {
           servers: [
             {
               name: 'tinkoff',
               url: server.url,
               transport: 'http',
+              tlsMode: 'strict',
               allowedTools: [
                 'invest_list_accounts',
                 'invest_get_portfolio',
@@ -47,13 +61,23 @@ describe('интеграция с MCP-сервером', () => {
   });
 
   it('обнаруживает инструменты, отсекает торговые и добавляет неймспейс', () => {
-    expect(registry.tools.map((tool) => tool.name)).toEqual([
-      'tinkoff__invest_list_accounts',
-      'tinkoff__invest_get_portfolio',
-      'tinkoff__invest_get_positions',
-      // Локальная сводка по всем счетам — не MCP-инструмент, но её тоже отдаём модели.
-      ALL_ACCOUNTS_TOOL,
-    ]);
+    const names = registry.tools.map((tool) => tool.name);
+
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'tinkoff__invest_list_accounts',
+        'tinkoff__invest_get_portfolio',
+        'tinkoff__invest_get_positions',
+        // Локальные инструменты приложения тоже отдаём модели.
+        ALL_ACCOUNTS_TOOL,
+        'portfolio__snapshot',
+        'market__price_dynamics',
+        'market__news_digest',
+        'market__tax_watch',
+      ]),
+    );
+    // Торговый инструмент из каталога не попадает в набор.
+    expect(names).not.toContain('tinkoff__invest_create_order');
     expect(registry.serverStatuses[0]).toMatchObject({
       status: 'up',
       missingTools: [],

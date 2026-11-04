@@ -224,6 +224,59 @@ describe('сборка отчёта движком', () => {
   });
 });
 
+describe('шаблон управляет отчётом', () => {
+  it('изменение шаблона меняет отчёт без правок кода', async () => {
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const path = join(mkdtempSync(join(tmpdir(), 'template-')), 'custom.yaml');
+    writeFileSync(
+      path,
+      [
+        'id: custom',
+        'version: 7',
+        'periods: [1d]',
+        'thresholds:',
+        '  concentration_high: 0.10',
+        '  concentration_medium: 0.05',
+        '  min_class_share: 0.01',
+        'sections:',
+        '  - id: snapshot',
+        '    title: Только снимок',
+        '    provider: portfolio.snapshot',
+        '    render: table',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const template = loadReportTemplate(path);
+    const built = plan();
+    const report = buildReport({
+      template,
+      providers: createProviderMap(),
+      plan: built,
+      collected: collection(built),
+    });
+
+    expect(template.version).toBe(7);
+    expect(template.thresholds.concentrationHigh).toBe(0.1);
+    expect(report.sections.map((section) => section.id)).toEqual(['snapshot']);
+  });
+
+  it('лимит бумаг ограничивает расширенную аналитику', () => {
+    const tickers = Array.from({ length: 40 }, (_, index) => `T${index}`);
+    const built = buildCollectionPlan({
+      accounts: ['acc-1'],
+      tickers,
+      maxInstruments: 15,
+      providers: ['market.analytics', 'market.dynamics'],
+    });
+
+    expect(built.entries.filter((entry) => entry.group === 'analytics')).toHaveLength(15);
+    expect(built.entries.filter((entry) => entry.group === 'candles')).toHaveLength(15);
+    expect(built.maxInstruments).toBe(15);
+  });
+});
+
 describe('факты поставщиков', () => {
   const ctx = () => {
     const built = plan();

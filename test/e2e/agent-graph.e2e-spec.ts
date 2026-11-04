@@ -4,8 +4,9 @@ import { AppModule } from '../../src/app.module.js';
 import { AgentRunnerService } from '../../src/agent/agent-runner.service.js';
 import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../../src/llm/llm.module.js';
 import { MCP_CLIENT_FACTORY } from '../../src/tools/mcp-registry.service.js';
+import { ReportStoreService } from '../../src/state/report-store.service.js';
 import { ScriptedChatModel, type ScriptedStep } from '../fixtures/fake-chat-model.js';
-import { fakeTool } from '../fixtures/fake-mcp-tools.js';
+import { e2eToolCatalog, E2E_ALLOWED_TOOLS } from '../fixtures/e2e-catalog.js';
 import { ACCOUNTS_FIXTURE, PORTFOLIO_FIXTURE } from '../fixtures/mcp-test-server.js';
 
 const TEST_ENV: NodeJS.ProcessEnv = {
@@ -14,9 +15,13 @@ const TEST_ENV: NodeJS.ProcessEnv = {
   LLM_API_KEY: 'test-key',
   MCP_SERVERS: 'tinkoff',
   MCP_TINKOFF_URL: 'https://mcp.example.com/mcp',
-  MCP_TINKOFF_ALLOWED_TOOLS: 'invest_list_accounts,invest_get_portfolio,invest_get_positions',
+  MCP_TINKOFF_ALLOWED_TOOLS: E2E_ALLOWED_TOOLS,
   STATE_BACKEND: 'memory',
   LANGSMITH_TRACING: 'false',
+  // Внешние источники выключены: e2e не должен ходить в сеть.
+  SOURCES: 'tinkoff',
+  NEWS_SOURCES: '',
+  KEY_RATE_SOURCE_MODE: 'off',
 };
 
 const toolCall = (id: string) =>
@@ -27,7 +32,7 @@ const toolCall = (id: string) =>
 
 /** Роутер в тесте: метка зависит от вопроса, поэтому число вызовов модели не важно. */
 class IntentAwareModel extends ScriptedChatModel {
-  protected override async _generate(
+  override async _generate(
     messages: Parameters<ScriptedChatModel['_generate']>[0],
   ): ReturnType<ScriptedChatModel['_generate']> {
     const question =
@@ -35,7 +40,11 @@ class IntentAwareModel extends ScriptedChatModel {
         .filter((message) => (message as { _getType?: () => string })._getType?.() === 'human')
         .map((message) => (typeof message.content === 'string' ? message.content : ''))
         .at(-1) ?? '';
-    const intent = /погода|налог|новост/i.test(question) ? 'off_topic' : 'portfolio';
+    const intent = /погода|политик/i.test(question)
+      ? 'off_topic'
+      : /проанализируй|разбер|диверсифик/i.test(question)
+        ? 'portfolio_review'
+        : 'data_lookup';
     return { generations: [{ text: intent, message: new AIMessage(intent) }] };
   }
 }
@@ -44,7 +53,7 @@ class IntentAwareModel extends ScriptedChatModel {
 class RecordingModel extends ScriptedChatModel {
   readonly inputs: string[] = [];
 
-  protected override async _generate(
+  override async _generate(
     messages: Parameters<ScriptedChatModel['_generate']>[0],
   ): ReturnType<ScriptedChatModel['_generate']> {
     this.inputs.push(messages.map((message) => JSON.stringify(message.content)).join('\n'));
@@ -56,6 +65,7 @@ interface Harness {
   runner: AgentRunnerService;
   toolCalls: () => number;
   modelInputs: () => string[];
+  moduleRef: Awaited<ReturnType<typeof Test.createTestingModule>['compile']>;
 }
 
 /** Каждый сценарий — своё приложение и свой сценарий ответов модели. */
@@ -68,18 +78,26 @@ const createHarness = async (answerSteps: ScriptedStep[]): Promise<Harness> => {
     .overrideProvider(LLM_ANSWER_MODEL)
     .useValue(answerModel)
     .overrideProvider(MCP_CLIENT_FACTORY)
-    .useValue(async () => [
-      fakeTool('invest_list_accounts', async () => ACCOUNTS_FIXTURE),
-      fakeTool('invest_get_portfolio', async () => {
-        calls += 1;
-        return PORTFOLIO_FIXTURE;
+    .useValue(async () =>
+      e2eToolCatalog({
+        invest_get_portfolio: () => {
+          calls += 1;
+          return PORTFOLIO_FIXTURE;
+        },
       }),
-      fakeTool('invest_get_positions', async () => ({ positions: PORTFOLIO_FIXTURE.positions })),
-    ])
+    )
     .compile();
 
-  return { runner: moduleRef.get(AgentRunnerService), toolCalls: () => calls, modelInputs: () => answerModel.inputs };
+  return {
+    runner: moduleRef.get(AgentRunnerService),
+    toolCalls: () => calls,
+    modelInputs: () => answerModel.inputs,
+    moduleRef,
+  };
 };
+
+void ACCOUNTS_FIXTURE;
+
 
 describe('граф агента с подтверждением', () => {
   const originalEnv = { ...process.env };
@@ -104,25 +122,23 @@ describe('граф агента с подтверждением', () => {
   });
 
   it('портфель читается только после подтверждения', async () => {
-    const { runner, toolCalls, modelInputs } = await createHarness([
+    const { runner, toolCalls } = await createHarness([
       toolCall('call-1'),
       'В портфеле: SBER 100 шт., итог 152345.67 RUB.',
     ]);
 
     const awaiting = await runner.run('что у меня в портфеле?', 's-approve');
     expect(awaiting.status).toBe('awaiting_approval');
-    expect(awaiting.approval?.actions[0]).toMatchObject({ tool: 'tinkoff__invest_get_portfolio' });
+    // Сводку по всем счетам собирает локальный инструмент — одно подтверждение на прогон.
+    expect(awaiting.approval?.actions[0]).toMatchObject({ tool: 'portfolio_all_accounts' });
     expect(toolCalls()).toBe(0);
 
     const result = await runner.resume('s-approve', { approved: true });
     expect(result.status).toBe('completed');
     expect(result.answer).toContain('SBER');
+    // Цифры берутся из ответа брокера: 294.55 ₽ × 100 шт.
+    expect(result.answer).toContain('294,55');
     expect(toolCalls()).toBe(1);
-
-    // Модель получает данные инструмента, а не «свободный» ответ.
-    const lastInput = modelInputs().at(-1) ?? '';
-    expect(lastInput).toContain('294.55');
-    expect(lastInput).toContain('152345.67');
   });
 
   it('при отказе данные не читаются', async () => {
@@ -141,18 +157,43 @@ describe('граф агента с подтверждением', () => {
     expect(toolCalls()).toBe(0);
   });
 
-  it('повторный вопрос в той же сессии снова требует подтверждения', async () => {
+  it('повторный вопрос о разборе в той же сессии снова требует подтверждения', async () => {
     const { runner } = await createHarness([
-      toolCall('call-1'),
-      'Портфель: SBER.',
-      toolCall('call-2'),
+      'macro: ставка 14 % (оценка).\nverdict: совет — добрать облигации.',
     ]);
 
-    const first = await runner.run('портфель?', 's-strict');
+    const first = await runner.run('проанализируй мой портфель', 's-strict');
     expect(first.status).toBe('awaiting_approval');
     await runner.resume('s-strict', { approved: true });
 
-    const second = await runner.run('и ещё раз портфель', 's-strict');
+    const second = await runner.run('и ещё раз разбери портфель', 's-strict');
     expect(second.status).toBe('awaiting_approval');
+  });
+
+  it('разбор портфеля: один запрос подтверждения, отчёт по шаблону и сохранённый reportId', async () => {
+    const { runner, moduleRef } = await createHarness([
+      'macro: ставка 14 % (оценка).\nverdict: совет — добрать облигации.',
+    ]);
+
+    const awaiting = await runner.run('проанализируй мой портфель', 's-review');
+    expect(awaiting.status).toBe('awaiting_approval');
+    expect(awaiting.approval?.question).toContain('разбора портфеля');
+    expect(awaiting.approval?.actions[0]?.args).toMatchObject({ requests: expect.any(Number) });
+
+    const result = await runner.resume('s-review', { approved: true });
+
+    expect(result.status).toBe('completed');
+    expect(result.intent).toBe('portfolio_review');
+    expect(result.report?.type).toBe('deep_review');
+    expect(result.report?.coverage.some((entry) => entry.status === 'ok')).toBe(true);
+    expect(result.answer).toContain('## Снимок портфеля');
+    expect(result.answer).toContain('SBER');
+    expect(result.answer).toContain('совет — добрать облигации');
+
+    const stored = moduleRef
+      .get(ReportStoreService)
+      .get(result.report?.reportId ?? '', 'default');
+    expect(stored?.markdown).toContain('## Итог и совет по структуре');
+    expect(stored?.templateVersion).toBe(1);
   });
 });

@@ -8,8 +8,7 @@ import { AgentRunnerService } from '../../src/agent/agent-runner.service.js';
 import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../../src/llm/llm.module.js';
 import { MCP_CLIENT_FACTORY } from '../../src/tools/mcp-registry.service.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
-import { fakeTool } from '../fixtures/fake-mcp-tools.js';
-import { ACCOUNTS_FIXTURE, PORTFOLIO_FIXTURE } from '../fixtures/mcp-test-server.js';
+import { e2eToolCatalog, E2E_ALLOWED_TOOLS } from '../fixtures/e2e-catalog.js';
 
 const toolCall = () =>
   new AIMessage({
@@ -24,15 +23,11 @@ const createRunner = async (
 ): Promise<{ runner: AgentRunnerService; close: () => Promise<void> }> => {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(LLM_ROUTER_MODEL)
-    .useValue(new ScriptedChatModel(['portfolio', 'portfolio']))
+    .useValue(new ScriptedChatModel(['data_lookup', 'data_lookup']))
     .overrideProvider(LLM_ANSWER_MODEL)
     .useValue(new ScriptedChatModel(answerSteps))
     .overrideProvider(MCP_CLIENT_FACTORY)
-    .useValue(async () => [
-      fakeTool('invest_list_accounts', async () => ACCOUNTS_FIXTURE),
-      fakeTool('invest_get_portfolio', async () => PORTFOLIO_FIXTURE),
-      fakeTool('invest_get_positions', async () => ({ positions: PORTFOLIO_FIXTURE.positions })),
-    ])
+    .useValue(async () => e2eToolCatalog())
     .compile();
 
   return { runner: moduleRef.get(AgentRunnerService), close: () => moduleRef.close() };
@@ -49,10 +44,13 @@ describe('состояние переживает перезапуск', () => {
       LLM_API_KEY: 'test-key',
       MCP_SERVERS: 'tinkoff',
       MCP_TINKOFF_URL: 'https://mcp.example.com/mcp',
-      MCP_TINKOFF_ALLOWED_TOOLS: 'invest_list_accounts,invest_get_portfolio,invest_get_positions',
+      MCP_TINKOFF_ALLOWED_TOOLS: E2E_ALLOWED_TOOLS,
       STATE_BACKEND: 'sqlite',
       STATE_SQLITE_PATH: sqlitePath,
       LANGSMITH_TRACING: 'false',
+      SOURCES: 'tinkoff',
+      NEWS_SOURCES: '',
+      KEY_RATE_SOURCE_MODE: 'off',
     });
   });
 
