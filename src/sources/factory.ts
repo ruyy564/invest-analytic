@@ -44,6 +44,9 @@ export const buildSourceRegistry = (deps: SourceFactoryDeps): SourceRegistry => 
         template: env.NEWS_SMARTLAB_TAG_URL?.trim() || undefined,
         fetchText: deps.fetchText ?? defaultFetchText,
         summaryLimit: 600,
+        // Ошибка по бумаге не должна теряться: она видна в логе сервиса.
+        onError: (ticker, error) =>
+          console.warn(`[smartlab_tag] ${ticker}:`, error.message.slice(0, 120)),
       }),
     );
   }
