@@ -28,6 +28,8 @@ export interface SecurityFacts {
   forecast?: ForecastFacts;
   dividends?: number;
   news: string[];
+  /** Почему новостей нет: источник не ответил или публикаций не было. */
+  newsNote?: string;
 }
 
 const asJson = (text: string): unknown => {
@@ -61,6 +63,16 @@ const headlinesOf = (text: string, limit: number): string[] =>
     .filter((line) => line.length > 0)
     .slice(0, limit);
 
+/**
+ * Пояснение из текста сводки: почему новостей нет — источник не ответил или
+ * публикаций по бумаге действительно не было.
+ */
+const noteOf = (text: string): string | undefined =>
+  text
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => /^Недоступные источники|^Новостей по портфелю/.test(line));
+
 /** Факты по бумагам: позиции, секторы, динамика, прогнозы, дивиденды, новости. */
 export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
   const holdings = valuedHoldings(ctx);
@@ -83,10 +95,14 @@ export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
 
   const forecasts = byTicker('analytics', parseForecast);
   const dividends = byTicker('dividends', countItems);
-  const news = byTicker('news', (text) => headlinesOf(text, 3));
+  const news = byTicker('news', (text) => ({
+    items: headlinesOf(text, 3),
+    note: noteOf(text),
+  }));
 
   return holdings.map((holding) => {
     const priceSeries = series.get(holding.ticker);
+    const headlines = news.get(holding.ticker);
     return {
       ticker: holding.ticker,
       sector: sectors.get(holding.ticker) ?? UNKNOWN_SECTOR,
@@ -95,7 +111,8 @@ export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
       periods: priceSeries ? periodChanges(priceSeries, ctx.template.periods, ctx.now) : [],
       forecast: forecasts.get(holding.ticker),
       dividends: dividends.get(holding.ticker),
-      news: news.get(holding.ticker) ?? [],
+      news: headlines?.items ?? [],
+      newsNote: headlines?.note,
     };
   });
 };
@@ -147,7 +164,7 @@ export const securitiesProvider: FactProvider = {
       lines.push(
         security.news.length > 0
           ? `• новости бумаги: ${security.news.join('; ')}`
-          : '• новости бумаги: публикаций по тикеру нет',
+          : `• новости бумаги: ${security.newsNote ?? 'публикаций по тикеру нет'}`,
       );
 
       return lines.join('\n');
