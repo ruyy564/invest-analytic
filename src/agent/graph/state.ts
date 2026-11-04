@@ -38,6 +38,12 @@ export const CollectionSchema = z.object({
 export const AgentState = new StateSchema({
   messages: MessagesValue,
   intent: z.enum(INTENTS).default('off_topic'),
+  /** Область разбора: весь портфель, счёт или отдельная бумага. */
+  scope: z.enum(['portfolio', 'account', 'instrument']).default('portfolio'),
+  /** Тикер для бумаги, идентификатор счёта для счёта. */
+  scopeTarget: z.string().optional(),
+  /** Подпись области для отчёта и запроса подтверждения («бумаги SBER»). */
+  scopeLabel: z.string().optional(),
   partial: z.boolean().default(false),
   dataAsOf: z.string().optional(),
   /** Время постановки в `interrupt` — для проверки срока подтверждения. */

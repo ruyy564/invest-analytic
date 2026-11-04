@@ -34,18 +34,23 @@ sections:
     title: Структура портфеля
     provider: portfolio.structure
     render: distribution
+    # Разрезы портфеля нужны и по счёту, но в разборе одной бумаги это шум.
+    scopes: [portfolio, account]
   - id: concentration
     title: Концентрация
     provider: portfolio.concentration
     render: kpi
+    scopes: [portfolio, account]
   - id: tax
     title: Налоговый контекст
     provider: tax.context
     render: text
+    scopes: [portfolio, account]
   - id: gaps
     title: Пробелы в портфеле
     provider: portfolio.gaps
     render: list
+    scopes: [portfolio, account]
   # Итог: диверсификация, тип стратегии и что поменять.
   - id: verdict
     title: Итог: диверсификация и стратегия

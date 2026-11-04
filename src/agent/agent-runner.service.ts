@@ -35,6 +35,10 @@ export interface RunResult {
   status: 'completed' | 'awaiting_approval';
   answer?: string;
   intent: AgentStateType['intent'];
+  /** Область разбора: весь портфель, счёт или отдельная бумага. */
+  scope?: AgentStateType['scope'];
+  scopeTarget?: string;
+  scopeLabel?: string;
   partial: boolean;
   approval?: ApprovePayload;
   /** Метаданные отчёта: идентификатор для выгрузки, вид, время данных и покрытие. */
@@ -248,6 +252,9 @@ export class AgentRunnerService {
       return {
         status: 'awaiting_approval',
         intent: values?.intent ?? 'data_lookup',
+        scope: values?.scope,
+        scopeTarget: values?.scopeTarget,
+        scopeLabel: values?.scopeLabel,
         partial: false,
         approval,
       };
@@ -257,6 +264,9 @@ export class AgentRunnerService {
       status: 'completed',
       answer: lastAnswer(values?.messages),
       intent: values?.intent ?? 'data_lookup',
+      scope: values?.scope,
+      scopeTarget: values?.scopeTarget,
+      scopeLabel: values?.scopeLabel,
       partial: (values?.partial ?? false) || hasBudgetError(values?.messages),
       report: this.reportOf(values, lastAnswer(values?.messages)),
     };

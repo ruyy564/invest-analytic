@@ -102,6 +102,7 @@ export const createApproveNode =
       };
 
       deps.flow.markRequested(threadId);
+      const scopeLabel = state.scopeLabel ?? 'портфеля';
       const approved = interrupt<ApprovePayload, ApproveDecision>({
         ...deps.flow.buildPayload(
           [
@@ -109,7 +110,7 @@ export const createApproveNode =
               rule: {
                 ...rule,
                 question:
-                  `Прочитать ${plan.length} видов данных для разбора портфеля` +
+                  `Прочитать ${plan.length} видов данных для разбора ${scopeLabel}` +
                   ` (${groups.map((group) => groupLabels[group] ?? group).join(', ')})?`,
               },
               args: { requests: plan.length, groups, accounts },

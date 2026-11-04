@@ -5,6 +5,10 @@ import { parseYaml } from './yaml.js';
 export const REPORT_PERIODS = ['1d', '7d', '30d', '180d'] as const;
 export type ReportPeriod = (typeof REPORT_PERIODS)[number];
 
+/** Области разбора: секция может показываться не во всех. */
+export const SECTION_SCOPES = ['portfolio', 'account', 'instrument'] as const;
+export type SectionScope = (typeof SECTION_SCOPES)[number];
+
 export const RENDER_KINDS = ['table', 'distribution', 'list', 'kpi', 'text'] as const;
 export type RenderKind = (typeof RENDER_KINDS)[number];
 
@@ -17,6 +21,8 @@ export interface ReportSection {
   params: Record<string, unknown>;
   /** Секцию формулирует модель, а не код. */
   interpret: boolean;
+  /** В каких разборах показывать секцию; пусто — во всех. */
+  scopes: SectionScope[];
 }
 
 export interface ReportThresholds {
@@ -111,6 +117,15 @@ export const parseReportTemplate = (raw: unknown, source: string): ReportTemplat
     if (!(RENDER_KINDS as readonly string[]).includes(render)) {
       issues.push(`секция "${sectionId}": неизвестный тип вывода "${render}"`);
     }
+    const scopesRaw = Array.isArray(section.scopes) ? section.scopes.map(String) : [];
+    const scopes = scopesRaw.filter((scope): scope is SectionScope =>
+      (SECTION_SCOPES as readonly string[]).includes(scope),
+    );
+    if (scopesRaw.length !== scopes.length) {
+      issues.push(
+        `секция "${sectionId}": scopes — ожидаются значения из ${SECTION_SCOPES.join(', ')}`,
+      );
+    }
     sections.push({
       id: sectionId,
       title: typeof section.title === 'string' ? section.title : sectionId,
@@ -118,6 +133,8 @@ export const parseReportTemplate = (raw: unknown, source: string): ReportTemplat
       render: render as RenderKind,
       params: asRecord(section.params ?? section.params),
       interpret: section.interpret === true,
+      // Пусто — секция общая для всех разборов.
+      scopes: scopes.length > 0 ? scopes : [...SECTION_SCOPES],
     });
   });
 
@@ -154,6 +171,10 @@ export const loadReportTemplate = (path: string): ReportTemplate => {
 };
 
 /** Имена поставщиков, нужные шаблону: из них строится план сбора. */
-export const templateProviders = (template: ReportTemplate): string[] => [
-  ...new Set(template.sections.map((section) => section.provider)),
+export const templateProviders = (template: ReportTemplate, scope?: SectionScope): string[] => [
+  ...new Set(
+    template.sections
+      .filter((section) => !scope || section.scopes.includes(scope))
+      .map((section) => section.provider),
+  ),
 ];

@@ -53,6 +53,29 @@ const portfolioCurrency = (ctx: FactContext): string => {
   return 'RUB';
 };
 
+/**
+ * Стоимость портфеля по данным брокера: `totalAmountCurrencies` из портфеля.
+ * Нужна, чтобы доля бумаги считалась от всего портфеля даже в разборе по бумаге,
+ * где в выборке остаётся одна позиция.
+ */
+export const portfolioTotalOf = (ctx: FactContext): number | undefined => {
+  for (const { text } of resultsInGroup(ctx.plan, ctx.collected, 'portfolio')) {
+    const root = asJson(text) as {
+      totalAmountCurrencies?: { units?: string; nano?: number; value?: string }[];
+    };
+    const amount = root?.totalAmountCurrencies?.[0];
+    if (!amount) {
+      continue;
+    }
+    const fromParts = Number(amount.units ?? 0) + Number(amount.nano ?? 0) / 1_000_000_000;
+    const parsed = Number.isFinite(fromParts) && fromParts > 0 ? fromParts : Number(amount.value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+};
+
 /** Позиции всех счетов с ценами и стоимостью из пакетного запроса цен. */
 export const holdingsOf = (ctx: FactContext): Holding[] => {
   const currency = portfolioCurrency(ctx);
@@ -165,12 +188,26 @@ export const valuedHoldings = (ctx: FactContext): Holding[] =>
 export const tableProvider: FactProvider = {
   id: 'portfolio.table',
   section(ctx: FactContext): SectionFacts | undefined {
-    const holdings = valuedHoldings(ctx);
+    const allHoldings = valuedHoldings(ctx);
+    // В разборе бумаги таблица показывает только её, но итог — по всему портфелю.
+    const scopedTarget = ctx.scope === 'instrument' ? ctx.scopeTarget?.toUpperCase() : undefined;
+    const holdings = scopedTarget
+      ? allHoldings.filter((holding) => holding.ticker.toUpperCase() === scopedTarget)
+      : allHoldings;
     if (holdings.length === 0) {
-      return { missing: 'в портфеле нет позиций или состав недоступен' };
+      return {
+        missing: scopedTarget
+          ? `бумаги ${scopedTarget} нет в портфеле`
+          : ctx.scope === 'account'
+            ? 'на счёте нет бумаг или состав счёта недоступен'
+            : 'в портфеле нет позиций или состав недоступен',
+      };
     }
 
-    const total = totalValue(holdings);
+    const holdingsTotal = totalValue(allHoldings);
+    // Долю считаем от стоимости всего портфеля: в разборе одной бумаги в выборке
+    // остаётся одна позиция, и «100 %» было бы неправдой.
+    const shareBase = portfolioTotalOf(ctx) ?? holdingsTotal;
     const sectors = sectorMapOf(ctx);
     const series = seriesByTicker(
       resultsInGroup(ctx.plan, ctx.collected, 'candles').map(({ entry, text }) => ({
@@ -186,7 +223,7 @@ export const tableProvider: FactProvider = {
     );
 
     const rows = holdings.map((holding) => {
-      const share = total > 0 ? (holding.value?.amount ?? 0) / total : 0;
+      const share = shareBase > 0 ? (holding.value?.amount ?? 0) / shareBase : 0;
       const priceSeries = series.get(holding.ticker);
       const change = priceSeries ? periodChanges(priceSeries, ['180d'], ctx.now)[0] : undefined;
       const forecast = forecasts.get(holding.ticker);
@@ -208,10 +245,10 @@ export const tableProvider: FactProvider = {
           ['Тикер', 'Сектор', 'Доля', 'Стоимость', '180 дней', 'Аналитики'],
           rows,
         ),
-        `Итого по текущим ценам: ${formatNumber(total)} ${holdings[0]?.currency ?? 'RUB'}`,
+        `Итого по текущим ценам: ${formatNumber(holdingsTotal)} ${holdings[0]?.currency ?? 'RUB'}`,
       ].join('\n'),
       structured: {
-        total,
+        total: holdingsTotal,
         currency: holdings[0]?.currency,
         rows: holdings.map((holding, index) => ({ ticker: holding.ticker, cells: rows[index] })),
       },
@@ -220,7 +257,7 @@ export const tableProvider: FactProvider = {
         .map(
           (holding) =>
             `${holding.ticker} (${sectors.get(holding.ticker) ?? UNKNOWN_SECTOR}, ` +
-            `${formatPercent(total > 0 ? (holding.value?.amount ?? 0) / total : 0)})`,
+            `${formatPercent(shareBase > 0 ? (holding.value?.amount ?? 0) / shareBase : 0)})`,
         )
         .join(', '),
     };
@@ -309,7 +346,7 @@ export interface ConcentrationFacts {
 /** Концентрация портфеля по порогам шаблона. */
 export const concentrationOf = (ctx: FactContext): ConcentrationFacts | undefined => {
   const holdings = valuedHoldings(ctx);
-  const total = totalValue(holdings);
+  const total = portfolioTotalOf(ctx) ?? totalValue(holdings);
   if (total <= 0) {
     return undefined;
   }

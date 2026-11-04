@@ -4,6 +4,8 @@ import { SystemMessage } from '@langchain/core/messages';
 import { PORTFOLIO_SCOPE_PROMPT } from '../prompts/off-topic.js';
 import type { AgentStateType } from '../graph/state.js';
 import { withTimeout } from '../../tools/mcp-tool.adapter.js';
+import { loadTickerAliases } from '../../sources/aliases.js';
+import { detectScope } from '../scope.js';
 import {
   CLASSIFIER_FALLBACK_PROMPT,
   CLASSIFIER_SYSTEM_PROMPT,
@@ -32,7 +34,7 @@ export const CLASSIFY_TIMEOUT_MS = 8_000;
 export const createClassifyNode = (model: BaseChatModel) => {
   const logger = new Logger('ClassifyNode');
 
-  return async (state: AgentStateType): Promise<{ intent: AgentStateType['intent'] }> => {
+  return async (state: AgentStateType): Promise<Partial<AgentStateType>> => {
     // Явные маркеры сценария решаем сами: модель иногда относит «проанализируй
     // мой портфель» к посторонним темам, а это ядро продукта.
     const lastHuman = [...state.messages]
@@ -45,9 +47,22 @@ export const createClassifyNode = (model: BaseChatModel) => {
       typeof lastHuman?.content === 'string'
         ? lastHuman.content
         : JSON.stringify(lastHuman?.content ?? '');
+
+    // Область разбора (портфель / счёт / бумага) определяем правилом: модель
+    // путает «разбери Сбер» и «разбери портфель» куда чаще регулярки.
+    const aliases = loadTickerAliases(
+      process.env.TICKER_ALIASES_FILE?.trim() || 'data/ticker-aliases.yaml',
+    );
+    const scoped = detectScope(question, aliases);
+    const scopeFields = {
+      scope: scoped.scope,
+      scopeTarget: scoped.target,
+      scopeLabel: scoped.label,
+    };
+
     const heuristic = heuristicIntent(question);
     if (heuristic) {
-      return { intent: heuristic.intent };
+      return { intent: heuristic.intent, ...scopeFields };
     }
 
     try {
@@ -62,12 +77,12 @@ export const createClassifyNode = (model: BaseChatModel) => {
         () => new Error('llm timeout'),
       );
       const text = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-      return { intent: parseIntentText(text)?.intent ?? 'data_lookup' };
+      return { intent: parseIntentText(text)?.intent ?? 'data_lookup', ...scopeFields };
     } catch (error) {
       logger.warn(
         `Классификатор недоступен (${(error as Error)?.message}): вопрос обработан как data_lookup`,
       );
-      return { intent: 'data_lookup' };
+      return { intent: 'data_lookup', ...scopeFields };
     }
   };
 };

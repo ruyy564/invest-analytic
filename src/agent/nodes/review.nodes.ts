@@ -17,6 +17,7 @@ import {
 } from '../../collection/plan.js';
 import { assetEntries, brandEntries, shareEntries } from '../../collection/reference.js';
 import { loadTickerAliases, matchersFor } from '../../sources/aliases.js';
+import { PORTFOLIO_SCOPE } from '../scope.js';
 import { mapPositions } from '../../tools/mappers/positions.mapper.js';
 import type { McpRegistryService } from '../../tools/mcp-registry.service.js';
 import { openAccounts } from '../../tools/portfolio-snapshot.js';
@@ -42,23 +43,6 @@ const templateOf = (deps: ReviewDeps): ReportTemplate =>
   deps.template ?? loadReportTemplate(deps.config.value.report.templateFile);
 
 /** Открытые счета для плана: служебное чтение без подтверждения. */
-const accountIds = async (deps: ReviewDeps): Promise<string[]> => {
-  const tool = deps.registry.toolByName('invest_list_accounts');
-  if (!tool) {
-    return [];
-  }
-  try {
-    const raw = await withTimeout(
-      tool.invoke({} as never),
-      deps.config.value.run.mcpToolTimeoutMs,
-      () => new Error('таймаут списка счетов'),
-    );
-    return openAccounts(raw).map((account) => account.accountId);
-  } catch {
-    return [];
-  }
-};
-
 /** Инструменты из собранных позиций: тикер, класс, название и uid актива. */
 export const instrumentsOf = (
   plan: CollectionPlan,
@@ -82,20 +66,80 @@ export const instrumentsOf = (
   return [...found.values()];
 };
 
+/** Открытые счета с названиями: нужны для разбора конкретного счёта. */
+const openAccountList = async (
+  deps: ReviewDeps,
+): Promise<{ accountId: string; title?: string }[]> => {
+  const tool = deps.registry.toolByName('invest_list_accounts');
+  if (!tool) {
+    return [];
+  }
+  try {
+    const raw = await withTimeout(
+      tool.invoke({} as never),
+      deps.config.value.run.mcpToolTimeoutMs,
+      () => new Error('таймаут списка счетов'),
+    );
+    return openAccounts(raw);
+  } catch {
+    return [];
+  }
+};
+
+/** Счёт по номеру или названию: точное совпадение, подстрока, название. */
+export const matchAccount = <T extends { accountId: string; title?: string }>(
+  accounts: readonly T[],
+  target: string,
+): T | undefined => {
+  const wanted = target.trim().toLowerCase();
+  if (wanted.length === 0) {
+    return undefined;
+  }
+  return (
+    accounts.find((account) => account.accountId === target) ??
+    accounts.find((account) => account.accountId.includes(wanted)) ??
+    accounts.find((account) => (account.title ?? '').toLowerCase().includes(wanted))
+  );
+};
+
 /** Узел плана: счета и обязательные источники, подтверждается одним запросом. */
 export const createPlanNode =
   (deps: ReviewDeps) =>
-  async (_state: AgentStateType): Promise<Partial<AgentStateType>> => {
+  async (state: AgentStateType): Promise<Partial<AgentStateType>> => {
     const template = templateOf(deps);
-    const accounts = await accountIds(deps);
+    const scope = state.scope ?? 'portfolio';
+    const accounts = await openAccountList(deps);
+    let selected = accounts.map((account) => account.accountId);
+    let scopeLabel = scope === 'account' ? 'счёта' : PORTFOLIO_SCOPE.label;
+
+    if (scope === 'account') {
+      const found = state.scopeTarget ? matchAccount(accounts, state.scopeTarget) : undefined;
+      if (found) {
+        selected = [found.accountId];
+        scopeLabel = `счёта ${found.title ?? found.accountId}`;
+      } else {
+        // Счёт не нашли — не молчим: разбираем весь портфель с явной подписью.
+        scopeLabel = 'портфеля (указанный счёт не найден)';
+      }
+    } else if (scope === 'instrument') {
+      scopeLabel = state.scopeTarget ? `бумаги ${state.scopeTarget}` : 'бумаги';
+    }
+
     const plan = buildCollectionPlan({
-      accounts,
+      accounts: selected,
       tickers: [],
       maxInstruments: deps.config.value.run.reviewMaxInstruments,
-      providers: templateProviders(template),
+      // Состав поставщиков зависит от области: разбору бумаги не нужны налоги и пробелы.
+      providers: templateProviders(template, scope),
     });
 
-    return { readingPlan: plan.entries, dataAsOf: new Date().toISOString() };
+    return {
+      readingPlan: plan.entries,
+      scope,
+      scopeTarget: state.scopeTarget,
+      scopeLabel,
+      dataAsOf: new Date().toISOString(),
+    };
   };
 
 
@@ -125,11 +169,25 @@ export const createCollectNode =
     // цены, пери-тикерная аналитика, новости по бумагам и справочник секторов.
     // Уже выполненные запросы первой фазы не повторяем: бюджет прогона общий.
     const instruments = instrumentsOf(basePlan, first);
+    // Разбор одной бумаги: остальные позиции только мешают — берём выбранный тикер.
+    const scope = state.scope ?? 'portfolio';
+    const scopeTarget = state.scopeTarget?.toUpperCase();
+    const scoped =
+      scope === 'instrument' && scopeTarget
+        ? instruments.filter((instrument) => instrument.ticker.toUpperCase() === scopeTarget)
+        : instruments;
+    // Бумаги может не быть в портфеле: разбираем её по тикеру, отчёт честно
+    // покажет, что позиции нет.
+    const selected =
+      scope === 'instrument' && scoped.length === 0 && state.scopeTarget
+        ? [{ ticker: state.scopeTarget.toUpperCase() }]
+        : scoped;
+    const selectedInstruments = selected.length > 0 ? selected : instruments;
     // Алиасы эмитентов: в новостях бумагу чаще называют по имени, а не по тикеру.
     const aliases = loadTickerAliases(deps.config.value.sources.tickerAliasesFile);
     // Для запросов MCP передаём `TICKER_CLASSCODE`: по одному тикеру брокер
     // отвечает «Instrument not found» (AGRO, SBER есть в разных режимах торгов).
-    const ids = instruments.map((instrument) =>
+    const ids = selectedInstruments.map((instrument) =>
       instrumentKey(instrument.ticker, instrument.classCode),
     );
     const perTicker = buildCollectionPlan({
@@ -139,7 +197,7 @@ export const createCollectNode =
       providers: ['securities.detail', 'securities.opinions'],
       // Подстроки для лент: тикер, название из позиции и алиасы эмитента.
       matchers: Object.fromEntries(
-        instruments.map((instrument) => [
+        selectedInstruments.map((instrument) => [
           instrument.ticker,
           matchersFor(instrument, aliases),
         ] as const),
@@ -147,10 +205,25 @@ export const createCollectNode =
     });
     const perTickerGroups = new Set(['prices', 'candles', 'analytics', 'dividends', 'news']);
     const seen = new Set(first.results.keys());
+    let entries = perTicker.entries.filter(
+      (entry) => perTickerGroups.has(entry.group) && !seen.has(planKey(entry)),
+    );
+    // В разборе одной бумаги долю и стоимость остальных позиций всё равно надо
+    // знать: цены — один пакетный запрос на весь портфель.
+    const allIds = instruments
+      .map((instrument) => instrumentKey(instrument.ticker, instrument.classCode))
+      .filter((id) => !ids.includes(id));
+    if (scope === 'instrument' && allIds.length > 0) {
+      const prices = {
+        tool: 'invest_get_market_values',
+        args: { instrumentId: [...ids, ...allIds] },
+        group: 'prices' as const,
+        priority: 'mandatory' as const,
+      };
+      entries = [prices, ...entries.filter((entry) => entry.group !== 'prices')];
+    }
     const phase2: CollectionPlan = {
-      entries: perTicker.entries.filter(
-        (entry) => perTickerGroups.has(entry.group) && !seen.has(planKey(entry)),
-      ),
+      entries,
       maxInstruments: deps.config.value.run.reviewMaxInstruments,
     };
     const second = await executePlan(phase2, executeDeps);
@@ -185,7 +258,7 @@ export const createCollectNode =
       return entries;
     };
 
-    const shares = await round(shareEntries(instruments));
+    const shares = await round(shareEntries(selectedInstruments));
     const assets = await round(assetEntries(shares, texts, planKey));
     await round(brandEntries(assets, texts, planKey));
 
@@ -252,6 +325,8 @@ export const createReportNode =
         maxInstruments: deps.config.value.run.reviewMaxInstruments,
       },
       collected,
+      scope: state.scope ?? 'portfolio',
+      scopeTarget: state.scopeTarget,
     });
 
     const interpretation: Record<string, string> = {};
@@ -292,7 +367,7 @@ export const createReportNode =
       }
     }
 
-    const markdown = composeMarkdown(report, interpretation);
+    const markdown = composeMarkdown(report, interpretation, state.scopeLabel);
     const partial =
       report.partial || Object.keys(interpretation).length < report.interpretation.length;
 

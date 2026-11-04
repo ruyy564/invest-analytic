@@ -5,7 +5,7 @@ import type { CollectionResult } from '../../src/collection/executor.js';
 import { buildReport, composeMarkdown, missingProviders } from '../../src/report/engine.js';
 import { createProviderMap } from '../../src/report/providers/index.js';
 import { parseYaml } from '../../src/report/yaml.js';
-import { loadReportTemplate, parseReportTemplate } from '../../src/report/template.js';
+import { loadReportTemplate, parseReportTemplate, templateProviders } from '../../src/report/template.js';
 
 const templatePath = join(import.meta.dirname, '..', '..', 'reports', 'portfolio-review.yaml');
 
@@ -373,5 +373,70 @@ describe('факты поставщиков', () => {
 
     expect(facts?.markdown).toContain('SBER');
     expect(facts?.brief).toContain('потенциал +31,05 %');
+  });
+});
+
+describe('область разбора в отчёте', () => {
+  it('в разборе одной бумаги не показывает налоги, пробелы и разрезы', () => {
+    const built = plan();
+    const report = buildReport({
+      template: loadReportTemplate(templatePath),
+      providers: createProviderMap(),
+      plan: built,
+      collected: collection(built),
+      reportId: 'report-4',
+      scope: 'instrument',
+    });
+
+    expect(report.scope).toBe('instrument');
+    expect(report.sections.map((section) => section.id)).toEqual([
+      'table',
+      'macro',
+      'securities',
+      'opinions',
+      'verdict',
+    ]);
+    // Провайдеры тоже считаются по области: налоги в разбор бумаги не идут.
+    expect(templateProviders(loadReportTemplate(templatePath), 'instrument')).not.toContain(
+      'tax.context',
+    );
+  });
+
+  it('в разборе счёта оставляет разрезы и налоги', () => {
+    const built = plan();
+    const report = buildReport({
+      template: loadReportTemplate(templatePath),
+      providers: createProviderMap(),
+      plan: built,
+      collected: collection(built),
+      reportId: 'report-5',
+      scope: 'account',
+    });
+
+    expect(report.sections.map((section) => section.id)).toEqual([
+      'table',
+      'macro',
+      'securities',
+      'opinions',
+      'structure',
+      'concentration',
+      'tax',
+      'gaps',
+      'verdict',
+    ]);
+  });
+
+  it('шапка отчёта называет область разбора', () => {
+    const built = plan();
+    const report = buildReport({
+      template: loadReportTemplate(templatePath),
+      providers: createProviderMap(),
+      plan: built,
+      collected: collection(built),
+      reportId: 'report-6',
+    });
+    const text = composeMarkdown(report, {}, 'бумаги SBER');
+
+    expect(text.startsWith('Разбор бумаги SBER (шаблон v2)')).toBe(true);
   });
 });

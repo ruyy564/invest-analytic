@@ -1,4 +1,4 @@
-import { formatNumber, UNAVAILABLE } from '../../agent/report/portfolio-report.js';
+﻿import { formatNumber, UNAVAILABLE } from '../../agent/report/portfolio-report.js';
 import { resultsInGroup } from '../../collection/executor.js';
 import type { FactContext, FactProvider, SectionFacts } from '../engine.js';
 import {
@@ -11,7 +11,7 @@ import {
 import { formatPercent } from '../renderers.js';
 import { UNKNOWN_SECTOR } from '../sector.js';
 import { parseForecast, RECOMMENDATIONS, type ForecastFacts } from './market.js';
-import { sectorMapOf, totalValue, valuedHoldings } from './portfolio.js';
+import { sectorMapOf, totalValue, valuedHoldings, portfolioTotalOf } from './portfolio.js';
 
 /**
  * Разбор по бумагам: у каждой бумаги сектор, доля, движение цены за периоды,
@@ -73,10 +73,24 @@ const noteOf = (text: string): string | undefined =>
     .map((line) => line.trim())
     .find((line) => /^Недоступные источники|^Новостей по портфелю/.test(line));
 
+/** Причина «нет бумаг» зависит от области: счёт, бумага или портфель. */
+const noHoldingsReason = (ctx: FactContext): string => {
+  if (ctx.scope === 'instrument' && ctx.scopeTarget) {
+    return `бумаги ${ctx.scopeTarget.toUpperCase()} нет в портфеле`;
+  }
+  if (ctx.scope === 'account') {
+    return 'на счёте нет бумаг или состав счёта недоступен';
+  }
+  return 'нет данных о составе портфеля';
+};
+
 /** Факты по бумагам: позиции, секторы, динамика, прогнозы, дивиденды, новости. */
 export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
-  const holdings = valuedHoldings(ctx);
-  const total = totalValue(holdings);
+  const all = valuedHoldings(ctx);
+  // В разборе бумаги показываем только её, но долю считаем от всего портфеля.
+  const target = ctx.scope === 'instrument' ? ctx.scopeTarget?.toUpperCase() : undefined;
+  const holdings = target ? all.filter((holding) => holding.ticker.toUpperCase() === target) : all;
+  const total = portfolioTotalOf(ctx) ?? totalValue(all);
   const sectors = sectorMapOf(ctx);
   const series = seriesByTicker(
     resultsInGroup(ctx.plan, ctx.collected, 'candles').map(({ entry, text }) => ({
@@ -126,7 +140,7 @@ export const securitiesProvider: FactProvider = {
   section(ctx: FactContext): SectionFacts | undefined {
     const securities = securitiesOf(ctx);
     if (securities.length === 0) {
-      return { missing: 'нет данных о составе портфеля' };
+      return { missing: noHoldingsReason(ctx) };
     }
 
     const blocks = securities.map((security) => {
@@ -191,7 +205,7 @@ export const opinionsProvider: FactProvider = {
   section(ctx: FactContext): SectionFacts | undefined {
     const securities = securitiesOf(ctx);
     if (securities.length === 0) {
-      return { missing: 'нет данных о составе портфеля' };
+      return { missing: noHoldingsReason(ctx) };
     }
 
     const longest = (security: SecurityFacts): PeriodChange | undefined =>

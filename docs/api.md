@@ -7,14 +7,15 @@ curl -s -X POST http://localhost:3000/api/v1/agent/chat \
   -d '{"message":"что у меня в портфеле?"}'
 
 # Ответ, если данных не нужно (или после подтверждения)
-# 200 {"status":"completed","intent":"data_lookup","answer":"...","requestId":"...","sessionId":"...",
+# 200 {"status":"completed","intent":"data_lookup","scope":"portfolio","answer":"...","requestId":"...","sessionId":"...",
 #      "report":{"reportId":"<uuid>","type":"deep_review","asOf":"2026-11-04T12:00:00Z",
 #                "coverage":[{"source":"market__news_digest","status":"ok"},
 #                            {"source":"cbr","status":"missing","reason":"..."}]}}
 
 # Ответ, если нужно подтверждение
 # 202 {"status":"awaiting_approval","intent":"portfolio_review","sessionId":"<uuid>",
-#      "approval":{"question":"Прочитать 24 вида данных для разбора портфеля (счета, состав и стоимость портфеля, ...)?",
+#      "scope":"instrument","scopeTarget":"SBER","scopeLabel":"бумаги SBER",
+#      "approval":{"question":"Прочитать 25 видов данных для разбора бумаги SBER (счета, состав и стоимость портфеля, ...)?",
 #                  "actions":[{"tool":"portfolio__review","label":"Разбор портфеля",
 #                              "args":{"requests":24,"groups":["accounts","portfolio","news"],
 #                                      "accounts":["<accountId>"]}}]}}
@@ -42,14 +43,19 @@ curl -s http://localhost:3000/api/v1/health
 |---|---|---|
 | `data_lookup` | точечный вопрос по данным (состав, цена, дивиденды, новости бумаги) | `agent ⇄ approve → tools` |
 | `security_analysis` | разбор или сравнение бумаг | `agent ⇄ approve → tools` |
-| `portfolio_review` | разбор портфеля, цикл, секторы, налоги, мнения | `plan → approve → collect → report` |
+| `portfolio_review` | глубокий разбор: портфель, счёт или бумага — цикл, секторы, налоги, мнения | `plan → approve → collect → report` |
 | `off_topic` | посторонняя тема или просьба совершить сделку | `offTopic` |
+
+Область глубокого разбора приходит в ответе полями `scope` (`portfolio` | `account` |
+`instrument`), `scopeTarget` (тикер или счёт) и `scopeLabel` (подпись отчёта).
+Примеры вопросов: `проанализируй мой портфель`, `разбери счёт 2083155697`,
+`разбери бумагу SBER`.
 
 ### Время ответа
 
-Дедлайн прогона — `RUN_DEADLINE_MS` (по умолчанию 90 с для разбора). Клиент
-должен задавать таймаут больше этого значения: разбор читает данные по всем
-счетам и бумагам и выполняет один вызов модели на интерпретацию.
+Дедлайн прогона — `RUN_DEADLINE_MS` (по умолчанию 240 с для разбора). Клиент
+должен задавать таймаут больше этого значения: разбор читает данные по счетам
+и бумагам и делает отдельный вызов модели на каждый раздел интерпретации.
 
 ### Коды ошибок
 

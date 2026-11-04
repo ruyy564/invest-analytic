@@ -4,7 +4,7 @@ import type { CollectionResult } from '../collection/executor.js';
 import type { CollectionPlan } from '../collection/plan.js';
 import type { CoverageEntry } from '../sources/registry.js';
 import { renderUnavailable } from './renderers.js';
-import type { ReportSection, ReportTemplate } from './template.js';
+import type { ReportSection, ReportTemplate, SectionScope } from './template.js';
 
 /** Что поставщик отдаёт движку: готовый текст секции или «нет данных». */
 export interface SectionFacts {
@@ -22,6 +22,9 @@ export interface FactContext {
   collected: CollectionResult;
   template: ReportTemplate;
   now: Date;
+  /** Область разбора: в разборе бумаги таблица показывает только её. */
+  scope?: SectionScope;
+  scopeTarget?: string;
 }
 
 export interface FactProvider {
@@ -47,6 +50,8 @@ export interface InterpretationRequest {
 export interface ReportBuildResult {
   reportId: string;
   templateVersion: number;
+  /** Область разбора: от неё зависит состав секций. */
+  scope: SectionScope;
   asOf: string;
   sections: SectionOutput[];
   coverage: CoverageEntry[];
@@ -61,6 +66,10 @@ export interface BuildReportDeps {
   collected: CollectionResult;
   now?: Date;
   reportId?: string;
+  /** Портфель целиком, счёт или конкретная бумага. */
+  scope?: SectionScope;
+  /** Тикер бумаги в разборе по бумаге. */
+  scopeTarget?: string;
 }
 
 /**
@@ -74,14 +83,22 @@ export const buildReport = (deps: BuildReportDeps): ReportBuildResult => {
     collected: deps.collected,
     template: deps.template,
     now,
+    scope: deps.scope ?? 'portfolio',
+    scopeTarget: deps.scopeTarget,
   };
 
   const sections: SectionOutput[] = [];
   const interpretation: InterpretationRequest[] = [];
   const coverage: CoverageEntry[] = [...deps.collected.coverage];
+  const scope: SectionScope = deps.scope ?? 'portfolio';
   let partial = deps.collected.partial;
 
   for (const section of deps.template.sections) {
+    // Секция может быть не нужна в этом разборе: «пробелы портфеля» в разборе
+    // одной бумаги только шумят.
+    if (!section.scopes.includes(scope)) {
+      continue;
+    }
     const provider = deps.providers.get(section.provider);
     const facts = provider?.section(ctx);
 
@@ -141,6 +158,7 @@ export const buildReport = (deps: BuildReportDeps): ReportBuildResult => {
   return {
     reportId: deps.reportId ?? randomUUID(),
     templateVersion: deps.template.version,
+    scope,
     asOf: now.toISOString(),
     sections,
     coverage,
@@ -153,8 +171,10 @@ export const buildReport = (deps: BuildReportDeps): ReportBuildResult => {
 export const composeMarkdown = (
   report: ReportBuildResult,
   interpretation: Record<string, string> = {},
+  scopeLabel?: string,
 ): string => {
-  const lines: string[] = [`Разбор портфеля (шаблон v${report.templateVersion})`, ''];
+  const title = scopeLabel ? `Разбор ${scopeLabel}` : 'Разбор портфеля';
+  const lines: string[] = [`${title} (шаблон v${report.templateVersion})`, ''];
 
   for (const section of report.sections) {
     lines.push(`## ${section.title}`);
