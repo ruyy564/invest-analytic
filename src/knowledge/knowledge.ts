@@ -1,19 +1,32 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { z } from 'zod';
 import { parseYaml } from '../report/yaml.js';
 
 /**
- * База знаний по инвестициям: данные (`data/investment-knowledge.yaml`) и их отбор
+ * База знаний по инвестициям: каталог файлов-тем (`data/knowledge/*.yaml`) и отбор
  * под контекст. Тексты — принципы, а не факты рынка: числа в разборах берутся только
  * из собранных данных, а знания объясняют, как их трактовать.
  */
 
-/** Тема базы: определение, тезисы, теги отбора и источники. */
+/** Подраздел темы: свой заголовок и тезисы (фазы цикла, разбор по кризисам и т.п.). */
+export const KnowledgeSectionSchema = z.object({
+  title: z.string().trim().min(1),
+  points: z.array(z.string()).default([]),
+});
+
+export type KnowledgeSection = z.infer<typeof KnowledgeSectionSchema>;
+
+/** Тема базы: определение, тезисы, подразделы, ошибки, теги отбора и источники. */
 export const KnowledgeTopicSchema = z.object({
   id: z.string().trim().min(1),
   title: z.string().trim().min(1),
   summary: z.string().trim().min(1),
   points: z.array(z.string()).default([]),
+  /** Подробности: подразделы с тезисами (в промпт не идут, нужны справочному ответу). */
+  details: z.array(KnowledgeSectionSchema).default([]),
+  /** Частые ошибки: чего не делать, применяя тему. */
+  pitfalls: z.array(z.string()).default([]),
   /** Разделы отчёта, для которых тема полезна (`macro`, `opinions`, `verdict`). */
   sections: z.array(z.string()).default([]),
   /** Секторы портфеля в тех же названиях, что отдаёт брокер («энергетика»). */
@@ -34,60 +47,89 @@ export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>;
 
 export const EMPTY_KNOWLEDGE: KnowledgeBase = { version: 1, topics: [] };
 
-/** Читаем файл один раз на путь: база меняется правкой файла, а не в рантайме. */
+/** Читаем источники один раз: база меняется правкой файлов, а не в рантайме. */
 const cache = new Map<string, KnowledgeBase>();
 
-/** Сброс кэша: нужен тестам и перечитыванию после правки файла. */
+/** Сброс кэша: нужен тестам и перечитыванию после правки файлов. */
 export const resetKnowledgeCache = (): void => {
   cache.clear();
 };
 
-const fail = (path: string, reason: string): KnowledgeBase => {
-  console.warn(`[knowledge] база знаний недоступна (${path}): ${reason}`);
-  return EMPTY_KNOWLEDGE;
+const reasonOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+/** Файлы-темы: каталог разворачивается в список YAML, файл остаётся файлом. */
+export const knowledgeFiles = (source: string): string[] => {
+  try {
+    if (!statSync(source).isDirectory()) {
+      return [source];
+    }
+    return readdirSync(source)
+      .filter((name) => ['.yaml', '.yml'].includes(extname(name).toLowerCase()))
+      .sort()
+      .map((name) => join(source, name));
+  } catch (error) {
+    // Каталога нет — это не ошибка: база знаний необязательна.
+    console.warn(`[knowledge] источник знаний недоступен (${source}): ${reasonOf(error)}`);
+    return [];
+  }
 };
 
 /**
- * Загрузка базы знаний. Отсутствие файла, нечитаемый YAML или несоответствие схеме
- * не ломают прогон: возвращаем пустую базу, поведение остаётся прежним.
+ * Загрузка базы знаний из файла, каталога или списка источников. Битый файл не
+ * ломает остальные: тема пропускается с предупреждением, разбор идёт без неё.
  */
-export const loadKnowledgeBase = (path: string): KnowledgeBase => {
-  const cached = cache.get(path);
+export const loadKnowledgeBase = (source: string | readonly string[]): KnowledgeBase => {
+  const files = (typeof source === 'string' ? [source] : [...source]).flatMap(knowledgeFiles);
+  if (files.length === 0) {
+    return EMPTY_KNOWLEDGE;
+  }
+
+  const key = files.join('|');
+  const cached = cache.get(key);
   if (cached) {
     return cached;
   }
 
-  let raw: string;
-  try {
-    raw = readFileSync(path, 'utf8');
-  } catch (error) {
-    // Файла нет — это не ошибка: база знаний необязательна.
-    const reason = error instanceof Error ? error.message : String(error);
-    const empty = fail(path, reason);
-    cache.set(path, empty);
-    return empty;
+  const topics: KnowledgeTopic[] = [];
+  const seen = new Set<string>();
+
+  for (const file of files) {
+    let parsed: unknown;
+    try {
+      parsed = parseYaml(readFileSync(file, 'utf8'));
+    } catch (error) {
+      console.warn(`[knowledge] файл темы пропущен (${file}): ${reasonOf(error)}`);
+      continue;
+    }
+
+    const result = KnowledgeBaseSchema.safeParse(parsed ?? {});
+    if (!result.success) {
+      const issues = result.error.issues.map((issue) => issue.message).join('; ');
+      console.warn(`[knowledge] файл темы пропущен (${file}): ${issues}`);
+      continue;
+    }
+
+    for (const topic of result.data.topics) {
+      if (seen.has(topic.id)) {
+        console.warn(`[knowledge] тема ${topic.id} уже загружена, файл ${file} пропущен`);
+        continue;
+      }
+      seen.add(topic.id);
+      topics.push(topic);
+    }
   }
 
-  let parsed: unknown;
-  try {
-    parsed = parseYaml(raw);
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    const empty = fail(path, reason);
-    cache.set(path, empty);
-    return empty;
-  }
-
-  const result = KnowledgeBaseSchema.safeParse(parsed ?? {});
-  if (!result.success) {
-    const empty = fail(path, result.error.issues.map((issue) => issue.message).join('; '));
-    cache.set(path, empty);
-    return empty;
-  }
-
-  cache.set(path, result.data);
-  return result.data;
+  const base: KnowledgeBase = { version: 1, topics };
+  cache.set(key, base);
+  return base;
 };
+
+/** Источники знаний из настроек: каталог тем и необязательный дополнительный файл. */
+export const knowledgeSources = (run: {
+  knowledgeDir: string;
+  knowledgeFile?: string;
+}): string[] => [run.knowledgeDir, ...(run.knowledgeFile ? [run.knowledgeFile] : [])];
 
 export interface KnowledgeQuery {
   /** Раздел отчёта: `macro`, `opinions`, `verdict`. */
@@ -255,13 +297,25 @@ export const topicForQuestion = (
   return best?.topic;
 };
 
-/** Ответ на справочный вопрос: определение, тезисы и источник. */
+/** Ответ на справочный вопрос: определение, тезисы, подразделы, ошибки и источник. */
 export const formatKnowledgeAnswer = (topic: KnowledgeTopic): string => {
   const lines = [`${topic.title}. ${topic.summary}`, ''];
 
   if (topic.points.length > 0) {
-    lines.push(...topic.points.slice(0, 6).map((point) => `• ${point}`), '');
+    lines.push(...topic.points.slice(0, 8).map((point) => `• ${point}`), '');
   }
+
+  // Подразделы дают глубину: фазы цикла, разбор по кризисам, блоки мультипликаторов.
+  for (const section of topic.details) {
+    lines.push(`**${section.title}**`);
+    lines.push(...section.points.slice(0, 5).map((point) => `• ${point}`), '');
+  }
+
+  if (topic.pitfalls.length > 0) {
+    lines.push('Частые ошибки:');
+    lines.push(...topic.pitfalls.slice(0, 5).map((point) => `• ${point}`), '');
+  }
+
   if (topic.sources.length > 0) {
     lines.push(`Источник: ${topic.sources.join('; ')}.`, '');
   }
@@ -291,13 +345,13 @@ export const knowledgeBranchEnabled = (enabled: boolean, base: KnowledgeBase): b
 /** Знания для системного промпта агента по настройкам: чек-лист или ничего. */
 export const loadAgentKnowledge = (
   enabled: boolean,
-  file: string,
+  sources: string | readonly string[],
   maxChars: number,
 ): { enabled: boolean; text?: string } => {
   if (!enabled) {
     return { enabled: false };
   }
-  const base = loadKnowledgeBase(file);
+  const base = loadKnowledgeBase(sources);
   return {
     enabled: knowledgeBranchEnabled(enabled, base),
     text: agentKnowledgePrompt(base, maxChars),

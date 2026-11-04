@@ -3,6 +3,7 @@ import type { AppConfigService } from '../../config/app-config.service.js';
 import {
   formatKnowledgeAnswer,
   formatKnowledgeMiss,
+  knowledgeSources,
   loadKnowledgeBase,
   topicForQuestion,
 } from '../../knowledge/knowledge.js';
@@ -31,7 +32,7 @@ const lastQuestion = (state: AgentStateType): string => {
 export const createKnowledgeNode =
   (deps: KnowledgeDeps) =>
   async (state: AgentStateType): Promise<Partial<AgentStateType>> => {
-    const base = loadKnowledgeBase(deps.config.value.run.knowledgeFile);
+    const base = loadKnowledgeBase(knowledgeSources(deps.config.value.run));
     const topic = topicForQuestion(base, lastQuestion(state));
     const answer = topic ? formatKnowledgeAnswer(topic) : formatKnowledgeMiss(base);
 

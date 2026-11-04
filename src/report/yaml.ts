@@ -71,7 +71,17 @@ const toLines = (text: string): Line[] =>
     .filter((raw) => raw.trim() !== '')
     .map((raw) => ({ indent: raw.length - raw.trimStart().length, text: raw.trim() }));
 
+/**
+ * Ключ — только латинский идентификатор (`id`, `title`, `points`). Это отличает
+ * структуру от текста: русский тезис с двоеточием («Урок: …») остаётся строкой,
+ * а не превращается в объект с ключом.
+ */
+const KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*:/;
+
 const splitKey = (text: string): [string, string] | undefined => {
+  if (!KEY_PATTERN.test(text)) {
+    return undefined;
+  }
   const index = text.indexOf(':');
   if (index <= 0) {
     return undefined;

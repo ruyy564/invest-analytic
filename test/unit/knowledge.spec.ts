@@ -9,6 +9,7 @@ import {
   formatKnowledgeMiss,
   KNOWLEDGE_PREAMBLE,
   KNOWLEDGE_QUESTION_PATTERN,
+  knowledgeFiles,
   knowledgeForPrompt,
   loadKnowledgeBase,
   resetKnowledgeCache,
@@ -17,7 +18,7 @@ import {
   type KnowledgeBase,
 } from '../../src/knowledge/knowledge.js';
 
-const BASE_FILE = 'data/investment-knowledge.yaml';
+const BASE_FILE = 'data/knowledge';
 
 const base = (): KnowledgeBase => {
   resetKnowledgeCache();
@@ -248,6 +249,72 @@ describe('справочный ответ по понятию', () => {
 
     expect(answer).toContain('нет темы');
     expect(answer).toContain('Экономические циклы');
+  });
+});
+
+
+describe('каталог тем', () => {
+  it('разворачивает каталог в файлы по порядку имён', () => {
+    const files = knowledgeFiles('data/knowledge');
+
+    expect(files.length).toBeGreaterThanOrEqual(10);
+    expect(files[0].endsWith('01-cycles.yaml')).toBe(true);
+    expect(files.at(-1)?.endsWith('10-sources.yaml')).toBe(true);
+    // Один файл остаётся файлом.
+    expect(knowledgeFiles(files[0])).toEqual([files[0]]);
+    // Несуществующий каталог — пустой список, а не исключение.
+    expect(knowledgeFiles(join(tmpdir(), 'нет-такого-каталога'))).toEqual([]);
+  });
+
+  it('читает все темы каталога и склеивает их в одну базу', () => {
+    const knowledge = base();
+    const ids = knowledge.topics.map((topic) => topic.id);
+
+    expect(ids).toHaveLength(10);
+    expect(new Set(ids).size).toBe(ids.length);
+    // Каждая тема содержательна: тезисы, подразделы и частые ошибки.
+    for (const topic of knowledge.topics) {
+      expect(topic.points.length).toBeGreaterThanOrEqual(6);
+      expect(topic.details.length).toBeGreaterThanOrEqual(4);
+      expect(topic.pitfalls.length).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('пропускает битый файл, сохраняя остальные темы', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'knowledge-dir-'));
+    writeFileSync(
+      join(dir, '01-good.yaml'),
+      ['version: 1', 'topics:', '  - id: good', '    title: Хорошая тема', '    summary: Читается без ошибок и попадает в базу.', '    points:', '      - Тезис'].join('\n'),
+    );
+    writeFileSync(join(dir, '02-broken.yaml'), 'version: 1\ntopics: строка вместо списка');
+
+    const knowledge = loadKnowledgeBase(dir);
+
+    expect(knowledge.topics.map((topic) => topic.id)).toEqual(['good']);
+  });
+
+  it('не дублирует тему с тем же id', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'knowledge-dup-'));
+    const body = (id: string): string =>
+      ['version: 1', 'topics:', `  - id: ${id}`, `    title: Тема ${id}`, '    summary: Первая версия темы побеждает при совпадении идентификатора.', '    points:', '      - Тезис'].join('\n');
+    writeFileSync(join(dir, '01-first.yaml'), body('same'));
+    writeFileSync(join(dir, '02-second.yaml'), body('same'));
+
+    const knowledge = loadKnowledgeBase(dir);
+
+    expect(knowledge.topics).toHaveLength(1);
+    expect(knowledge.topics[0].title).toBe('Тема same');
+  });
+
+  it('отдаёт подразделы и ошибки в справочном ответе', () => {
+    const knowledge = base();
+    const topic = knowledge.topics.find((item) => item.id === 'cycles')!;
+    const answer = formatKnowledgeAnswer(topic);
+
+    expect(answer).toContain('Фазы цикла и что происходит');
+    expect(answer).toContain('Индикаторы, на которые смотрят');
+    expect(answer).toContain('Частые ошибки:');
+    expect(answer).toContain(topic.pitfalls[0]);
   });
 });
 

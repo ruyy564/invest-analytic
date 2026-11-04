@@ -75,7 +75,8 @@
 Пустая база = отсутствие блока знаний, поведение прежнее.
 
 **8. Флаги и конфигурация.** `KNOWLEDGE_ENABLED` (default `true`), `KNOWLEDGE_FILE`
-(default `data/investment-knowledge.yaml`), `KNOWLEDGE_MAX_CHARS` (default 1800, минимум 400).
+(default `data/knowledge`), `KNOWLEDGE_FILE` (дополнительный файл-тема, необязательный),
+`KNOWLEDGE_MAX_CHARS` (default 1800, минимум 400).
 Признак передаётся в `buildAgentGraph` как `knowledgeEnabled`, база — как `knowledge` (загрузка
 один раз в `agent-runtime.ts`/модуле Nest).
 

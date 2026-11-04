@@ -9,6 +9,7 @@ import { detectScope } from '../scope.js';
 import { CAPABILITIES_PATTERN } from '../prompts/capabilities.js';
 import {
   KNOWLEDGE_QUESTION_PATTERN,
+  knowledgeSources,
   loadKnowledgeBase,
   topicForQuestion,
 } from '../../knowledge/knowledge.js';
@@ -27,9 +28,11 @@ export const CLASSIFY_TIMEOUT_MS = 8_000;
 const knowledgeEnabled = (): boolean =>
   process.env.KNOWLEDGE_ENABLED?.trim().toLowerCase() !== 'false';
 
-/** Файл базы знаний: тот же путь, что у разбора и справки. */
-const knowledgeFile = (): string =>
-  process.env.KNOWLEDGE_FILE?.trim() || 'data/investment-knowledge.yaml';
+/** Каталог тем: та же настройка, что у разбора и ответов. */
+const knowledgeDir = (): string => process.env.KNOWLEDGE_DIR?.trim() || 'data/knowledge';
+
+/** Дополнительный файл-тема, если задан. */
+const knowledgeFile = (): string | undefined => process.env.KNOWLEDGE_FILE?.trim();
 
 /**
  * Классификация области вопроса дешёвой моделью с текстовым фолбэком.
@@ -85,7 +88,9 @@ export const createClassifyNode = (model: BaseChatModel) => {
     // Справочный вопрос по понятию: термин базы знаний и просьба объяснить.
     // Проверяем до эвристик — «что такое диверсификация» иначе уходит в разбор портфеля.
     if (knowledgeEnabled()) {
-      const base = loadKnowledgeBase(knowledgeFile());
+      const base = loadKnowledgeBase(
+        knowledgeSources({ knowledgeDir: knowledgeDir(), knowledgeFile: knowledgeFile() }),
+      );
       if (KNOWLEDGE_QUESTION_PATTERN.test(question) && topicForQuestion(base, question)) {
         return { intent: 'knowledge_question', ...scopeFields };
       }

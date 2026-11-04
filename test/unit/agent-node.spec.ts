@@ -108,7 +108,7 @@ describe('узел агента после сводки по счетам', () =
 
 describe('принципы принятия решений в промпте агента', () => {
   const knowledge = () =>
-    agentKnowledgePrompt(loadKnowledgeBase('data/investment-knowledge.yaml'), 1_800);
+    agentKnowledgePrompt(loadKnowledgeBase('data/knowledge'), 1_800);
 
   it('добавляет чек-лист и правило про оценки', () => {
     const prompt = buildAgentSystemPrompt({ knowledge: knowledge() });

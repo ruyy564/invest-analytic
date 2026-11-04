@@ -59,7 +59,8 @@ describe('конфигурация окружения', () => {
       reviewEnabled: true,
       agentHelpEnabled: true,
       knowledgeEnabled: true,
-      knowledgeFile: 'data/investment-knowledge.yaml',
+      knowledgeDir: 'data/knowledge',
+      knowledgeFile: undefined,
       knowledgeMaxChars: 1800,
     });
     expect(config.report.templateFile).toBe('reports/portfolio-review.yaml');
@@ -86,7 +87,8 @@ describe('конфигурация окружения', () => {
       reviewEnabled: false,
       agentHelpEnabled: true,
       knowledgeEnabled: true,
-      knowledgeFile: 'data/investment-knowledge.yaml',
+      knowledgeDir: 'data/knowledge',
+      knowledgeFile: undefined,
       knowledgeMaxChars: 1800,
     });
   });
@@ -95,12 +97,14 @@ describe('конфигурация окружения', () => {
     const config = loadConfiguration(
       baseEnv({
         KNOWLEDGE_ENABLED: 'false',
+        KNOWLEDGE_DIR: './data/свои-темы',
         KNOWLEDGE_FILE: './data/своя-база.yaml',
         KNOWLEDGE_MAX_CHARS: '900',
       }),
     );
 
     expect(config.run.knowledgeEnabled).toBe(false);
+    expect(config.run.knowledgeDir).toBe('./data/свои-темы');
     expect(config.run.knowledgeFile).toBe('./data/своя-база.yaml');
     expect(config.run.knowledgeMaxChars).toBe(900);
   });

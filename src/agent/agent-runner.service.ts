@@ -17,7 +17,7 @@ import { NotAwaitingApprovalError } from './approval.errors.js';
 import { NO_TOOLS_ANSWER } from './prompts/off-topic.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
-import { loadAgentKnowledge } from '../knowledge/knowledge.js';
+import { knowledgeSources, loadAgentKnowledge } from '../knowledge/knowledge.js';
 import type { AgentStateType } from './graph/state.js';
 import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../observability/run-collector.js';
 import { ReportStoreService } from '../state/report-store.service.js';
@@ -214,7 +214,7 @@ export class AgentRunnerService {
     // База знаний читается один раз при сборке графа: она — данные, не состояние прогона.
     const knowledge = loadAgentKnowledge(
       this.config.value.run.knowledgeEnabled,
-      this.config.value.run.knowledgeFile,
+      knowledgeSources(this.config.value.run),
       this.config.value.run.knowledgeMaxChars,
     );
 

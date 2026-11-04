@@ -132,7 +132,15 @@ const scalarEnvObject = z
      * агента и ответы на вопросы о понятиях.
      */
     KNOWLEDGE_ENABLED: flag(true),
-    KNOWLEDGE_FILE: z.string().trim().min(1).default('data/investment-knowledge.yaml'),
+    /** Каталог файлов-тем: каждый файл — часть базы, порядок задаётся именем файла. */
+    KNOWLEDGE_DIR: z.string().trim().min(1).default('data/knowledge'),
+    /** Дополнительный файл-тема (необязательно): личные заметки поверх каталога. */
+    KNOWLEDGE_FILE: z
+      .string()
+      .trim()
+      .optional()
+      // Пустое значение в `.env` — это «дополнительного файла нет», а не пустой путь.
+      .transform((value) => (value && value.length > 0 ? value : undefined)),
     /** Предел объёма справочного блока в символах: факты брифинга важнее. */
     KNOWLEDGE_MAX_CHARS: z.coerce.number().int().min(400).default(1_800),
 

@@ -89,6 +89,23 @@ sections:
     });
   });
 
+  it('оставляет русский текст с двоеточием строкой, а не объектом', () => {
+    const parsed = parseYaml(`version: 1
+topics:
+  - id: history
+    points:
+      - Урок: валютный и долговой риск реализуются одновременно
+      - Полезно: аргументы важнее целевой цены
+`) as Record<string, unknown>;
+
+    const topics = parsed.topics as Record<string, unknown>[];
+    expect(topics[0].id).toBe('history');
+    expect(topics[0].points).toEqual([
+      'Урок: валютный и долговой риск реализуются одновременно',
+      'Полезно: аргументы важнее целевой цены',
+    ]);
+  });
+
   it('загружает реальный шаблон проекта и видит все секции', () => {
     const template = loadReportTemplate(templatePath);
 
@@ -443,7 +460,7 @@ describe('область разбора в отчёте', () => {
 });
 
 describe('справочный контекст разбора', () => {
-  const knowledgePath = join(import.meta.dirname, '..', '..', 'data', 'investment-knowledge.yaml');
+  const knowledgePath = join(import.meta.dirname, '..', '..', 'data', 'knowledge');
 
   const fakeTemplate = () =>
     parseReportTemplate(

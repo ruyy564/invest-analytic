@@ -6,7 +6,9 @@ data/*
 !data/key-rate-seed.json
 !data/tax-keywords.yaml
 !data/ticker-aliases.yaml
-!data/investment-knowledge.yaml
+# Темы базы знаний — данные, а не состояние прогонов.
+!data/knowledge/
+!data/knowledge/*.yaml
 .env
 .env.local
 *.log

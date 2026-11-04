@@ -53,7 +53,8 @@ export interface AppConfig {
     agentHelpEnabled: boolean;
     /** База знаний по инвестициям: справочный контекст и справка по понятиям. */
     knowledgeEnabled: boolean;
-    knowledgeFile: string;
+    knowledgeDir: string;
+    knowledgeFile?: string;
     knowledgeMaxChars: number;
   };
   report: {
@@ -145,6 +146,7 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
     reviewEnabled: env.REVIEW_ENABLED,
     agentHelpEnabled: env.AGENT_HELP_ENABLED,
     knowledgeEnabled: env.KNOWLEDGE_ENABLED,
+    knowledgeDir: env.KNOWLEDGE_DIR,
     knowledgeFile: env.KNOWLEDGE_FILE,
     knowledgeMaxChars: env.KNOWLEDGE_MAX_CHARS,
   },

@@ -17,7 +17,7 @@ import {
 } from '../../collection/plan.js';
 import { assetEntries, brandEntries, shareEntries } from '../../collection/reference.js';
 import { loadTickerAliases, matchersFor } from '../../sources/aliases.js';
-import { loadKnowledgeBase } from '../../knowledge/knowledge.js';
+import { knowledgeSources, loadKnowledgeBase } from '../../knowledge/knowledge.js';
 import { PORTFOLIO_SCOPE } from '../scope.js';
 import { mapPositions } from '../../tools/mappers/positions.mapper.js';
 import type { McpRegistryService } from '../../tools/mcp-registry.service.js';
@@ -330,7 +330,7 @@ export const createReportNode =
       scopeTarget: state.scopeTarget,
       // База знаний — данные: отсутствие файла не мешает разбору.
       knowledge: deps.config.value.run.knowledgeEnabled
-        ? loadKnowledgeBase(deps.config.value.run.knowledgeFile)
+        ? loadKnowledgeBase(knowledgeSources(deps.config.value.run))
         : undefined,
       knowledgeMaxChars: deps.config.value.run.knowledgeMaxChars,
     });
