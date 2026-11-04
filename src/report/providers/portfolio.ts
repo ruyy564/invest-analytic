@@ -417,7 +417,8 @@ export const gapsProvider: FactProvider = {
             .join(', ')}`
         : '• секторы: недопредставленных нет',
     );
-    if (facts.unknownSectorShare !== undefined) {
+    // Нулевая доля — не пробел: строка «не определён у 0,00 %» только шумит.
+    if (facts.unknownSectorShare !== undefined && facts.unknownSectorShare >= 0.001) {
       lines.push(
         `• сектор не определён у ${formatPercent(facts.unknownSectorShare)} портфеля: справочник активов не дал сектор`,
       );

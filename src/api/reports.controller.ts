@@ -26,6 +26,7 @@ export class ReportsController {
     const report = this.store.get(reportId, this.config.value.app.userId);
 
     if (!report) {
+      console.warn('[reports] выгрузка не нашла отчёт:', reportId, 'user:', this.config.value.app.userId);
       response.status(404);
       return {
         error: {
