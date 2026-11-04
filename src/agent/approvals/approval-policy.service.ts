@@ -9,6 +9,22 @@ import {
   type ApprovalRule,
 } from './approval-rules.schema.js';
 
+/**
+ * Инструменты, которые собирает само приложение, а не MCP-сервер:
+ * сводка по счетам, динамика цены, тематические инструменты источников.
+ */
+export const LOCAL_TOOLS: readonly string[] = [
+  'portfolio_all_accounts',
+  'price_dynamics',
+  'portfolio__snapshot',
+  'portfolio__review',
+  'security__brief',
+  'market__price_dynamics',
+  'market__news_digest',
+  'market__tax_watch',
+  'macro__key_rate',
+];
+
 export interface LoadedRules {
   rules: ApprovalRule[];
   unlisted?: 'require' | 'allow';
@@ -102,11 +118,14 @@ export class ApprovalPolicyService {
     return rule ? rule.requiresApproval : this.unlisted === 'require';
   }
 
-  /** Правила не должны ссылаться на инструменты, которых нет в каталоге MCP. */
+  /**
+   * Правила не должны ссылаться на инструменты, которых нет в каталоге MCP.
+   * Локальные инструменты приложения (`portfolio_all_accounts`) в каталоге
+   * отсутствуют по определению — их собирает реестр, а не сервер.
+   */
   assertKnownTools(catalog: readonly string[]): void {
-    const unknown = this.rules.filter(
-      (rule) => !rule.tool.includes('*') && !catalog.includes(rule.tool),
-    );
+    const known = new Set<string>([...catalog, ...LOCAL_TOOLS]);
+    const unknown = this.rules.filter((rule) => !rule.tool.includes('*') && !known.has(rule.tool));
     if (unknown.length > 0) {
       throw new ConfigError(
         unknown.map(

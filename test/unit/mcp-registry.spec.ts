@@ -1,9 +1,25 @@
 import { AppConfigService } from '../../src/config/app-config.service.js';
 import type { McpServerConfig } from '../../src/config/env.schema.js';
-import { McpRegistryService } from '../../src/tools/mcp-registry.service.js';
+import {
+  MARKET_DYNAMICS_TOOL,
+  McpRegistryService,
+  PORTFOLIO_SNAPSHOT_TOOL,
+} from '../../src/tools/mcp-registry.service.js';
 import { ALL_ACCOUNTS_TOOL } from '../../src/tools/portfolio-snapshot.js';
+import { NEWS_DIGEST_TOOL } from '../../src/tools/thematic/news-digest.js';
 import { PRICE_DYNAMICS_TOOL } from '../../src/tools/price-dynamics.js';
+import { TAX_WATCH_TOOL } from '../../src/tools/thematic/tax-watch.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
+
+/** Локальные инструменты, которые всегда добавляются к каталогу сервера. */
+const LOCAL_TOOLS_EXPECTED = [
+  PORTFOLIO_SNAPSHOT_TOOL,
+  ALL_ACCOUNTS_TOOL,
+  MARKET_DYNAMICS_TOOL,
+  PRICE_DYNAMICS_TOOL,
+  NEWS_DIGEST_TOOL,
+  TAX_WATCH_TOOL,
+];
 
 const server = (overrides: Partial<McpServerConfig> = {}): McpServerConfig => ({
   name: 'tinkoff',
@@ -17,11 +33,25 @@ const server = (overrides: Partial<McpServerConfig> = {}): McpServerConfig => ({
 const configStub = (
   servers: McpServerConfig[],
   run: Partial<{ toolMaxCalls: number; deadlineMs: number; mcpToolTimeoutMs: number }> = {},
+  sources: Partial<{ enabled: string[]; keyRateMode: 'live' | 'seed' | 'off'; newsIds: string[] }> = {},
 ): AppConfigService =>
   ({
     value: {
       mcp: { servers },
       run: { toolMaxCalls: 40, deadlineMs: 90_000, mcpToolTimeoutMs: 15_000, ...run },
+      sources: {
+        enabled: sources.enabled ?? ['tinkoff'],
+        keyRate: {
+          mode: sources.keyRateMode ?? 'off',
+          soapUrl: 'https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx',
+          htmlUrl: 'https://www.cbr.ru/hd_base/KeyRate/',
+          seedFile: 'data/key-rate-seed.json',
+          cacheTtlHours: 24,
+        },
+        news: { ids: sources.newsIds ?? [], scanPages: 3, maxItems: 10 },
+        taxKeywordsFile: 'data/tax-keywords.yaml',
+      },
+      state: { backend: 'memory', sqlitePath: ':memory:', ttlDays: 30 },
     },
   }) as unknown as AppConfigService;
 
@@ -52,8 +82,7 @@ describe('реестр MCP-серверов', () => {
     expect(registry.tools.map((tool) => tool.name)).toEqual([
       'tinkoff__invest_get_portfolio',
       'tinkoff__invest_get_positions',
-      ALL_ACCOUNTS_TOOL,
-      PRICE_DYNAMICS_TOOL,
+      ...LOCAL_TOOLS_EXPECTED,
     ]);
     expect(registry.serverStatuses).toEqual([
       {
@@ -91,8 +120,8 @@ describe('реестр MCP-серверов', () => {
 
     await registry.ensureInitialized();
 
-    // Инструментов MCP нет: остаются только локальные (сводка и динамика).
-    expect(registry.tools.map((tool) => tool.name)).toEqual([ALL_ACCOUNTS_TOOL, PRICE_DYNAMICS_TOOL]);
+    // Инструментов MCP нет: остаются только локальные (сводка, динамика, тематические).
+    expect(registry.tools.map((tool) => tool.name)).toEqual([...LOCAL_TOOLS_EXPECTED]);
     expect(registry.serverStatuses[0]).toMatchObject({ name: 'tinkoff', status: 'down' });
     expect(registry.isHealthy()).toBe(false);
   });

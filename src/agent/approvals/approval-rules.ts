@@ -13,6 +13,57 @@ export const APPROVAL_RULES: ApprovalRule[] = [
     requiresApproval: false,
   },
   {
+    // Сводка по всем счетам: один инструмент вместо перебора счетов моделью.
+    tool: 'portfolio_all_accounts',
+    label: 'Портфель по всем счетам',
+    question: 'Прочитать данные портфеля по всем вашим счетам у брокера?',
+    requiresApproval: true,
+  },
+  {
+    // Динамика цены бумаги: свечи вместо «вспоминаний» модели.
+    tool: 'price_dynamics',
+    label: 'Динамика цены бумаги',
+    question: 'Прочитать историю цен бумаги за период у брокера?',
+    requiresApproval: true,
+  },
+  {
+    // Тематические имена локальных инструментов (см. спецификацию data-sources).
+    tool: 'portfolio__snapshot',
+    label: 'Портфель по всем счетам',
+    question: 'Прочитать данные портфеля по всем вашим счетам у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'portfolio__review',
+    label: 'Разбор портфеля',
+    question: 'Прочитать данные для разбора портфеля: счета, бумаги, цены, аналитику и новости?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'market__price_dynamics',
+    label: 'Динамика цены бумаги',
+    question: 'Прочитать историю цен бумаги за период у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'market__news_digest',
+    label: 'Новости по портфелю',
+    question: 'Прочитать новости по бумагам портфеля и общую ленту?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'market__tax_watch',
+    label: 'Налоговые события',
+    question: 'Прочитать историю операций и налоговые публикации?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'macro__key_rate',
+    label: 'Ключевая ставка ЦБ',
+    question: 'Запросить ключевую ставку и историю решений ЦБ?',
+    requiresApproval: true,
+  },
+  {
     tool: 'tinkoff__invest_get_portfolio',
     label: 'Состав и стоимость портфеля',
     question: 'Прочитать данные портфеля у брокера?',
@@ -22,6 +73,60 @@ export const APPROVAL_RULES: ApprovalRule[] = [
     tool: 'tinkoff__invest_get_positions',
     label: 'Позиции портфеля',
     question: 'Прочитать позиции портфеля у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_get_market_values',
+    label: 'Текущие цены бумаг',
+    question: 'Прочитать текущие цены бумаг у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_get_candles',
+    label: 'История цен бумаги',
+    question: 'Прочитать историю цен бумаги у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_get_tech_analysis',
+    label: 'Технические индикаторы',
+    question: 'Прочитать технические индикаторы бумаги у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_get_last_trades',
+    label: 'Последние сделки по бумаге',
+    question: 'Прочитать последние сделки по бумаге у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_get_share_dividends',
+    label: 'Дивиденды по бумаге',
+    question: 'Прочитать данные о дивидендах у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_get_asset_fundamentals',
+    label: 'Фундаментальные показатели',
+    question: 'Прочитать фундаментальные показатели бумаги у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_get_news',
+    label: 'Новости по бумаге',
+    question: 'Прочитать новости по бумаге у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_get_operations',
+    label: 'История операций по счёту',
+    question: 'Прочитать историю операций по счёту у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_find_instrument',
+    label: 'Поиск бумаги по тикеру',
+    question: 'Найти бумагу по тикеру у брокера?',
     requiresApproval: true,
   },
 ];
