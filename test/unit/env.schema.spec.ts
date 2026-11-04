@@ -47,6 +47,59 @@ describe('конфигурация окружения', () => {
     expect(config.app.logQuestionText).toBe(false);
   });
 
+  it('подставляет лимиты прогона и шаблон отчёта по умолчанию', () => {
+    const config = loadConfiguration(baseEnv());
+
+    expect(config.run).toEqual({
+      toolMaxCalls: 40,
+      deadlineMs: 90_000,
+      parallelism: 4,
+      reviewMaxInstruments: 15,
+      mcpToolTimeoutMs: 15_000,
+      reviewEnabled: true,
+    });
+    expect(config.report.templateFile).toBe('reports/portfolio-review.yaml');
+  });
+
+  it('берёт лимиты прогона из окружения', () => {
+    const config = loadConfiguration(
+      baseEnv({
+        RUN_TOOL_MAX_CALLS: '12',
+        RUN_DEADLINE_MS: '45000',
+        RUN_PARALLELISM: '2',
+        REVIEW_MAX_INSTRUMENTS: '5',
+        MCP_TOOL_TIMEOUT_MS: '3000',
+        REVIEW_ENABLED: 'false',
+      }),
+    );
+
+    expect(config.run).toEqual({
+      toolMaxCalls: 12,
+      deadlineMs: 45_000,
+      parallelism: 2,
+      reviewMaxInstruments: 5,
+      mcpToolTimeoutMs: 3_000,
+      reviewEnabled: false,
+    });
+  });
+
+  it('отклоняет нечисловой лимит прогона', () => {
+    const issues = loadIssues(baseEnv({ RUN_TOOL_MAX_CALLS: 'много' }));
+    expect(issues.some((issue) => issue.includes('RUN_TOOL_MAX_CALLS'))).toBe(true);
+  });
+
+  it('отклоняет несуществующий файл шаблона отчёта', () => {
+    const issues = loadIssues(baseEnv({ REPORT_TEMPLATE_FILE: './reports/нет-такого.yaml' }));
+    expect(issues.some((issue) => issue.includes('REPORT_TEMPLATE_FILE'))).toBe(true);
+  });
+
+  it('не требует файла шаблона, когда разбор выключен', () => {
+    const config = loadConfiguration(
+      baseEnv({ REVIEW_ENABLED: 'false', REPORT_TEMPLATE_FILE: './reports/нет-такого.yaml' }),
+    );
+    expect(config.run.reviewEnabled).toBe(false);
+  });
+
   it('подставляет модель ответа как модель классификации', () => {
     expect(loadConfiguration(baseEnv()).llm.routerModel).toBe('gpt-4o-mini');
   });

@@ -85,12 +85,25 @@ const scalarEnvObject = z
 
     GIGACHAT_CREDENTIALS: z.string().trim().optional(),
     GIGACHAT_SCOPE: z.string().trim().default('GIGACHAT_API_PERS'),
+    // Streaming у GigaChat иногда отдаёт обрезанный SSE-чанк («Unterminated string
+    // in JSON»), и клиент минутами повторяет запрос. По умолчанию — обычный HTTP.
+    GIGACHAT_STREAMING: flag(false),
     GIGACHAT_AUTH_URL: url('GIGACHAT_AUTH_URL').default(
       'https://ngw.devices.sberbank.ru:9443/api/v2/oauth',
     ),
 
     MCP_SERVERS: csv('MCP_SERVERS'),
     TINKOFF_ACCOUNT_ID: z.string().trim().optional(),
+
+    // Лимиты прогона: разбор портфеля требует заметно больше вызовов, чем точечный вопрос.
+    RUN_TOOL_MAX_CALLS: z.coerce.number().int().positive().default(40),
+    RUN_DEADLINE_MS: z.coerce.number().int().positive().default(90_000),
+    RUN_PARALLELISM: z.coerce.number().int().positive().max(16).default(4),
+    REVIEW_MAX_INSTRUMENTS: z.coerce.number().int().positive().default(15),
+    MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+    /** Декларативный шаблон отчёта: состав и порядок секций задаются файлом. */
+    REPORT_TEMPLATE_FILE: z.string().trim().min(1).default('reports/portfolio-review.yaml'),
+    REVIEW_ENABLED: flag(true),
 
     STATE_BACKEND: z
       .enum(SUPPORTED_STATE_BACKENDS, {
@@ -156,6 +169,15 @@ export const scalarEnvSchema = scalarEnvObject.superRefine((env, ctx) => {
         code: 'custom',
         path: ['LANGSMITH_API_KEY'],
         message: 'обязателен при LANGSMITH_TRACING=true',
+      });
+    }
+    // Шаблон отчёта — файл данных: без него ветка разбора не соберётся, поэтому
+    // проверяем существование на старте, пока разбор включён.
+    if (env.REVIEW_ENABLED && !existsSync(env.REPORT_TEMPLATE_FILE)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['REPORT_TEMPLATE_FILE'],
+        message: `файл шаблона отчёта не найден (${env.REPORT_TEMPLATE_FILE})`,
       });
     }
   });

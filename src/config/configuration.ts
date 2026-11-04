@@ -31,11 +31,26 @@ export interface AppConfig {
       credentials?: string;
       scope: string;
       authUrl: string;
+      /** `false` — обычный HTTP-запрос вместо SSE-потока (см. провайдер). */
+      streaming: boolean;
     };
   };
   mcp: {
     servers: McpServerConfig[];
     accountId?: string;
+  };
+  /** Лимиты прогона: вызовы инструментов, время, параллельность, глубина разбора. */
+  run: {
+    toolMaxCalls: number;
+    deadlineMs: number;
+    parallelism: number;
+    reviewMaxInstruments: number;
+    mcpToolTimeoutMs: number;
+    reviewEnabled: boolean;
+  };
+  report: {
+    /** Файл декларативного шаблона отчёта (секции, пороги, периоды). */
+    templateFile: string;
   };
   state: {
     backend: StateBackend;
@@ -79,11 +94,23 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
       credentials: env.GIGACHAT_CREDENTIALS || undefined,
       scope: env.GIGACHAT_SCOPE,
       authUrl: env.GIGACHAT_AUTH_URL,
+      streaming: env.GIGACHAT_STREAMING,
     },
   },
   mcp: {
     servers,
     accountId: env.TINKOFF_ACCOUNT_ID || undefined,
+  },
+  run: {
+    toolMaxCalls: env.RUN_TOOL_MAX_CALLS,
+    deadlineMs: env.RUN_DEADLINE_MS,
+    parallelism: env.RUN_PARALLELISM,
+    reviewMaxInstruments: env.REVIEW_MAX_INSTRUMENTS,
+    mcpToolTimeoutMs: env.MCP_TOOL_TIMEOUT_MS,
+    reviewEnabled: env.REVIEW_ENABLED,
+  },
+  report: {
+    templateFile: env.REPORT_TEMPLATE_FILE,
   },
   state: {
     backend: env.STATE_BACKEND,

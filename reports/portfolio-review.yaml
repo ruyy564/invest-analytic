@@ -1,0 +1,11 @@
+# Шаблон отчёта «разбор портфеля».
+# Состав и порядок секций задаются здесь, а не в коде: см. docs/reports.md.
+# Полный набор секций и порогов добавляется в задаче 4.2 (каркас шаблона).
+id: portfolio-review
+version: 1
+periods: [1d, 7d, 30d, 180d]
+thresholds:
+  concentration_high: 0.50
+  concentration_medium: 0.25
+  min_class_share: 0.05
+sections: []
