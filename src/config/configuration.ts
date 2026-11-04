@@ -1,6 +1,7 @@
 import { ConfigError } from './config.error.js';
 import {
   ApprovalUnlistedPolicy,
+  KeyRateSourceMode,
   LlmProviderId,
   McpServerConfig,
   ScalarEnv,
@@ -51,6 +52,23 @@ export interface AppConfig {
   report: {
     /** Файл декларативного шаблона отчёта (секции, пороги, периоды). */
     templateFile: string;
+  };
+  /** Источники данных помимо брокера: реестр подключается по списку `SOURCES`. */
+  sources: {
+    enabled: string[];
+    keyRate: {
+      mode: KeyRateSourceMode;
+      soapUrl: string;
+      htmlUrl: string;
+      seedFile: string;
+      cacheTtlHours: number;
+    };
+    news: {
+      ids: string[];
+      scanPages: number;
+      maxItems: number;
+    };
+    taxKeywordsFile: string;
   };
   state: {
     backend: StateBackend;
@@ -111,6 +129,22 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
   },
   report: {
     templateFile: env.REPORT_TEMPLATE_FILE,
+  },
+  sources: {
+    enabled: env.SOURCES,
+    keyRate: {
+      mode: env.KEY_RATE_SOURCE_MODE,
+      soapUrl: env.KEY_RATE_SOAP_URL,
+      htmlUrl: env.KEY_RATE_HTML_URL,
+      seedFile: env.KEY_RATE_SEED_FILE,
+      cacheTtlHours: env.KEY_RATE_CACHE_TTL_HOURS,
+    },
+    news: {
+      ids: env.NEWS_SOURCES,
+      scanPages: env.NEWS_SCAN_PAGES,
+      maxItems: env.NEWS_DIGEST_MAX_ITEMS,
+    },
+    taxKeywordsFile: env.TAX_KEYWORDS_FILE,
   },
   state: {
     backend: env.STATE_BACKEND,

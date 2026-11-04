@@ -6,12 +6,15 @@ export const SUPPORTED_STATE_BACKENDS = ['sqlite', 'memory'] as const;
 export const APPROVAL_UNLISTED_POLICIES = ['require', 'allow'] as const;
 export const MCP_TRANSPORTS = ['http', 'sse'] as const;
 export const MCP_TLS_MODES = ['strict', 'extra-ca', 'insecure'] as const;
+/** Режим получения ключевой ставки: live (SOAP ЦБ) → кэш → сид → HTML, только сид, выключено. */
+export const KEY_RATE_SOURCE_MODES = ['live', 'seed', 'off'] as const;
 
 export type LlmProviderId = (typeof SUPPORTED_LLM_PROVIDERS)[number];
 export type McpTransport = (typeof MCP_TRANSPORTS)[number];
 export type StateBackend = (typeof SUPPORTED_STATE_BACKENDS)[number];
 export type ApprovalUnlistedPolicy = (typeof APPROVAL_UNLISTED_POLICIES)[number];
 export type McpTlsMode = (typeof MCP_TLS_MODES)[number];
+export type KeyRateSourceMode = (typeof KEY_RATE_SOURCE_MODES)[number];
 
 /**
  * Торговые и денежные операции MCP: их нельзя ни разрешать агенту,
@@ -51,6 +54,18 @@ const csv = (field: string) =>
         .filter((item) => item.length > 0),
     )
     .refine((items) => items.length > 0, { message: `${field} не должен быть пустым` });
+
+/** CSV-список, который может быть пустым: `SOURCES=` означает «только брокер». */
+const csvList = (def: string) =>
+  z
+    .string()
+    .default(def)
+    .transform((value) =>
+      value
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0),
+    );
 
 const url = (field: string) =>
   z.string().refine(
@@ -104,6 +119,24 @@ const scalarEnvObject = z
     /** Декларативный шаблон отчёта: состав и порядок секций задаются файлом. */
     REPORT_TEMPLATE_FILE: z.string().trim().min(1).default('reports/portfolio-review.yaml'),
     REVIEW_ENABLED: flag(true),
+
+    // Источники данных помимо брокера: ЦБ (ключевая ставка) и новостные ленты.
+    SOURCES: csvList('tinkoff'),
+    KEY_RATE_SOURCE_MODE: z
+      .enum(KEY_RATE_SOURCE_MODES, {
+        message: `допустимые значения: ${KEY_RATE_SOURCE_MODES.join(', ')}`,
+      })
+      .default('live'),
+    KEY_RATE_SEED_FILE: z.string().trim().min(1).default('data/key-rate-seed.json'),
+    KEY_RATE_SOAP_URL: url('KEY_RATE_SOAP_URL').default(
+      'https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx',
+    ),
+    KEY_RATE_HTML_URL: url('KEY_RATE_HTML_URL').default('https://www.cbr.ru/hd_base/KeyRate/'),
+    KEY_RATE_CACHE_TTL_HOURS: z.coerce.number().int().positive().default(24),
+    NEWS_SOURCES: csvList('interfax,rbc,smartlab'),
+    NEWS_SCAN_PAGES: z.coerce.number().int().positive().max(20).default(3),
+    NEWS_DIGEST_MAX_ITEMS: z.coerce.number().int().positive().max(100).default(10),
+    TAX_KEYWORDS_FILE: z.string().trim().min(1).default('data/tax-keywords.yaml'),
 
     STATE_BACKEND: z
       .enum(SUPPORTED_STATE_BACKENDS, {
@@ -178,6 +211,18 @@ export const scalarEnvSchema = scalarEnvObject.superRefine((env, ctx) => {
         code: 'custom',
         path: ['REPORT_TEMPLATE_FILE'],
         message: `файл шаблона отчёта не найден (${env.REPORT_TEMPLATE_FILE})`,
+      });
+    }
+    // ЦБ в режиме сида: читать нечего без файла истории ставки.
+    if (
+      env.SOURCES.includes('cbr') &&
+      env.KEY_RATE_SOURCE_MODE === 'seed' &&
+      !existsSync(env.KEY_RATE_SEED_FILE)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['KEY_RATE_SEED_FILE'],
+        message: `обязателен при KEY_RATE_SOURCE_MODE=seed (${env.KEY_RATE_SEED_FILE})`,
       });
     }
   });

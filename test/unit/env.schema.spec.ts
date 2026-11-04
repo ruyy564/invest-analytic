@@ -100,6 +100,61 @@ describe('конфигурация окружения', () => {
     expect(config.run.reviewEnabled).toBe(false);
   });
 
+  it('подставляет источники данных по умолчанию', () => {
+    const config = loadConfiguration(baseEnv());
+
+    expect(config.sources).toEqual({
+      enabled: ['tinkoff'],
+      keyRate: {
+        mode: 'live',
+        soapUrl: 'https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx',
+        htmlUrl: 'https://www.cbr.ru/hd_base/KeyRate/',
+        seedFile: 'data/key-rate-seed.json',
+        cacheTtlHours: 24,
+      },
+      news: {
+        ids: ['interfax', 'rbc', 'smartlab'],
+        scanPages: 3,
+        maxItems: 10,
+      },
+      taxKeywordsFile: 'data/tax-keywords.yaml',
+    });
+  });
+
+  it('принимает список источников из окружения, включая пустой', () => {
+    expect(
+      loadConfiguration(baseEnv({ SOURCES: 'tinkoff, cbr , interfax' })).sources.enabled,
+    ).toEqual(['tinkoff', 'cbr', 'interfax']);
+    expect(loadConfiguration(baseEnv({ SOURCES: '' })).sources.enabled).toEqual([]);
+  });
+
+  it('отклоняет KEY_RATE_SOURCE_MODE=seed без файла истории ставки', () => {
+    const issues = loadIssues(
+      baseEnv({
+        SOURCES: 'tinkoff,cbr',
+        KEY_RATE_SOURCE_MODE: 'seed',
+        KEY_RATE_SEED_FILE: './data/нет-такого-сида.json',
+      }),
+    );
+    expect(issues.some((issue) => issue.includes('KEY_RATE_SEED_FILE'))).toBe(true);
+  });
+
+  it('не требует сида, когда ставка выключена', () => {
+    const config = loadConfiguration(
+      baseEnv({
+        SOURCES: 'tinkoff,cbr',
+        KEY_RATE_SOURCE_MODE: 'off',
+        KEY_RATE_SEED_FILE: './data/нет-такого-сида.json',
+      }),
+    );
+    expect(config.sources.keyRate.mode).toBe('off');
+  });
+
+  it('отклоняет недопустимый режим ставки', () => {
+    const issues = loadIssues(baseEnv({ KEY_RATE_SOURCE_MODE: 'fast' }));
+    expect(issues.some((issue) => issue.includes('KEY_RATE_SOURCE_MODE'))).toBe(true);
+  });
+
   it('подставляет модель ответа как модель классификации', () => {
     expect(loadConfiguration(baseEnv()).llm.routerModel).toBe('gpt-4o-mini');
   });
