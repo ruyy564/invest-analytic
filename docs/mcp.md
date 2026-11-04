@@ -35,11 +35,29 @@ MCP_NEWS_ALLOWED_TOOLS=search_news,get_article
 | Пустой allowlist | Ошибка конфигурации при старте |
 | Торговые инструменты | `invest_create_*`, `invest_post_*`, `invest_cancel_*`, `invest_replace_*`, `invest_deposit_*`, `invest_transfer_*`, `invest_sell*`, `invest_buy*` запрещены в allowlist |
 | Неймспейсинг | Имя для агента — `<server>__<tool>`, например `tinkoff__invest_get_portfolio` |
-| Таймаут | 10 секунд на вызов инструмента |
-| Бюджет | 8 вызовов и 30 секунд на прогон (`McpRegistryService.createBudget()`) |
+| Таймаут | `MCP_TOOL_TIMEOUT_MS` (по умолчанию 15 000 мс) на вызов инструмента |
+| Бюджет | `RUN_TOOL_MAX_CALLS` вызовов и `RUN_DEADLINE_MS` на прогон (по умолчанию 40 и 90 000 мс) |
+| Параллельность | `RUN_PARALLELISM` одновременных вызовов при сборе данных |
+| Глубина разбора | `REVIEW_MAX_INSTRUMENTS` бумаг с расширенной аналитикой |
+| Покрытие каталога | `missingTools` — есть в allowlist, нет в каталоге; `unlistedTools` — read-only тулы каталога вне allowlist (видны в логе и health) |
 | Недоступный сервер | Старт не падает: сервер помечается `down`, его инструменты не попадают в набор, health отдаёт `503` |
 
 Коды ошибок: `mcp_unavailable`, `mcp_unauthorized`, `mcp_rate_limited`, `mcp_invalid_response`, `forbidden_tool`, `run_budget_exceeded`.
+
+## Локальные инструменты (не MCP)
+
+| Инструмент | Тема | Что делает |
+|---|---|---|
+| `portfolio__snapshot` | portfolio | сводка по всем открытым счетам |
+| `portfolio__review` | portfolio | разбор портфеля по шаблону |
+| `security__brief` | security | карточка бумаги |
+| `market__price_dynamics` | market | динамика цены за период |
+| `market__news_digest` | market | новости по портфелю и общая лента по периодам |
+| `market__tax_watch` | market | удержанные налоги и изменения законодательства |
+| `macro__key_rate` | macro | ключевая ставка ЦБ и история решений |
+
+Старые имена `portfolio_all_accounts` и `price_dynamics` работают как алиасы
+один релиз — на них ссылаются правила подтверждений и промпты.
 
 ## Как это устроено
 

@@ -12,16 +12,24 @@
 POST /api/v1/agent/chat
         │
         ▼
-   classify (LLM-роутер) ── off_topic ─▶ offTopic ─▶ ответ без доступа к данным
-        │ portfolio
-        ▼
-   agent (LLM + инструменты MCP)
-        │  просит вызвать инструмент
-        ▼
-   approve (interrupt) ─▶ 202 awaiting_approval + список действий
-        │ POST /chat/approve
-        ▼
-   tools (MCP через локальный прокси) ─▶ agent ─▶ отчёт + дисклеймер ─▶ 200 completed
+   classify (LLM-роутер) ── off_topic ──────────▶ offTopic ─▶ ответ без доступа к данным
+        │
+        ├── data_lookup / security_analysis ─────▶ agent (LLM + инструменты MCP)
+        │                                              │ просит вызвать инструмент
+        │                                              ▼
+        │                                          approve (interrupt) ─▶ 202 + действия
+        │                                              │ approve
+        │                                              ▼
+        │                                          tools (MCP) ─▶ agent ─▶ ответ
+        │
+        └── portfolio_review ──▶ plan (план чтений) ─▶ approve (один запрос на весь план)
+                                                        │ approve
+                                                        ▼
+                                   collect (пачки, бюджет, покрытие) ─▶ report
+                                                        │ шаблон + поставщики фактов
+                                                        │ один вызов модели: «макро» и «итог»
+                                                        ▼
+                                        отчёт + reportId ─▶ 200 completed
 ```
 
 - **Граф** — LangGraph с чекпоинтером: прерывание на `approve` можно возобновить после перезапуска процесса.
@@ -185,7 +193,8 @@ MCP_NEWS_ALLOWED_TOOLS=search_news,get_article
 src/
   config/    env-схема и типизированный доступ к конфигурации
   api/       HTTP-контроллеры (чат, подтверждение, health)
-  agent/     граф LangGraph, узлы, промпты, правила подтверждений
+  agent/     граф LangGraph, узлы, промпты, правила подтверждений,
+             agent.server.ts — точка входа для LangSmith Studio (вне Nest)
   llm/       реестр LLM-провайдеров
   tools/     реестр MCP-серверов, адаптер инструментов, мапперы
   state/     чекпоинтер и глобальное хранилище
@@ -197,27 +206,88 @@ test/unit, test/e2e, test/fixtures
 
 **Трейсы.** Каждый ответ API содержит `traceUrl` — ссылку на прогон графа этого запроса (спаны `classify`, `agent`, `approve`, `tools`, вызовы модели и инструментов). Проверка без UI: `npm run trace -- <runId из traceUrl>`.
 
-**Studio.** Граф можно посмотреть на канвасе LangSmith Studio:
+**Studio.** В LangSmith Studio запускается **рабочий агент** — тот же граф, что в сервисе:
 
 ```bash
-npm run build      # Studio запускает скомпилированный граф из dist/
-npm run studio     # LangGraph Server на 127.0.0.1:2024, граф portfolio_analyst
+npm run studio        # собирает проект и поднимает LangGraph Server на 127.0.0.1:2024
+npm run studio:open   # открывает Studio во вкладке VS Code (внешний браузер не запускается)
+npm run studio:check  # проверка через API сервера: тред, история, подтверждение
 ```
 
-Сервер печатает ссылку вида `https://smith.langchain.com/studio?baseUrl=http://127.0.0.1:2024` — открыть её в браузере, где вы вошли в LangSmith. На канвасе видны узлы `classify → (offTopic | agent → approve → tools)`, панели Memory и Interrupts.
+`npm run studio` больше не открывает браузер сам (`--no-browser`). `npm run studio:open` открывает Studio **в отдельном окне** браузера с изолированным профилем:
 
-Граф для Studio (`src/studio/agent.graph.ts`, конфигурация — `langgraph.json`) повторяет маршрут рабочего графа и паузу подтверждения через `interrupt`, но узлы-заглушки не вызывают ни LLM, ни MCP: это витрина архитектуры, реальная работа идёт через NestJS-сервис. Привязка к `127.0.0.1` обязательна — по умолчанию CLI слушает `localhost` (IPv6 `::1`), и браузер не может достучаться до API.
+- используется Chromium-браузер (Chrome → Edge → Яндекс) в режиме `--app`: окно без адресной строки и без ваших вкладок;
+- профиль отдельный — `.browser-profile/` в репозитории (в `.gitignore`), ваша основная сессия и открытые окна не затрагиваются;
+- вход в LangSmith в этом окне нужен один раз, дальше профиль его помнит.
 
-## Ограничения MVP
+Альтернатива без внешнего окна: клик по ссылке в терминале (`workbench.browser.openLocalhostLinks` включён в `.vscode/settings.json`) или `Ctrl+Shift+P` → «Simple Browser: Show». Автоматически открыть встроенную вкладку VS Code нельзя: в 1.144 `code --open-url` возвращает успех, но вкладку не создаёт.
+
+Сервер печатает ссылку `https://smith.langchain.com/studio?baseUrl=http://127.0.0.1:2024` — открыть в браузере, где вы вошли в LangSmith. Вкладка **Chat** — полноценный диалог: вопрос уходит в `classify`, модель вызывает `portfolio_all_accounts` (сводка по всем открытым счетам), граф встаёт на `approve`, в панели Interrupt виден запрос, после решения кнопкой **Resume** прогон продолжается и приходит ответ по реальным данным брокера.
+
+**Как подтвердить.** В панели Interrupt есть поле значения (по умолчанию в нём `""` — это отказ). Впишите объект решения и нажмите **Resume**:
+
+```json
+{"approved": true}
+```
+
+Отказ — `{"approved": false}` (данные не запрашиваются, агент предложит подтвердить). Пустое значение, `""` и любой другой мусор тоже считаются отказом: подтверждение без явного «да» не принимается. Принимаются также `true`, `"да"`, `"{\"approved\": true}"` — разбор терпимый (`isApprovedDecision` в `src/agent/nodes/approve.node.ts`).
+
+**Что видит агент.** `MCP_TINKOFF_ALLOWED_TOOLS` — это allowlist: инструменты вне списка агенту недоступны (и в Studio их не будет). При старте `npm run studio` печатает фактический список, например `Агенту доступно инструментов: 17 — tinkoff__invest_get_candles, …`. Если вопрос про бумагу вызывает «не вижу данных», сначала проверьте этот список.
+
+Область ассистента — портфель **и** рыночные данные: состав и стоимость, доходность, цены и динамика бумаг, дивиденды, фундаментал, новости. Всё остальное (погода, политика, налоги, сделки) уходит в детерминированный отказ без вызова инструментов — поэтому там не появляется и запрос подтверждения. На вопрос «что ты умеешь» отвечает фиксированный список возможностей (`CAPABILITIES_ANSWER`): на общий вопрос GigaChat отвечает своей «визиткой», игнорируя системный промпт.
+
+Два инструмента собирает само приложение:
+
+| Инструмент | Что делает |
+|---|---|
+| `portfolio_all_accounts` | `invest_list_accounts` → по каждому счёту `invest_get_portfolio` (итог, доходность) + `invest_get_positions` (бумаги) → пакетный `invest_get_market_values` (цена) → стоимость позиции = цена × количество |
+| `price_dynamics` | `invest_find_instrument` → `invest_get_candles` (дневные) → изменение за период в валюте и процентах, минимум/максимум с датами |
+
+Оба считают числа кодом, а модель их пересказывает: иначе она «вспоминает» чужие цены вместо данных брокера. Доходность (`expectedYield`, `dailyYield`) берётся из ответа брокера и не пересчитывается. Если цену получить не удалось, позиция показывается без стоимости, а не с нулём.
+
+**Лимиты времени** (чтобы прогон не «висел»):
+
+| Что | Предел |
+|---|---|
+| классификация вопроса | 8 с, при сбое вопрос идёт как `portfolio` |
+| ответ модели | 15 с |
+| один вызов MCP-инструмента | 8 с |
+| ожидание подтверждения | 15 мин (`APPROVAL_TTL_MINUTES`) |
+| прогон через HTTP-API | 30 с (`RUN_DEADLINE_MS`), бюджет 8 вызовов инструментов |
+
+GigaChat по умолчанию работает **без SSE-потока**: `GIGACHAT_STREAMING=false`, плюс `disableStreaming` в модели. Иначе Studio включает поток через callbacks, клиент рвёт обрезанный чанк («Unterminated string in JSON») и повторяет запрос минутами — именно это выглядело как «ответ висит 2 минуты».
+
+Перед первым запуском в `.env` должны быть настройки TLS до MCP T-Invest (иначе `npm run studio` упадёт с понятной ошибкой «MCP недоступен»):
+
+```
+MCP_TINKOFF_TLS_MODE=extra-ca
+MCP_TINKOFF_CA_FILE=certs/mcp-chain.pem
+```
+
+Точка входа — `src/agent/agent.server.ts` (аналог `investServer.ts` из примера курса), конфигурация — `langgraph.json`:
+
+```ts
+export const graph = await graphForServer();
+```
+
+`graphForServer()` (`src/agent/agent-runtime.ts`) собирает вне NestJS те же зависимости: `loadConfiguration()` — ту же zod-схему `.env`, `LlmRegistry` (провайдер и две модели из `LLM_PROVIDER`/`LLM_MODEL`/`LLM_ROUTER_MODEL`), `McpRegistryService` (allowlist, прокси, TLS-режимы, бюджет вызовов), `ApprovalPolicyService` (правила подтверждений), счёт из `TINKOFF_ACCOUNT_ID`. Сам граф — тем же `buildAgentGraph`. Чекпоинтер не передаётся: персистентность треда держит сам dev-сервер LangGraph.
+
+Привязка к `127.0.0.1` обязательна: по умолчанию CLI слушает `localhost` (IPv6 `::1`), и браузер не может достучаться до API. Нужен `@langchain/langgraph-api` в `devDependencies` (ставится с `--legacy-peer-deps` из-за peer `typescript@5`, у нас TypeScript 6).
+
+## Ограничения
 
 - Доступ к данным — только чтение: торговые и денежные операции MCP запрещены и на уровне allowlist, и в правилах подтверждений.
-- Поддерживается только состав портфеля. Аналитика по отдельным бумагам, новости, макро, налоги, ставка ЦБ, инвест-идеи и Пульс — следующие итерации.
-- Подтверждение требуется на **каждый** запрос, читающий данные портфеля; ранее данное согласие не переносится.
-- Состояние сессий хранится в SQLite (`data/state.db`, `STATE_BACKEND=sqlite`); история в памяти процесса доступна только при `STATE_BACKEND=memory` и теряется при перезапуске.
+- Источник ключевой ставки — официальный SOAP-интерфейс ЦБ; при его недоступности используются кэш и сид-файл `data/key-rate-seed.json`, а раздел макро честно помечает происхождение данных.
+- Инфляции, макрокалендаря и текстовых обзоров инвест-домов в источниках нет: фаза цикла и привлекательность секторов помечаются как `(оценка)`.
+- Сектор бумаги пока не определяется: в разрезе по секторам выводится «сектор не определён» (нужен справочник брендов).
+- Новости брокера отдаются лентой без фильтра по дате: период определяется по времени публикации, глубина ограничена `NEWS_SCAN_PAGES`.
+- Подтверждение требуется заново на каждый вопрос, читающий данные; внутри одного разбора план подтверждается один раз.
+- Состояние сессий и отчётов хранится в SQLite (`data/state.sqlite`, `STATE_BACKEND=sqlite`); при `STATE_BACKEND=memory` история теряется при перезапуске.
 - Одна сессия = один `USER_ID` из конфигурации: мультипользовательской авторизации нет.
-- Нет UI и стриминга ответа: ответ приходит одним JSON после подтверждения.
-- Лимиты на прогон зашиты в коде (`RUN_TOOL_BUDGET` в `src/tools/mcp-registry.service.ts`: 8 вызовов и 30 с; `RUN_DEADLINE_MS` = 30 с в `agent-runner`); при исчерпании ответ помечается `partial: true`.
+- Нет UI и стриминга ответа: ответ приходит одним JSON после подтверждения. Дедлайн прогона — `RUN_DEADLINE_MS` (90 с), клиентский таймаут должен быть больше.
+- Лимиты прогона — `RUN_TOOL_MAX_CALLS` (40), `RUN_DEADLINE_MS` (90 с), `RUN_PARALLELISM` (4), `REVIEW_MAX_INSTRUMENTS` (15); при исчерпании ответ помечается `partial: true`.
 - TLS до T-Invest MCP требует дополнительного CA (`MCP_TINKOFF_TLS_MODE=extra-ca`, файл из `scripts/fetch-mcp-ca.mjs`).
+- `REVIEW_ENABLED=false` возвращает прежнее поведение: две метки, только сводка по счетам, без ветки разбора.
 
 ## Статус
 
@@ -225,7 +295,7 @@ npm run studio     # LangGraph Server на 127.0.0.1:2024, граф portfolio_an
 
 Проверено вживую (T-Invest MCP + GigaChat): `POST /chat` → `202 awaiting_approval` с действием `tinkoff__invest_get_portfolio`, `POST /chat/approve` → `200 completed` с отчётом и дисклеймером, `GET /health` → `ok` (`llm: up`, `mcp:tinkoff: up`), `traceUrl` открывает прогон со спанами `classify`, `agent`, `tools`, `approve`.
 
-Проверки: `npm run build`, `npm test` (96 unit), `npm run test:e2e` (22 e2e: граф, MCP, HTTP, рестарт состояния, пустой портфель, off-topic, невалидный ввод, fail-open трассировки), `npm run lint`, `npm run smoke:mcp` (живой MCP, см. [`docs/mcp.md`](docs/mcp.md)).
+Проверки: `npm run build`, `npm test` (104 unit), `npm run test:e2e` (22 e2e: граф, MCP, HTTP, рестарт состояния, пустой портфель, off-topic, невалидный ввод, fail-open трассировки), `npm run lint`, `npm run smoke:mcp` (живой MCP, см. [`docs/mcp.md`](docs/mcp.md)), `npm run studio` + `npm run studio:check` (живой агент в LangSmith Studio).
 
 Проверено в Docker: `docker compose up -d --build` → контейнер `healthy`, `GET /health` → `ok`, «вопрос → подтверждение → ответ» → `202`/`200`, подтверждение после `docker compose restart` продолжает прогон (состояние в `./data`).
 
