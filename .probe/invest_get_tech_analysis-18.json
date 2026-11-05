@@ -1,0 +1,1 @@
+{"type":"INVALID_ARGUMENT","message":"Invalid argument(s): $.indicatorType: required property 'indicatorType' not found; $.from: required property 'from' not found; $.to: required property 'to' not found; $.interval: required property 'interval' not found; $.typeOfPrice: required property 'typeOfPrice' not found","hint":"Check the tool arguments against the schema and retry."}

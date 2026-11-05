@@ -103,6 +103,8 @@ const instrumentContext = (ticker: string, sector: string): FactContext => {
       { tool: 'invest_get_market_values', args: { instrumentId: [`${ticker}_TQBR`] }, group: 'prices', priority: 'mandatory' },
       { tool: 'invest_get_candles', args: { instrumentId: `${ticker}_TQBR` }, group: 'candles', priority: 'optional', target: ticker },
       { tool: 'invest_get_share', args: { instrumentId: `${ticker}_TQBR` }, group: 'reference', priority: 'optional', target: ticker },
+      { tool: 'invest_get_insider_deals', args: { instrumentId: `${ticker}_TQBR` }, group: 'insiders', priority: 'optional', target: ticker },
+      { tool: 'market__news_digest', args: { days: 7 }, group: 'market_news', priority: 'optional' },
       { tool: 'market__news_digest', args: { tickers: [ticker] }, group: 'news', priority: 'mandatory', target: ticker },
     ],
     maxInstruments: 5,
@@ -139,6 +141,32 @@ const instrumentContext = (ticker: string, sector: string): FactContext => {
     }
     if (entry.tool === 'invest_get_share') {
       results.set(planKey(entry), JSON.stringify({ sector }));
+    }
+    if (entry.group === 'insiders') {
+      results.set(
+        planKey(entry),
+        JSON.stringify({
+          insiderDeals: [
+            {
+              date: '2025-12-11',
+              direction: 'TRADE_DIRECTION_SELL',
+              currency: 'RUR',
+              quantity: '216732',
+              price: { value: '307.19' },
+              investorName: 'Анонимный инвестор',
+              investorPosition: 'Подконтрольная эмитенту организация',
+            },
+          ],
+        }),
+      );
+    }
+    if (entry.group === 'market_news') {
+      results.set(
+        planKey(entry),
+        'Новости за неделю:' +
+          '\n• 2026-11-05 [rbc] ЦБ сохранил ставку 14 %' +
+          '\n• 2026-11-05 [tass] Индекс Мосбиржи вырос на 1,2 %',
+      );
     }
     if (entry.group === 'news') {
       results.set(planKey(entry), `Новости по тикеру:\n• 2026-11-05 [tinkoff] ${ticker}: новость по бумаге`);

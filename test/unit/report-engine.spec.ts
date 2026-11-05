@@ -117,6 +117,7 @@ topics:
     expect(template.sections.map((section) => section.id)).toEqual([
       'table',
       'macro',
+      'marketnews',
       'securities',
       'opinions',
       'knowledge',

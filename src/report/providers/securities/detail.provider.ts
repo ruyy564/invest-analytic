@@ -16,6 +16,7 @@ import { CHART_DAYS } from '../../sparkline.js';
 import { RECOMMENDATIONS } from '../market.js';
 import {
   dividendLine,
+  insiderLine,
   noHoldingsReason,
   periodsLine,
   securitiesOf,
@@ -139,6 +140,9 @@ export const createSecuritiesProvider = (profiles: CompanyProfiles): FactProvide
       }
 
       lines.push(dividendLine(security.dividend));
+      if (security.insider) {
+        lines.push(insiderLine(security.insider));
+      }
       if (security.bond) {
         lines.push(bondLine(security.bond));
       }

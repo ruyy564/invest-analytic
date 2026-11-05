@@ -35,6 +35,8 @@ export type PlanGroup =
   | 'bonds'
   | 'bond_events'
   | 'bond_accrued'
+  | 'insiders'
+  | 'market_news'
   | 'indices';
 
 /** Режимы торгов облигаций: по ним определяется категория бумаги и её купон. */
@@ -217,6 +219,10 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
       add({ tool: 'macro__commodities', args: {}, group: 'commodities', priority: 'optional' });
     }
   }
+  // Фон рынка: одна общая сводка на прогон — её дополняют новости по бумагам.
+  if (wants('securities.detail') || wants('securities.opinions')) {
+    add({ tool: 'market__news_digest', args: { days: 7 }, group: 'market_news', priority: 'optional' });
+  }
   if (wants('securities.opinions')) {
     for (const id of analysable) {
       const target = baseTicker(id);
@@ -231,6 +237,14 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
         tool: 'invest_get_share_dividends',
         args: { instrumentId: id },
         group: 'dividends',
+        priority: 'optional',
+        target,
+      });
+      // Сделки инсайдеров: ещё один фактический сигнал по бумаге (кто и когда покупал/продавал).
+      add({
+        tool: 'invest_get_insider_deals',
+        args: { instrumentId: id },
+        group: 'insiders',
         priority: 'optional',
         target,
       });

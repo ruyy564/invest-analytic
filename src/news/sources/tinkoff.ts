@@ -56,7 +56,9 @@ export const mapNews = (
     }
     const content = typeof item.content === 'string' ? item.content.replace(/\s+/g, ' ').trim() : '';
     if (needles.length > 0) {
-      const haystack = `${title} ${content}`.toLowerCase();
+      // По тикеру берём только новости, где бумага в заголовке: брокер по
+      // `instrumentId` отдаёт и общий поток рынка («индекс вырос во главе с …»).
+      const haystack = title.toLowerCase();
       if (!needles.some((needle) => haystack.includes(needle))) {
         return [];
       }

@@ -16,6 +16,7 @@ import {
 } from './securities/index.js';
 import { briefProvider } from './verdict.js';
 import { createKnowledgeSectionProvider } from './knowledge.provider.js';
+import { marketNewsProvider } from './market-news.provider.js';
 
 /** Настройки реестра: профили компаний и база знаний для справочного блока. */
 export interface ProviderMapOptions {
@@ -39,6 +40,8 @@ export const createProviderMap = (
       createSecuritiesProvider(profiles),
       opinionsProvider,
       macroProvider,
+      // Фон рынка: общая сводка новостей, собранная веткой новостей.
+      marketNewsProvider,
       taxProvider,
       // Справочный блок: темы базы знаний под секторы портфеля или под бумагу.
       createKnowledgeSectionProvider(options.knowledge),
@@ -57,6 +60,7 @@ export {
   createSecuritiesProvider,
   opinionsProvider,
   macroProvider,
+  marketNewsProvider,
   taxProvider,
   briefProvider,
 };

@@ -103,6 +103,7 @@ const DEFAULTS: Record<string, unknown> = {
   invest_get_news: NEWS_JSON,
   invest_get_operations: OPERATIONS_JSON,
   invest_get_share_dividends: { dividends: [] },
+  invest_get_insider_deals: { insiderDeals: [] },
   invest_get_asset_fundamentals: { fundamental: {} },
   invest_list_signals: { signals: [] },
   invest_list_indicatives: { instruments: [] },

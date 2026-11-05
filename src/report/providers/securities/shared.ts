@@ -40,6 +40,8 @@ export interface SecurityFacts {
   dividend?: DividendFacts;
   /** Облигация: категория, купон, погашение, НКД. */
   bond?: BondFacts;
+  /** Последняя сделка инсайдера по бумаге. */
+  insider?: InsiderFacts;
   news: string[];
   /** Почему новостей нет: источник не ответил или публикаций не было. */
   newsNote?: string;
@@ -52,6 +54,10 @@ const asJson = (text: string): unknown => {
     return undefined;
   }
 };
+
+/** Объект по значению неизвестного типа. */
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
 
 /** Одна дивидендная выплата из ответа `invest_get_share_dividends`. */
 export interface DividendPayment {
@@ -137,6 +143,63 @@ export const dividendsOf = (text: string, now: Date = new Date()): DividendFacts
   const next = sorted.find((payment) => dateOf(payment) >= today);
   const passed = sorted.filter((payment) => dateOf(payment) < today);
   return { count: payments.length, next, last: passed.at(-1) ?? sorted.at(-1) };
+};
+
+/** Сделка инсайдера: кто, когда и в какую сторону торговал бумагой эмитента. */
+export interface InsiderFacts {
+  date: string;
+  direction: 'buy' | 'sell';
+  quantity: number;
+  price?: number;
+  currency: string;
+  person?: string;
+  position?: string;
+}
+
+/** Последняя сделка инсайдера из ответа `invest_get_insider_deals`. */
+export const insiderDealOf = (text: string): InsiderFacts | undefined => {
+  const parsed = asJson(text) as { insiderDeals?: unknown[] } | undefined;
+  const list = Array.isArray(parsed?.insiderDeals) ? parsed.insiderDeals : [];
+  const deals: InsiderFacts[] = list.flatMap((raw) => {
+    const item = asRecord(raw);
+    const date = typeof item?.date === 'string' ? item.date : undefined;
+    const quantity = Number(item?.quantity);
+    if (!item || !date || !Number.isFinite(quantity)) {
+      return [];
+    }
+    const price = Number(asRecord(item.price)?.value);
+    return [
+      {
+        date,
+        direction: String(item.direction ?? '').includes('BUY') ? 'buy' : 'sell',
+        quantity,
+        price: Number.isFinite(price) ? price : undefined,
+        currency:
+          typeof item.currency === 'string'
+            ? item.currency.toUpperCase() === 'RUR'
+              ? 'RUB'
+              : item.currency.toUpperCase()
+            : 'RUB',
+        person: typeof item.investorName === 'string' ? item.investorName : undefined,
+        position: typeof item.investorPosition === 'string' ? item.investorPosition : undefined,
+      },
+    ];
+  });
+  return deals.sort((left, right) => right.date.localeCompare(left.date))[0];
+};
+
+/** Строка сделки инсайдера для карточки бумаги. */
+export const insiderLine = (deal: InsiderFacts): string => {
+  const parts = [
+    deal.direction === 'buy' ? 'покупка' : 'продажа',
+    // Количество — целое: «216 732 шт.», а не «216 732,00 шт.».
+    `${formatNumber(Math.round(deal.quantity)).replace(',00', '')} шт.`,
+    deal.price !== undefined && Number.isFinite(deal.price)
+      ? `по ${formatNumber(deal.price)} ${deal.currency}`
+      : undefined,
+    deal.position ?? deal.person,
+  ].filter((part): part is string => part !== undefined);
+  return `• инсайдеры: ${deal.date} ${parts.join(', ')}`;
 };
 
 /** Строка дивидендов для карточки бумаги: размер, доходность, даты, регулярность. */
@@ -234,6 +297,7 @@ export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
 
   const forecasts = byTicker('analytics', parseForecast);
   const dividends = byTicker('dividends', (text) => dividendsOf(text, ctx.now));
+  const insiders = byTicker('insiders', insiderDealOf);
   const news = byTicker('news', (text) => ({
     items: headlinesOf(text, 3),
     note: noteOf(text),
@@ -257,6 +321,7 @@ export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
       dividend: dividends.get(holding.ticker),
       dividends: dividends.get(holding.ticker)?.count,
       bond: bondFactsOf(ctx, holding.ticker, holding.classCode),
+      insider: insiders.get(holding.ticker),
       news: headlines?.items ?? [],
       newsNote: headlines?.note,
     };
