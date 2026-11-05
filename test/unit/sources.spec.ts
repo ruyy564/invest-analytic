@@ -1,10 +1,10 @@
-﻿import { createFeedSource, parseFeed, stripMarkup } from '../../src/sources/feed.js';
-import { FEED_DEFAULTS, feedUrl } from '../../src/sources/defaults.js';
-import { createSmartLabTagSource } from '../../src/sources/smartlab-tag.js';
-import { isDigestTitle } from '../../src/sources/noise.js';
-import { dedupeKey, mergeNews, SourceRegistry } from '../../src/sources/registry.js';
-import type { NewsSourceAdapter, SourceItem } from '../../src/sources/types.js';
-import { mapNews } from '../../src/sources/tinkoff.js';
+﻿import { createFeedSource, parseFeed, stripMarkup } from '../../src/news/sources/feed.js';
+import { FEED_DEFAULTS, feedUrl } from '../../src/news/sources/defaults.js';
+import { createSmartLabTagSource } from '../../src/news/sources/smartlab-tag.js';
+import { isDigestTitle } from '../../src/news/news.filters.js';
+import { dedupeKey, mergeNews, NewsRegistry } from '../../src/news/news.registry.js';
+import type { NewsSourceAdapter, SourceItem } from '../../src/news/news.types.js';
+import { mapNews } from '../../src/news/sources/tinkoff.js';
 import { collectNewsDigest, formatNewsDigest } from '../../src/tools/news-digest/news-digest.tool.js';
 
 const RSS = `<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel>
@@ -106,7 +106,7 @@ describe('слияние источников', () => {
       },
     };
 
-    const digest = await new SourceRegistry([broken, ok]).newsDigest({ pages: 1, maxItems: 5 });
+    const digest = await new NewsRegistry([broken, ok]).newsDigest({ pages: 1, maxItems: 5 });
 
     expect(digest.items).toHaveLength(1);
     expect(digest.coverage).toEqual([
@@ -118,7 +118,7 @@ describe('слияние источников', () => {
   it('фильтрует источники по теме', () => {
     const news: NewsSourceAdapter = { id: 'n', topics: ['news'], fetchNews: async () => [] };
     const tax: NewsSourceAdapter = { id: 't', topics: ['tax'], fetchNews: async () => [] };
-    const registry = new SourceRegistry([news, tax]);
+    const registry = new NewsRegistry([news, tax]);
 
     expect(registry.newsSourcesFor('news').map((source) => source.id)).toEqual(['n']);
     expect(registry.newsSourcesFor('tax').map((source) => source.id)).toEqual(['t']);
@@ -154,7 +154,7 @@ describe('сводка новостей по периодам', () => {
       ],
     };
 
-    const result = await collectNewsDigest(new SourceRegistry([source]), {
+    const result = await collectNewsDigest(new NewsRegistry([source]), {
       pages: 1,
       maxItems: 5,
       now,
@@ -191,7 +191,7 @@ describe('новости по бумагам', () => {
       fetchNews: async (query) =>
         query.tickers?.length ? [item({ title: `Новость ${query.tickers[0]}`, source: 'tinkoff' })] : [],
     };
-    const registry = new SourceRegistry([general, broker]);
+    const registry = new NewsRegistry([general, broker]);
 
     const byTicker = await registry.newsDigest({ tickers: ['SBER'], pages: 1, maxItems: 10 });
     expect(byTicker.items.map((entry) => entry.title)).toEqual(['Новость SBER']);

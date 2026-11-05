@@ -44,7 +44,7 @@ export const createNewsNode =
     deps.registry.beginRun(sessionId);
     try {
       const { news, newsFeed } = deps.config.value.sources;
-      const registry = deps.registry.sourceRegistry;
+      const registry = deps.registry.news;
       if (!registry) {
         return {
           messages: [

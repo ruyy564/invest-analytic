@@ -1,7 +1,7 @@
 ﻿import { readFileSync } from 'node:fs';
 import { formatNumber } from '../../agent/report/portfolio-report.js';
-import type { SourceCoverageEntry, SourceRegistry } from '../../sources/registry.js';
-import type { KeyRateSnapshot } from '../../sources/types.js';
+import type { SourceCoverageEntry } from '../../news/news.registry.js';
+import type { KeyRateSource, KeyRateSnapshot } from '../../key-rate/key-rate.types.js';
 import { DEFAULT_TAX_KEYWORDS } from '../tax-watch/tax-watch.tool.js';
 
 export const KEY_RATE_TOOL = 'macro__key_rate';
@@ -12,13 +12,40 @@ export interface KeyRateResult {
   asOf: string;
 }
 
-/** Текущая ставка ЦБ и история решений из реестра источников. */
+/** Текущая ставка ЦБ и история решений из источника ставки. */
 export const collectKeyRate = async (
-  registry: SourceRegistry,
+  source: KeyRateSource | undefined,
   now: Date = new Date(),
 ): Promise<KeyRateResult> => {
-  const { snapshot, coverage } = await registry.keyRateSnapshot();
-  return { snapshot, coverage, asOf: now.toISOString() };
+  if (!source) {
+    return {
+      coverage: { source: 'cbr', status: 'missing', reason: 'источник ставки не подключён' },
+      asOf: now.toISOString(),
+    };
+  }
+  try {
+    const snapshot = await source.read();
+    return {
+      snapshot,
+      coverage: snapshot
+        ? { source: 'cbr', status: 'ok', items: snapshot.history.length }
+        : {
+            source: 'cbr',
+            status: 'missing',
+            reason: 'ни live, ни сид, ни кэш не дали данных',
+          },
+      asOf: now.toISOString(),
+    };
+  } catch (error) {
+    return {
+      coverage: {
+        source: 'cbr',
+        status: 'missing',
+        reason: (error as Error)?.message ?? 'ошибка источника',
+      },
+      asOf: now.toISOString(),
+    };
+  }
 };
 
 const ORIGIN_TITLES: Record<KeyRateSnapshot['origin'], string> = {

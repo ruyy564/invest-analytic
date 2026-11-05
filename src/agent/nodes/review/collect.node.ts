@@ -2,7 +2,7 @@
 import { executePlan, type CollectionResult } from '../../../collection/executor.js';
 import { buildCollectionPlan, instrumentKey, planKey, type CollectionPlan, type PlanEntry } from '../../../collection/plan.js';
 import { assetEntries, brandEntries, shareEntries } from '../../../collection/reference.js';
-import { loadTickerAliases, matchersFor } from '../../../sources/aliases.js';
+import { loadTickerAliases, matchersFor } from '../../../news/news.aliases.js';
 import type { AgentStateType } from '../../graph/state.js';
 import type { ReviewDeps } from './deps.js';
 import { instrumentsOf } from './instruments.js';

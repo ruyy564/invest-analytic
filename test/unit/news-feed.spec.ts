@@ -1,5 +1,5 @@
-﻿import { SourceRegistry } from '../../src/sources/registry.js';
-import type { NewsSourceAdapter, SourceItem } from '../../src/sources/types.js';
+﻿import { NewsRegistry } from '../../src/news/news.registry.js';
+import type { NewsSourceAdapter, SourceItem } from '../../src/news/news.types.js';
 import { collectNewsFeed, formatNewsFeed } from '../../src/tools/news-digest/news-digest.tool.js';
 import { feedPeriodTitle } from '../../src/agent/nodes/news/index.js';
 
@@ -20,7 +20,7 @@ const adapter = (id: string, items: SourceItem[]): NewsSourceAdapter => ({
 });
 
 const collect = (items: SourceItem[], maxPerPeriod = 5, sources?: NewsSourceAdapter[]) =>
-  collectNewsFeed(new SourceRegistry(sources ?? [adapter('rbc', items)]), {
+  collectNewsFeed(new NewsRegistry(sources ?? [adapter('rbc', items)]), {
     pages: 1,
     maxItems: 50,
     maxPerPeriod,

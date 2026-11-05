@@ -1,6 +1,6 @@
-import { parseFeed } from './feed.js';
-import { isDigestTitle } from './noise.js';
-import type { NewsQuery, NewsSourceAdapter, SourceItem } from './types.js';
+﻿import { parseFeed } from './feed.js';
+import { isDigestTitle } from '../news.filters.js';
+import type { NewsQuery, NewsSourceAdapter, SourceItem } from '../news.types.js';
 
 /** Лента smart-lab по тикеру: разборы и новости конкретной бумаги. */
 export const SMARTLAB_TAG_TOOL = 'smartlab_tag';

@@ -4,7 +4,7 @@ import { SystemMessage } from '@langchain/core/messages';
 import { PORTFOLIO_SCOPE_PROMPT } from '../off-topic/prompt.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
-import { loadTickerAliases } from '../../../sources/aliases.js';
+import { loadTickerAliases } from '../../../news/news.aliases.js';
 import { detectScope } from '../../scope.js';
 import { CAPABILITIES_PATTERN } from '../help/capabilities.js';
 import {

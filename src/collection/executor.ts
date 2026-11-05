@@ -2,7 +2,7 @@
 import { withTimeout } from '../mcp/mcp-tool.adapter.js';
 import type { ToolBudget } from '../mcp/tool-budget.js';
 import { planKey, type CollectionPlan, type PlanEntry } from './plan.js';
-import type { CoverageEntry } from '../sources/registry.js';
+import type { CoverageEntry } from '../news/news.registry.js';
 
 export interface ExecuteDeps {
   /** Инструмент по имени: MCP-инструменты и локальные живут в одном наборе. */

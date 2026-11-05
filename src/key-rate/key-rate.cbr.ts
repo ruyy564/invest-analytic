@@ -1,5 +1,5 @@
-import type { KeyRatePoint, KeyRateSnapshot, KeyRateSource } from './types.js';
-import { KeyRateCache, readSeedFile } from './key-rate-cache.js';
+﻿import type { KeyRatePoint, KeyRateSnapshot, KeyRateSource } from './key-rate.types.js';
+import { KeyRateCache, readSeedFile } from './key-rate.cache.js';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
 

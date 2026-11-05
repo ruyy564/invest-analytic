@@ -1,5 +1,5 @@
-import type { FeedFormat, FeedMapping } from './feed.js';
-import type { SourceTopic } from './types.js';
+﻿import type { FeedFormat, FeedMapping } from './feed.js';
+import type { SourceTopic } from '../news.types.js';
 
 /** Описание известной ленты: адрес можно переопределить через `NEWS_<ID>_URL`. */
 export interface FeedDefault {

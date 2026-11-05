@@ -5,8 +5,10 @@ import { AppConfigService } from '../config/app-config.service.js';
 import type { McpServerConfig } from '../config/env.schema.js';
 import { isForbiddenTool } from '../config/env.schema.js';
 import { missingAllowedTools, selectAllowedTools, withTimeout, wrapTool } from './mcp-tool.adapter.js';
-import { buildSourceRegistry } from '../sources/factory.js';
-import type { SourceRegistry } from '../sources/registry.js';
+import { buildNewsRegistry } from '../news/news.factory.js';
+import type { NewsRegistry } from '../news/news.registry.js';
+import { buildKeyRateSource } from '../key-rate/key-rate.factory.js';
+import type { KeyRateSource } from '../key-rate/key-rate.types.js';
 import { ALL_ACCOUNTS_TOOL, collectAllAccounts, openAccounts } from '../tools/portfolio-snapshot/portfolio-snapshot.tool.js';
 import { collectDynamics, PRICE_DYNAMICS_TOOL } from '../tools/price-dynamics/price-dynamics.tool.js';
 import { collectKeyRate, formatKeyRate, KEY_RATE_TOOL, loadTaxKeywords } from '../tools/key-rate/key-rate.tool.js';
@@ -143,10 +145,11 @@ export class McpRegistryService {
         byName.set(tool.name.slice(separator + 2), tool);
       }
     }
-    this.sources = buildSourceRegistry({
+    this.newsRegistry = buildNewsRegistry({
       config: this.config.value,
       tool: (name) => byName.get(name),
     });
+    this.keyRate = buildKeyRateSource({ config: this.config.value });
 
     this.toolsCache = [
       ...tools,
@@ -160,11 +163,13 @@ export class McpRegistryService {
     ];
   }
 
-  /** Источники данных прогона: новости, налоги, ключевая ставка. */
-  private sources?: SourceRegistry;
+  /** Новостные источники прогона: новости и налоги. */
+  private newsRegistry?: NewsRegistry;
+  /** Источник ключевой ставки: отдельная фича, не новости. */
+  private keyRate?: KeyRateSource;
 
-  get sourceRegistry(): SourceRegistry | undefined {
-    return this.sources;
+  get news(): NewsRegistry | undefined {
+    return this.newsRegistry;
   }
 
   /**
@@ -174,7 +179,7 @@ export class McpRegistryService {
   private createThematicTools(
     byName: Map<string, DynamicStructuredTool>,
   ): DynamicStructuredTool[] {
-    const registry = this.sources;
+    const registry = this.newsRegistry;
     if (!registry) {
       return [];
     }
@@ -247,13 +252,13 @@ export class McpRegistryService {
       description:
         'Ключевая ставка ЦБ: текущее значение, дата решения и история изменений с указанием источника.',
       schema: toZodV3({ type: 'object', properties: {} }) as never,
-      func: async () => formatKeyRate(await collectKeyRate(registry)),
+      func: async () => formatKeyRate(await collectKeyRate(this.keyRate)),
     } as never);
 
     return [
       newsTool,
       taxTool,
-      ...(registry.hasKeyRate() ? [keyRateTool] : []),
+      ...(this.keyRate ? [keyRateTool] : []),
     ];
   }
 

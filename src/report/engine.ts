@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+﻿import { randomUUID } from 'node:crypto';
 import { DISCLAIMER, DATA_SOURCE } from '../agent/report/portfolio-report.js';
 import type { CollectionResult } from '../collection/executor.js';
 import type { CollectionPlan } from '../collection/plan.js';
@@ -6,7 +6,7 @@ import {
   DEFAULT_KNOWLEDGE_MAX_CHARS,
   type KnowledgeProvider,
 } from '../knowledge/index.js';
-import type { CoverageEntry } from '../sources/registry.js';
+import type { CoverageEntry } from '../news/news.registry.js';
 import { renderUnavailable } from './renderers.js';
 import { UNKNOWN_SECTOR } from './sector.js';
 import type { ReportSection, ReportTemplate, SectionScope } from './template.js';

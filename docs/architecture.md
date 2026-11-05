@@ -43,10 +43,13 @@
 | `api` | HTTP: контроллеры, DTO, фильтр ошибок | контроллеры | как строится граф и ходят запросы в MCP |
 | `agent` | граф, узлы, маршрутизация, подтверждения, промпты | `AgentRunnerService`, политику подтверждений | Nest-детали HTTP |
 | `report` | шаблон, движок фактов, провайдеры, рендер | `buildReport`, `createProviderMap` | откуда пришли данные (это знают провайдеры) |
-| `knowledge` | каталог тем, отбор, формат ответа | `loadKnowledgeBase`, `selectKnowledge`, `knowledgeForPrompt` | как устроен граф |
+| `knowledge` | каталог тем, отбор, формат ответа | `KnowledgeService`, `KnowledgeProvider` | как устроен граф |
 | `collection` | план сбора и исполнение (группы, приоритеты) | `buildCollectionPlan`, `executePlan` | как отображается отчёт |
-| `sources` | адаптеры ЦБ и лент, реестр источников | `SourceRegistry`, адаптеры | про портфель и граф |
-| `tools` | MCP-клиенты, реестр инструментов, адаптер, тематические инструменты, бюджет | `McpRegistryService`, `MCP_TOOLS` | про отчёт и узлы |
+| `news` | новостные ленты, фильтры, алиасы, реестр | `NewsRegistry`, `NewsSourceAdapter` | про отчёт и граф |
+| `key-rate` | ключевая ставка ЦБ | `KeyRateSource`, `buildKeyRateSource` | про новости и граф |
+| `mcp` | транспорт MCP: реестр, клиент, прокси, адаптер, схемы, бюджет | `McpRegistryService`, `MCP_TOOLS` | про отчёт и узлы |
+| `tools/<tool>` | сами тулы и их подключение | `ToolsModule`, `KNOWLEDGE_TOOL` | про отчёт и граф |
+| `parsing` | разбор ответов MCP и YAML | `parseYaml`, mappers | про домен |
 | `llm` | реестр провайдеров моделей, bind-tools, structured output | `LlmRegistry`, токены моделей | про домен портфеля |
 | `state` | чекпоинтер, хранилище отчётов, глобальные настройки, очистка | `CHECKPOINTER`, `ReportStoreService` | про бизнес-логику |
 | `config` | схема env, типизированный конфиг, fail-fast | `AppConfigService` | про всё остальное |
@@ -54,11 +57,11 @@
 
 ## 3. Правила зависимостей
 
-- Разрешённые импорты: `api → agent, state`; `agent → report, collection, sources, tools,
-  llm, state, knowledge, config`; `report → collection, sources, knowledge, config`;
-  `tools → sources, config`; `sources → config`; `knowledge → report/yaml, config`.
-- Запрещены: `sources → agent`, `tools → agent`, `report → agent`, `knowledge → agent`,
-  `config → что-либо, кроме node`.
+- Разрешённые импорты: `api → agent, state`; `agent → report, collection, news, tools, mcp,
+  llm, state, knowledge, config`; `report → collection, knowledge, config`;
+  `tools → mcp, news, key-rate, knowledge, config`; `news, key-rate → config`.
+- Запрещены: `news → agent`, `key-rate → agent`, `tools → agent`, `report → agent`,
+  `knowledge → agent`, `config → что-либо, кроме node`.
 - Циклические зависимости запрещены. Если появляется соблазн «просто импортировать
   тип» — выносите контракт в отдельный модуль-контракт (`types.ts`, `*.interface.ts`).
 - Общий тип между слоями (`CoverageEntry`, `SourceItem`, `FactContext`) живёт там,
@@ -95,7 +98,10 @@ src/
   knowledge/                  знания: сервис, репозиторий, отбор, формат, схема
   report/                     шаблон, движок фактов, провайдеры, рендер
   collection/                 план и исполнение сбора
-  sources/                    адаптеры источников (ЦБ, ленты, налоги)
+  news/                       новости: реестр, фильтры, алиасы, источники
+    news.types.ts, news.registry.ts, news.factory.ts, news.filters.ts, news.aliases.ts
+    sources/{defaults,feed,smartlab-tag,tinkoff}.ts
+  key-rate/                   ключевая ставка ЦБ: типы, источник, кэш, фабрика
   parsing/                    парсинг ответов: mappers/, yaml.ts
   mcp/                        инфраструктура MCP: реестр, клиент, прокси, адаптер, схемы, бюджет
   tools/<tool>/               сами тулы: key-rate, knowledge, news-digest, portfolio-snapshot, price-dynamics, tax-watch
@@ -139,6 +145,9 @@ src/
 | Чтение файлов знаний | `src/knowledge/knowledge.repository.ts` |
 | Сам тул | `src/tools/<tool>/<tool>.tool.ts` |
 | Подключение тулов | `src/tools/tools.module.ts` |
+| Новости: реестр и фильтры | `src/news/{news.registry,news.filters}.ts` |
+| Новости: ленты | `src/news/sources/*` |
+| Ключевая ставка | `src/key-rate/key-rate.cbr.ts` |
 | MCP: реестр и discovery | `src/mcp/mcp-registry.service.ts` |
 | MCP: подключение и прокси | `src/mcp/{mcp-client.factory,mcp-proxy.service}.ts` |
 | Парсинг ответов MCP | `src/parsing/mappers/*` |
@@ -159,8 +168,8 @@ src/
 |---|---|---|---|
 | Инструмент для модели | `DynamicStructuredTool` (zod-3 схема, описание, `func`) | `McpRegistryService` (тематические) или MCP-сервер (внешние) | вызов с валидными/пустыми аргументами, таймаут, ошибка |
 | MCP-сервер | `McpServerConfig` (url, transport, token, allowlist, TLS) | `MCP_SERVERS` + env сервера | discovery, allowlist, статус `up/down`, недоступный сервер не ломает старт |
-| Источник новостей | `NewsSourceAdapter` (`id`, `topics`, `fetchNews`, `supportsTickerQuery`, `supportsMatcherQuery`) | `SourceRegistry` (фабрика по `SOURCES`) | фильтр по периоду/тикеру, деградация, coverage |
-| Источник ставки | `KeyRateSource` | `SourceRegistry` | кэш → SOAP → сид → HTML, режим `off` |
+| Источник новостей | `NewsSourceAdapter` (`id`, `topics`, `fetchNews`, `supportsTickerQuery`, `supportsMatcherQuery`) | `buildNewsRegistry` (фабрика по `SOURCES`) | фильтр по периоду/тикеру, деградация, coverage |
+| Источник ставки | `KeyRateSource` | `buildKeyRateSource` | кэш → SOAP → сид → HTML, режим `off` |
 | Провайдер фактов отчёта | `FactProvider` (`id`, `section(ctx) → markdown/structured/brief/missing`) | `createProviderMap` + `provider` в шаблоне | при отсутствии данных — `missing`, а не пустая секция |
 | Раздел отчёта | `sections[]` в `reports/portfolio-review.yaml` | шаблон (данные) | `missingProviders` пуст, `interpret` ведёт себя как ожидается |
 | Узел графа | фабрика `(deps) => async (state) => Partial<state>` | `build-graph.ts` + `routers.ts` | узел отдельно: вход/выход состояния, без сети |

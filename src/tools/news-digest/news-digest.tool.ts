@@ -1,6 +1,6 @@
-import { type SourceCoverageEntry, type SourceRegistry } from '../../sources/registry.js';
-import { isDigestTitle, isOffTopicTitle, hasInvestmentMarker } from '../../sources/noise.js';
-import type { SourceItem } from '../../sources/types.js';
+﻿import { type SourceCoverageEntry, type NewsRegistry } from '../../news/news.registry.js';
+import { isDigestTitle, isOffTopicTitle, hasInvestmentMarker } from '../../news/news.filters.js';
+import type { SourceItem } from '../../news/news.types.js';
 
 export const NEWS_DIGEST_TOOL = 'market__news_digest';
 
@@ -29,7 +29,7 @@ const PERIOD_MS = (days: number): number => days * 24 * 60 * 60 * 1000;
  * чтобы ленты (РБК, «Интерфакс») фильтровали заголовки по бумаге.
  */
 export const collectNewsDigest = async (
-  registry: SourceRegistry,
+  registry: NewsRegistry,
   params: { tickers?: string[]; names?: string[]; pages: number; maxItems: number; now?: Date },
 ): Promise<NewsDigestResult> => {
   const now = params.now ?? new Date();
@@ -121,7 +121,7 @@ export const NEWS_FEED_MAX_PER_PERIOD = 5;
  * в самое свежее окно, куда укладывается по дате.
  */
 export const collectNewsFeed = async (
-  registry: SourceRegistry,
+  registry: NewsRegistry,
   params: {
     pages: number;
     maxItems: number;

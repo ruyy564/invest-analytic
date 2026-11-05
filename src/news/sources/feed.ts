@@ -1,5 +1,5 @@
-import type { NewsQuery, NewsSourceAdapter, SourceItem, SourceTopic } from './types.js';
-import { isDigestTitle } from './noise.js';
+﻿import type { NewsQuery, NewsSourceAdapter, SourceItem, SourceTopic } from '../news.types.js';
+import { isDigestTitle } from '../news.filters.js';
 
 export type FeedFormat = 'rss' | 'atom' | 'json';
 

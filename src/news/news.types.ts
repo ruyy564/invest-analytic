@@ -1,4 +1,4 @@
-/** Тема, которую обслуживает источник данных. */
+﻿/** Тема, которую обслуживает источник данных. */
 export type SourceTopic = 'portfolio' | 'news' | 'tax' | 'macro' | 'market';
 
 /** Единый элемент новостной ленты любого источника. */
@@ -46,26 +46,3 @@ export interface NewsSourceAdapter {
   fetchNews(query: NewsQuery): Promise<SourceItem[]>;
 }
 
-/** Точка истории ключевой ставки: с какой даты действует значение. */
-export interface KeyRatePoint {
-  /** ISO-дата вступления решения в силу. */
-  date: string;
-  rate: number;
-}
-
-/** Снимок ключевой ставки: текущее значение, история и происхождение данных. */
-export interface KeyRateSnapshot {
-  current: KeyRatePoint;
-  /** Изменения ставки, новые сверху. */
-  history: KeyRatePoint[];
-  /** `live` — SOAP ЦБ, `cache` — локальный кэш, `seed` — файл, `html` — таблица на сайте. */
-  origin: 'live' | 'cache' | 'seed' | 'html';
-  /** Когда данные фактически получены (ISO). */
-  asOf: string;
-}
-
-export interface KeyRateSource {
-  readonly id: string;
-  /** `undefined` — данных нет ни в одном источнике цепочки. */
-  read(): Promise<KeyRateSnapshot | undefined>;
-}

@@ -8,9 +8,8 @@ import {
   parseKeyRateXml,
   soapKeyRateEnvelope,
   toHistory,
-} from '../../src/sources/cbr.js';
-import { KeyRateCache } from '../../src/sources/key-rate-cache.js';
-import { SourceRegistry } from '../../src/sources/registry.js';
+} from '../../src/key-rate/key-rate.cbr.js';
+import { KeyRateCache } from '../../src/key-rate/key-rate.cache.js';
 import { collectKeyRate, formatKeyRate } from '../../src/tools/key-rate/key-rate.tool.js';
 
 const SOAP_XML = `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
@@ -168,12 +167,12 @@ describe('источник ставки ЦБ', () => {
   });
 
   it('форматирует текст для модели и сообщает об отсутствии данных', async () => {
-    const registry = new SourceRegistry([], createCbrSource(options({ fetchText: async () => SOAP_XML })));
-    const result = await collectKeyRate(registry);
+    const source = createCbrSource(options({ fetchText: async () => SOAP_XML }));
+    const result = await collectKeyRate(source);
 
     expect(formatKeyRate(result)).toContain('Ключевая ставка ЦБ: 15,00 % годовых');
 
-    const empty = await collectKeyRate(new SourceRegistry());
+    const empty = await collectKeyRate(undefined);
     expect(formatKeyRate(empty)).toContain('Ключевая ставка недоступна');
   });
 });

@@ -1,11 +1,9 @@
-import type {
-  KeyRateSnapshot,
-  KeyRateSource,
+﻿import type {
   NewsQuery,
   NewsSourceAdapter,
   SourceItem,
   SourceTopic,
-} from './types.js';
+} from './news.types.js';
 
 export interface SourceCoverageEntry {
   source: string;
@@ -46,11 +44,8 @@ export const mergeNews = (batches: { source: string; items: SourceItem[] }[]): S
 };
 
 /** Источники по темам: одна точка доступа для инструментов и провайдеров. */
-export class SourceRegistry {
-  constructor(
-    private readonly news: readonly NewsSourceAdapter[] = [],
-    private readonly keyRate?: KeyRateSource,
-  ) {}
+export class NewsRegistry {
+  constructor(private readonly news: readonly NewsSourceAdapter[] = []) {}
 
   get newsSources(): readonly NewsSourceAdapter[] {
     return this.news;
@@ -59,10 +54,6 @@ export class SourceRegistry {
   /** Источники, обслуживающие тему (новости, налоги). */
   newsSourcesFor(topic: SourceTopic): readonly NewsSourceAdapter[] {
     return this.news.filter((source) => source.topics.includes(topic));
-  }
-
-  hasKeyRate(): boolean {
-    return this.keyRate !== undefined;
   }
 
   /**
@@ -115,33 +106,5 @@ export class SourceRegistry {
       items: mergeNews(batches).slice(0, query.maxItems),
       coverage: coverage.sort((left, right) => left.source.localeCompare(right.source)),
     };
-  }
-
-  /** Снимок ключевой ставки и статус источника. */
-  async keyRateSnapshot(): Promise<{
-    snapshot?: KeyRateSnapshot;
-    coverage: SourceCoverageEntry;
-  }> {
-    if (!this.keyRate) {
-      return {
-        coverage: { source: 'cbr', status: 'missing', reason: 'источник ставки не подключён' },
-      };
-    }
-    try {
-      const snapshot = await this.keyRate.read();
-      return snapshot
-        ? { snapshot, coverage: { source: 'cbr', status: 'ok', items: snapshot.history.length } }
-        : {
-            coverage: {
-              source: 'cbr',
-              status: 'missing',
-              reason: 'ни live, ни сид, ни кэш не дали данных',
-            },
-          };
-    } catch (error) {
-      return {
-        coverage: { source: 'cbr', status: 'missing', reason: (error as Error)?.message ?? 'ошибка' },
-      };
-    }
   }
 }

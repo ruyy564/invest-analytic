@@ -1,8 +1,8 @@
 ﻿import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { withTimeout } from '../mcp/mcp-tool.adapter.js';
-import { asJson } from '../tools/portfolio-snapshot/portfolio-snapshot.tool.js';
-import type { NewsQuery, NewsSourceAdapter, SourceItem, SourceTopic } from './types.js';
-import { isDigestTitle } from './noise.js';
+import { withTimeout } from '../../mcp/mcp-tool.adapter.js';
+import { asJson } from '../../tools/portfolio-snapshot/portfolio-snapshot.tool.js';
+import type { NewsQuery, NewsSourceAdapter, SourceItem, SourceTopic } from '../news.types.js';
+import { isDigestTitle } from '../news.filters.js';
 
 export interface TinkoffNewsSourceOptions {
   /** Инструмент по короткому имени, например `invest_get_news`. */

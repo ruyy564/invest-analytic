@@ -1,8 +1,8 @@
 ﻿import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SourceRegistry } from '../../src/sources/registry.js';
-import type { NewsSourceAdapter, SourceItem } from '../../src/sources/types.js';
+import { NewsRegistry } from '../../src/news/news.registry.js';
+import type { NewsSourceAdapter, SourceItem } from '../../src/news/news.types.js';
 import { loadTaxKeywords } from '../../src/tools/key-rate/key-rate.tool.js';
 import {
   collectTaxFacts,
@@ -83,7 +83,7 @@ describe('налоговое наблюдение', () => {
     };
 
     const facts = await collectTaxFacts({
-      registry: new SourceRegistry([news]),
+      registry: new NewsRegistry([news]),
       tool: (name) => (name === 'invest_get_operations' ? fakeTool(name, async () => OPERATIONS) : undefined),
       timeoutMs: 1_000,
       accounts: ['acc-1'],
@@ -104,7 +104,7 @@ describe('налоговое наблюдение', () => {
 
   it('сообщает об отсутствии данных, когда операций нет', async () => {
     const facts = await collectTaxFacts({
-      registry: new SourceRegistry([]),
+      registry: new NewsRegistry([]),
       tool: () => undefined,
       timeoutMs: 1_000,
       accounts: ['acc-1'],
