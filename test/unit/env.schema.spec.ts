@@ -38,7 +38,7 @@ describe('конфигурация окружения', () => {
     ]);
     expect(config.state).toEqual({
       backend: 'sqlite',
-      sqlitePath: './data/state.sqlite',
+      sqlitePath: './.state/state.sqlite',
       ttlDays: 30,
     });
     expect(config.approvals.unlisted).toBe('require');

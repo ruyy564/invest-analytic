@@ -119,7 +119,7 @@ export const scalarEnvObject = z
         message: `допустимые значения: ${SUPPORTED_STATE_BACKENDS.join(', ')}`,
       })
       .default('sqlite'),
-    STATE_SQLITE_PATH: z.string().trim().min(1).default('./data/state.sqlite'),
+    STATE_SQLITE_PATH: z.string().trim().min(1).default('./.state/state.sqlite'),
     STATE_TTL_DAYS: z.coerce.number().int().positive().default(30),
 
     APPROVAL_TTL_MINUTES: z.coerce.number().int().positive().default(15),

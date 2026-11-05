@@ -1,10 +1,10 @@
-# Состояние
+﻿# Состояние
 
 ## Бэкенды
 
 | `STATE_BACKEND` | Что используется | Где живёт |
 |---|---|---|
-| `sqlite` (по умолчанию) | `SqliteSaver` из `@langchain/langgraph-checkpoint-sqlite` на `better-sqlite3` | файл `STATE_SQLITE_PATH` (по умолчанию `./data/state.sqlite`) |
+| `sqlite` (по умолчанию) | `SqliteSaver` из `@langchain/langgraph-checkpoint-sqlite` на `better-sqlite3` | файл `STATE_SQLITE_PATH` (по умолчанию `./.state/state.sqlite`) |
 | `memory` | `MemorySaver` | процесс; для тестов и разовых прогонов |
 
 Каталог файла создаётся на старте, режим журнала — WAL. Таблицы чекпоинтера создаёт сам `SqliteSaver`.
@@ -31,7 +31,7 @@
 ## Проверка
 
 ```bash
-STATE_BACKEND=sqlite STATE_SQLITE_PATH=./data/state.sqlite npm start
+STATE_BACKEND=sqlite STATE_SQLITE_PATH=./.state/state.sqlite npm start
 ```
 
 После перезапуска продолжение той же сессии восстанавливает историю и ожидающие подтверждения — это проверяет `test/unit/state-persistence.spec.ts` (сохранение между экземплярами хранилища).

@@ -1,4 +1,4 @@
-# invest-analytic
+﻿# invest-analytic
 
 Агент-аналитик портфеля Tinkoff Invest: **NestJS 12 + LangGraph 1.x + MCP**.
 
@@ -154,7 +154,7 @@ docker compose down
 | Переменная | По умолчанию | Описание |
 |---|---|---|
 | `STATE_BACKEND` | `sqlite` | `sqlite` \| `memory` (для тестов) |
-| `STATE_SQLITE_PATH` | `./data/state.sqlite` | Файл состояния |
+| `STATE_SQLITE_PATH` | `./.state/state.sqlite` | Файл состояния |
 | `STATE_TTL_DAYS` | `30` | Удаление сессий, не обновлявшихся дольше |
 | `APPROVAL_TTL_MINUTES` | `15` | Срок жизни запроса на подтверждение |
 | `APPROVAL_UNLISTED` | `require` | Политика для действий без правила: `require` \| `allow` |
@@ -328,7 +328,7 @@ export const graph = await graphForServer();
 - Сектор бумаги берётся из справочника активов брокера (`brand.sector`); если брокер его не вернул, в разрезе честно выводится «сектор не определён» с указанием доли такого портфеля.
 - Новости брокера отдаются лентой без фильтра по дате: период определяется по времени публикации, глубина ограничена `NEWS_SCAN_PAGES`.
 - Подтверждение требуется заново на каждый вопрос, читающий данные; внутри одного разбора план подтверждается один раз.
-- Состояние сессий и отчётов хранится в SQLite (`data/state.sqlite`, `STATE_BACKEND=sqlite`); при `STATE_BACKEND=memory` история теряется при перезапуске.
+- Состояние сессий и отчётов хранится в SQLite (`.state/state.sqlite`, `STATE_BACKEND=sqlite`); при `STATE_BACKEND=memory` история теряется при перезапуске.
 - Одна сессия = один `USER_ID` из конфигурации: мультипользовательской авторизации нет.
 - Нет UI и стриминга ответа: ответ приходит одним JSON после подтверждения. Дедлайн прогона — `RUN_DEADLINE_MS` (90 с), клиентский таймаут должен быть больше.
 - Лимиты прогона — `RUN_TOOL_MAX_CALLS` (40), `RUN_DEADLINE_MS` (90 с), `RUN_PARALLELISM` (4), `REVIEW_MAX_INSTRUMENTS` (15); при исчерпании ответ помечается `partial: true`.

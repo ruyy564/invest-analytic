@@ -1,9 +1,9 @@
-import { mkdirSync } from 'node:fs';
+﻿import { mkdirSync } from 'node:fs';
 import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
 
 mkdirSync('./data', { recursive: true });
-await SqliteSaver.fromConnString('./data/state.sqlite').setup();
-const saver = SqliteSaver.fromConnString('./data/state.sqlite');
+await SqliteSaver.fromConnString('./.state/state.sqlite').setup();
+const saver = SqliteSaver.fromConnString('./.state/state.sqlite');
 const db = saver.db;
 
 const tables = db
