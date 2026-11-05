@@ -28,14 +28,22 @@ interface RawNews {
  */
 export const GENERIC_NEWS = /итоги торгов|суммарные итоги|режим основных торгов|обзор рынка|итоги дня/i;
 
-/** Ответ `invest_get_news` → элементы общего вида и курсор следующей страницы. */
+/**
+ * Ответ `invest_get_news` → элементы общего вида и курсор следующей страницы.
+ * Брокер по `instrumentId` иногда отдаёт общий поток рынка: `matchers` (тикер,
+ * название, алиасы) отсекают новости, в которых бумага не упоминается.
+ */
 export const mapNews = (
   raw: unknown,
   sourceId: string,
   summaryLimit = 400,
+  matchers: readonly string[] = [],
 ): { items: SourceItem[]; nextCursor?: string } => {
   const root = asJson(raw) as { items?: RawNews[]; nextCursor?: string } | undefined;
   const list = Array.isArray(root?.items) ? root.items : [];
+  const needles = matchers
+    .map((matcher) => matcher.trim().toLowerCase())
+    .filter((matcher) => matcher.length > 1);
 
   const items = list.flatMap((item) => {
     const title = typeof item.title === 'string' ? item.title.trim() : '';
@@ -47,6 +55,12 @@ export const mapNews = (
       return [];
     }
     const content = typeof item.content === 'string' ? item.content.replace(/\s+/g, ' ').trim() : '';
+    if (needles.length > 0) {
+      const haystack = `${title} ${content}`.toLowerCase();
+      if (!needles.some((needle) => haystack.includes(needle))) {
+        return [];
+      }
+    }
     return [
       {
         id: item.id ?? `${publishedAt}-${title.slice(0, 24)}`,
@@ -68,7 +82,10 @@ export const mapNews = (
  * определяется по времени публикации; по тикеру листаем одну страницу.
  */
 export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): NewsSourceAdapter => {
-  const call = async (args: Record<string, unknown>): Promise<{ items: SourceItem[]; nextCursor?: string }> => {
+  const call = async (
+    args: Record<string, unknown>,
+    matchers: readonly string[] = [],
+  ): Promise<{ items: SourceItem[]; nextCursor?: string }> => {
     const tool = options.tool('invest_get_news');
     if (!tool) {
       throw new Error('инструмент новостей недоступен');
@@ -78,11 +95,12 @@ export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): News
       options.timeoutMs,
       () => new Error('таймаут новостей'),
     );
-    return mapNews(raw, 'tinkoff', options.summaryLimit);
+    return mapNews(raw, 'tinkoff', options.summaryLimit, matchers);
   };
 
   const collect = async (instrumentId: string | undefined, query: NewsQuery): Promise<SourceItem[]> => {
     const collected: SourceItem[] = [];
+    const matchers = query.matchers ?? [];
     let cursor: string | undefined;
     for (let page = 0; page < Math.max(1, query.pages); page += 1) {
       const args: Record<string, unknown> = { limit: query.maxItems };
@@ -92,7 +110,7 @@ export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): News
       if (cursor) {
         args.cursor = cursor;
       }
-      const { items, nextCursor } = await call(args);
+      const { items, nextCursor } = await call(args, matchers);
       collected.push(...items);
       if (!nextCursor || items.length === 0) {
         break;

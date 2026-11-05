@@ -2,7 +2,7 @@
 import { resultsInGroup } from '../../../collection/executor.js';
 import type { FactContext, FactProvider, SectionFacts } from '../../engine.js';
 import { formatChangePct, periodChanges, seriesByTicker } from '../../market-facts.js';
-import { sparklineOf } from '../../sparkline.js';
+import { sparklineOf, windowOf, CHART_DAYS } from '../../sparkline.js';
 import { formatPercent, renderTable } from '../../renderers.js';
 import { UNKNOWN_SECTOR } from '../../sector.js';
 import { parseForecast, RECOMMENDATIONS } from '../market.js';
@@ -64,7 +64,7 @@ export const tableProvider: FactProvider = {
         formatPercent(share),
         holding.price ? formatMoney(holding.price) : UNAVAILABLE,
         holding.value ? formatMoney(holding.value) : UNAVAILABLE,
-        sparklineOf(priceSeries, 12) || UNAVAILABLE,
+        sparklineOf(windowOf(priceSeries, CHART_DAYS, ctx.now), 12) || UNAVAILABLE,
         change ? formatChangePct(change.changePct) : UNAVAILABLE,
         forecast?.upside === undefined
           ? (RECOMMENDATIONS[forecast?.recommendation ?? ''] ?? UNAVAILABLE)

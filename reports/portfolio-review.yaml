@@ -10,10 +10,12 @@ thresholds:
   min_class_share: 0.05
 sections:
   # С чего начинается разбор: бумага, сектор, доля, движение за 180 дней.
+  # В разборе одной бумаги таблица портфеля не нужна: есть карточка бумаги.
   - id: table
     title: Состав портфеля
     provider: portfolio.table
     render: table
+    scopes: [portfolio, account]
   # Экономический цикл: ставка ЦБ и что она значит для классов активов.
   - id: macro
     title: Экономический цикл и рынок
@@ -65,10 +67,12 @@ sections:
     render: list
     scopes: [portfolio, account]
   # Итог: диверсификация, тип стратегии и что поменять.
+  # Это вывод по портфелю, а не по одной бумаге.
   - id: verdict
     title: Итог: диверсификация и стратегия
     provider: facts.brief
     render: text
     interpret: true
+    scopes: [portfolio, account]
     # Стратегия — главный вывод раздела: тема обязательна, а не по весу.
     knowledge: [strategies]

@@ -30,6 +30,29 @@ export const sparkline = (values: readonly number[], width = 16): string => {
     .join('');
 };
 
+/** Сколько дней показываем на графике: короткое окно читается лучше всей истории. */
+export const CHART_DAYS = 90;
+
+/**
+ * Ряд за последние `days` дней. Если история короче окна, берём последние точки,
+ * чтобы график не пропадал у молодых бумаг.
+ */
+export const windowOf = (
+  series: PriceSeries | undefined,
+  days = CHART_DAYS,
+  now: Date = new Date(),
+): PriceSeries | undefined => {
+  if (!series) {
+    return undefined;
+  }
+  const boundary = now.getTime() - days * 24 * 60 * 60 * 1000;
+  const recent = series.points.filter((point) => Date.parse(point.date) >= boundary);
+  if (recent.length >= 2) {
+    return { ...series, points: recent };
+  }
+  return series.points.length >= 2 ? { ...series, points: series.points.slice(-days) } : undefined;
+};
+
 /** Спарклайн по ряду цен бумаги: `undefined`, если истории мало. */
 export const sparklineOf = (series: PriceSeries | undefined, width = 16): string =>
   series ? sparkline(series.points.map((point) => point.close), width) : '';

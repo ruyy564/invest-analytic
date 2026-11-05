@@ -74,16 +74,21 @@ export const portfolioTotalOf = (ctx: FactContext): number | undefined => {
   return undefined;
 };
 
-/** Позиции всех счетов с ценами и стоимостью из пакетного запроса цен. */
-export const holdingsOf = (ctx: FactContext): Holding[] => {
-  const currency = portfolioCurrency(ctx);
+/** Цены из пакетного запроса: нужны и позициям, и разбору бумаги без портфеля. */
+export const pricesOf = (ctx: FactContext): Map<string, Money> => {
   const prices = new Map<string, Money>();
-
   for (const { text } of resultsInGroup(ctx.plan, ctx.collected, 'prices')) {
     for (const [key, value] of mapMarketValues(asJson(text))) {
       prices.set(key, value);
     }
   }
+  return prices;
+};
+
+/** Позиции всех счетов с ценами и стоимостью из пакетного запроса цен. */
+export const holdingsOf = (ctx: FactContext): Holding[] => {
+  const currency = portfolioCurrency(ctx);
+  const prices = pricesOf(ctx);
 
   const holdings: Holding[] = [];
   for (const { text } of resultsInGroup(ctx.plan, ctx.collected, 'portfolio')) {

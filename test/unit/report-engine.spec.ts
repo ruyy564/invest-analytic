@@ -410,12 +410,12 @@ describe('область разбора в отчёте', () => {
     });
 
     expect(report.scope).toBe('instrument');
+    // Вопрос про бумагу не тянет портфельные разделы: состава, итога по портфелю,
+    // налогов, пробелов и разрезов в нём нет.
     expect(report.sections.map((section) => section.id)).toEqual([
-      'table',
       'macro',
       'securities',
       'opinions',
-      'verdict',
     ]);
     // Провайдеры тоже считаются по области: налоги в разбор бумаги не идут.
     expect(templateProviders(loadReportTemplate(templatePath), 'instrument')).not.toContain(

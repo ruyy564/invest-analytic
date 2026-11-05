@@ -12,6 +12,7 @@ import {
 import type { FactContext, FactProvider, SectionFacts } from '../../engine.js';
 import { formatChangePct, trendWord, type PeriodChange } from '../../market-facts.js';
 import { formatPercent } from '../../renderers.js';
+import { CHART_DAYS } from '../../sparkline.js';
 import { RECOMMENDATIONS } from '../market.js';
 import {
   dividendLine,
@@ -92,9 +93,15 @@ export const createSecuritiesProvider = (profiles: CompanyProfiles): FactProvide
     const shownNews = new Set<string>();
 
     const blocks = securities.map((security) => {
+      // В разборе бумаги позиции может не быть: тогда не показываем ни долю, ни стоимость.
+      const scopeLine = security.inPortfolio
+        ? `${security.ticker} — ${security.sector}, ${formatPercent(security.share)} портфеля`
+        : `${security.ticker} — ${security.sector}`;
       const lines = [
-        `**${security.ticker} — ${security.sector}, ${formatPercent(security.share)} портфеля**`,
-        `• стоимость: ${security.value === undefined ? UNAVAILABLE : formatNumber(security.value)} ${security.currency}`,
+        `**${scopeLine}**`,
+        ...(security.value === undefined
+          ? []
+          : [`• стоимость: ${formatNumber(security.value)} ${security.currency}`]),
         `• цена за 1 шт.: ${security.price === undefined ? UNAVAILABLE : formatNumber(security.price)} ${security.currency}`,
       ];
 
@@ -110,7 +117,7 @@ export const createSecuritiesProvider = (profiles: CompanyProfiles): FactProvide
       if (security.chart) {
         const range = security.range;
         lines.push(
-          `• график: ${security.chart}` +
+          `• график (${CHART_DAYS} дней): ${security.chart}` +
             (range
               ? ` (${formatNumber(range.min)} — ${formatNumber(range.max)} ${security.currency})`
               : ''),
@@ -164,7 +171,11 @@ export const createSecuritiesProvider = (profiles: CompanyProfiles): FactProvide
       structured: securities,
       brief: securities
         .slice(0, 8)
-        .map((security) => `${security.ticker}: ${security.sector}, ${formatPercent(security.share)}`)
+        .map((security) =>
+          security.inPortfolio
+            ? `${security.ticker}: ${security.sector}, ${formatPercent(security.share)}`
+            : `${security.ticker}: ${security.sector}`,
+        )
         .join('; '),
     };
   },

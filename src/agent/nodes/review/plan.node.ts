@@ -35,6 +35,34 @@ export const createPlanNode =
   async (state: AgentStateType): Promise<Partial<AgentStateType>> => {
     const template = templateOf(deps);
     const scope = state.scope ?? 'portfolio';
+
+    // Разбор бумаги не читает портфель: ни счета, ни позиции, ни стоимость не нужны.
+    // Сначала один запрос `find_instrument` — по нему узнаём класс бумаги (TQBR/TQOB),
+    // затем обычный план по тикеру: цена, свечи, прогноз, дивиденды, новости.
+    if (scope === 'instrument' && state.scopeTarget) {
+      const plan = buildCollectionPlan({
+        accounts: [],
+        tickers: [],
+        maxInstruments: deps.config.value.run.reviewMaxInstruments,
+        providers: templateProviders(template, scope),
+      });
+      return {
+        readingPlan: [
+          {
+            tool: 'invest_find_instrument',
+            args: { query: state.scopeTarget },
+            group: 'reference',
+            priority: 'mandatory',
+          },
+          ...plan.entries,
+        ],
+        scope,
+        scopeTarget: state.scopeTarget,
+        scopeLabel: `бумаги ${state.scopeTarget}`,
+        dataAsOf: new Date().toISOString(),
+      };
+    }
+
     const accounts = await openAccountList(deps);
     let selected = accounts.map((account) => account.accountId);
     let scopeLabel = scope === 'account' ? 'счёта' : PORTFOLIO_SCOPE.label;
@@ -48,8 +76,6 @@ export const createPlanNode =
         // Счёт не нашли — не молчим: разбираем весь портфель с явной подписью.
         scopeLabel = 'портфеля (указанный счёт не найден)';
       }
-    } else if (scope === 'instrument') {
-      scopeLabel = state.scopeTarget ? `бумаги ${state.scopeTarget}` : 'бумаги';
     }
 
     const plan = buildCollectionPlan({

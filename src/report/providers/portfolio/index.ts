@@ -10,6 +10,8 @@ export {
   holdingsOf,
   instrumentKind,
   portfolioTotalOf,
+  portfolioYieldOf,
+  pricesOf,
   totalValue,
   valuedHoldings,
   type Holding,

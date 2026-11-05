@@ -104,7 +104,7 @@ describe('новости и график в отчёте', () => {
   it('добавляет график цены в карточку бумаги', () => {
     const markdown = securitiesProvider.section(context())?.markdown ?? '';
 
-    expect(markdown).toContain('• график: ');
+    expect(markdown).toContain('• график (90 дней): ');
     expect(markdown).toMatch(/[▁▂▃▄▅▆▇█]{2,}/);
   });
 

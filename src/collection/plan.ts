@@ -11,8 +11,8 @@ export const ANALYTICS_MAX_INSTRUMENTS = 5;
 /** Сколько бумаг получают историю цен: разбор по бумагам нужен большинству. */
 export const CANDLES_MAX_INSTRUMENTS = 10;
 
-/** Глубина истории цен для периодов 1д / 7д / 30д / 180д. */
-export const CANDLES_DAYS = 180;
+/** Глубина истории цен: хватает на периоды 1д / 7д / 30д / 180д и график 90 дней. */
+export const CANDLES_DAYS = 365;
 
 /** Приоритет записи плана: обязательные источники выполняются первыми. */
 export type PlanPriority = 'mandatory' | 'optional';

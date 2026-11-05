@@ -33,8 +33,12 @@ export const opinionsProvider: FactProvider = {
 
     const perSecurity = securities.map((security) => {
       const change = longest(security);
+      // В разборе бумаги доли портфеля нет: это вопрос про саму бумагу.
+      const position = security.inPortfolio
+        ? `${security.ticker} (${security.sector}, ${formatPercent(security.share)}`
+        : `${security.ticker} (${security.sector}`;
       return [
-        `${security.ticker} (${security.sector}, ${formatPercent(security.share)}`,
+        position,
         change ? `, ${change.label} ${formatChangePct(change.changePct)}` : ', динамики нет',
         security.forecast?.upside !== undefined
           ? `, потенциал ${formatChangePct(security.forecast.upside)}`
@@ -43,13 +47,22 @@ export const opinionsProvider: FactProvider = {
       ].join('');
     });
 
-    const perSector = [...sectors.entries()].map(([name, bucket]) =>
-      bucket.weight > 0
-        ? `${name} ${formatPercent(bucket.share)} (180 дней ${formatChangePct(
-            bucket.weighted / bucket.weight,
-          )})`
-        : `${name} ${formatPercent(bucket.share)} (динамики нет)`,
-    );
+    const inPortfolio = securities.some((security) => security.inPortfolio);
+    const perSector = inPortfolio
+      ? [...sectors.entries()].map(([name, bucket]) =>
+          bucket.weight > 0
+            ? `${name} ${formatPercent(bucket.share)} (180 дней ${formatChangePct(
+                bucket.weighted / bucket.weight,
+              )})`
+            : `${name} ${formatPercent(bucket.share)} (динамики нет)`,
+        )
+      : // Разбор бумаги: показываем динамику её сектора, а не доли портфеля.
+        securities.map((security) => {
+          const change = longest(security);
+          return change
+            ? `${security.sector} (${change.label} ${formatChangePct(change.changePct)})`
+            : `${security.sector} (динамики нет)`;
+        });
 
     return {
       markdown: [

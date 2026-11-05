@@ -5,7 +5,7 @@ import { assetEntries, brandEntries, shareEntries } from '../../../collection/re
 import { loadTickerAliases, matchersFor } from '../../../news/news.aliases.js';
 import type { AgentStateType } from '../../graph/state.js';
 import type { ReviewDeps } from './deps.js';
-import { instrumentsOf } from './instruments.js';
+import { instrumentsOf, instrumentFromSearch } from './instruments.js';
 
 export const createCollectNode =
   (deps: ReviewDeps) =>
@@ -31,21 +31,14 @@ export const createCollectNode =
     // Вторая фаза: только то, что нельзя было спланировать до чтения позиций —
     // цены, пери-тикерная аналитика, новости по бумагам и справочник секторов.
     // Уже выполненные запросы первой фазы не повторяем: бюджет прогона общий.
-    const instruments = instrumentsOf(basePlan, first);
-    // Разбор одной бумаги: остальные позиции только мешают — берём выбранный тикер.
     const scope = state.scope ?? 'portfolio';
     const scopeTarget = state.scopeTarget?.toUpperCase();
-    const scoped =
+    const instruments = instrumentsOf(basePlan, first);
+    // Разбор бумаги портфель не читает: тикер и класс берём из `invest_find_instrument`.
+    const selectedInstruments =
       scope === 'instrument' && scopeTarget
-        ? instruments.filter((instrument) => instrument.ticker.toUpperCase() === scopeTarget)
+        ? [instrumentFromSearch(basePlan, first, scopeTarget) ?? { ticker: scopeTarget }]
         : instruments;
-    // Бумаги может не быть в портфеле: разбираем её по тикеру, отчёт честно
-    // покажет, что позиции нет.
-    const selected =
-      scope === 'instrument' && scoped.length === 0 && state.scopeTarget
-        ? [{ ticker: state.scopeTarget.toUpperCase() }]
-        : scoped;
-    const selectedInstruments = selected.length > 0 ? selected : instruments;
     // Алиасы эмитентов: в новостях бумагу чаще называют по имени, а не по тикеру.
     const aliases = loadTickerAliases(deps.config.value.sources.tickerAliasesFile);
     // Для запросов MCP передаём `TICKER_CLASSCODE`: по одному тикеру брокер
@@ -68,23 +61,9 @@ export const createCollectNode =
     });
     const perTickerGroups = new Set(['prices', 'candles', 'analytics', 'dividends', 'news']);
     const seen = new Set(first.results.keys());
-    let entries = perTicker.entries.filter(
+    const entries = perTicker.entries.filter(
       (entry) => perTickerGroups.has(entry.group) && !seen.has(planKey(entry)),
     );
-    // В разборе одной бумаги долю и стоимость остальных позиций всё равно надо
-    // знать: цены — один пакетный запрос на весь портфель.
-    const allIds = instruments
-      .map((instrument) => instrumentKey(instrument.ticker, instrument.classCode))
-      .filter((id) => !ids.includes(id));
-    if (scope === 'instrument' && allIds.length > 0) {
-      const prices = {
-        tool: 'invest_get_market_values',
-        args: { instrumentId: [...ids, ...allIds] },
-        group: 'prices' as const,
-        priority: 'mandatory' as const,
-      };
-      entries = [prices, ...entries.filter((entry) => entry.group !== 'prices')];
-    }
     const phase2: CollectionPlan = {
       entries,
       maxInstruments: deps.config.value.run.reviewMaxInstruments,

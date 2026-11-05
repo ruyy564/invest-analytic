@@ -8,10 +8,11 @@ import {
   type PeriodChange,
 } from '../../market-facts.js';
 import { UNKNOWN_SECTOR } from '../../sector.js';
-import { seriesRange, sparklineOf } from '../../sparkline.js';
+import { CHART_DAYS, seriesRange, sparklineOf, windowOf } from '../../sparkline.js';
 import { bondFactsOf, type BondFacts } from './bond-facts.js';
 import { parseForecast, type ForecastFacts } from '../market.js';
-import { portfolioTotalOf, sectorMapOf, totalValue, valuedHoldings } from '../portfolio/index.js';
+import { priceOf } from '../../../parsing/mappers/market-values.mapper.js';
+import { portfolioTotalOf, pricesOf, sectorMapOf, totalValue, valuedHoldings } from '../portfolio/index.js';
 
 /**
  * Факты по бумагам: позиции, секторы, динамика, прогнозы, дивиденды и новости.
@@ -25,6 +26,8 @@ export interface SecurityFacts {
   /** Цена за одну бумагу и её валюта: нужна в разборе бумаги. */
   price?: number;
   currency: string;
+  /** Бумага есть в портфеле: в разборе бумаги это не всегда так. */
+  inPortfolio: boolean;
   periods: PeriodChange[];
   /** Спарклайн цены за доступную историю: форма движения прямо в тексте. */
   chart?: string;
@@ -196,7 +199,23 @@ export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
   const all = valuedHoldings(ctx);
   // В разборе бумаги показываем только её, но долю считаем от всего портфеля.
   const target = ctx.scope === 'instrument' ? ctx.scopeTarget?.toUpperCase() : undefined;
-  const holdings = target ? all.filter((holding) => holding.ticker.toUpperCase() === target) : all;
+  let holdings = target ? all.filter((holding) => holding.ticker.toUpperCase() === target) : all;
+  // Вопрос про бумагу портфель не читает: карточка строится по цене из market values.
+  if (target && holdings.length === 0) {
+    const price = priceOf(pricesOf(ctx), target);
+    if (price) {
+      holdings = [
+        {
+          ticker: target,
+          name: target,
+          className: 'прочее',
+          currency: price.currency,
+          quantity: 0,
+          price,
+        },
+      ];
+    }
+  }
   const total = portfolioTotalOf(ctx) ?? totalValue(all);
   const sectors = sectorMapOf(ctx);
   const series = seriesByTicker(
@@ -227,12 +246,13 @@ export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
       ticker: holding.ticker,
       sector: sectors.get(holding.ticker) ?? UNKNOWN_SECTOR,
       share: total > 0 ? (holding.value?.amount ?? 0) / total : 0,
+      inPortfolio: (holding.value?.amount ?? 0) > 0,
       value: holding.value?.amount,
       price: holding.price?.amount,
       currency: holding.currency,
       periods: priceSeries ? periodChanges(priceSeries, ctx.template.periods, ctx.now) : [],
-      chart: sparklineOf(priceSeries, 20),
-      range: seriesRange(priceSeries),
+      chart: sparklineOf(windowOf(priceSeries, CHART_DAYS, ctx.now), 24),
+      range: seriesRange(windowOf(priceSeries, CHART_DAYS, ctx.now)),
       forecast: forecasts.get(holding.ticker),
       dividend: dividends.get(holding.ticker),
       dividends: dividends.get(holding.ticker)?.count,
