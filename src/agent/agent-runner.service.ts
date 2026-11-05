@@ -11,7 +11,6 @@ import { withTimeout } from '../mcp/mcp-tool.adapter.js';
 import {
   ApprovalFlowService,
   type ApproveDecision,
-  type ApprovePayload,
 } from './approval-flow.service.js';
 import { NotAwaitingApprovalError } from './approval.errors.js';
 import { NO_TOOLS_ANSWER } from './nodes/off-topic/prompt.js';
@@ -21,66 +20,20 @@ import { KnowledgeService } from '../knowledge/index.js';
 import type { AgentStateType } from './graph/state.js';
 import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../observability/run-collector.js';
 import { ReportStoreService } from '../state/report-store.service.js';
+import {
+  extractInterrupt,
+  hasBudgetError,
+  lastAnswer,
+} from './runner/runner.helpers.js';
+import {
+  RUN_RECURSION_LIMIT,
+  type NewsReport,
+  type RunReport,
+  type RunResult,
+} from './runner/runner.types.js';
 
-/** Лимит шагов графа (учитывает шаги цикла «модель ⇄ инструменты»). */
-export const RUN_RECURSION_LIMIT = 12;
-
-export interface RunReport {
-  reportId: string;
-  type: 'data_answer' | 'portfolio_report' | 'deep_review' | 'market_news';
-  asOf: string;
-  coverage: { source: string; status: 'ok' | 'missing'; reason?: string }[];
-}
-
-/** Метаданные новостной сводки: без `reportId`, она не сохраняется как отчёт. */
-export interface NewsReport {
-  type: 'market_news';
-  asOf: string;
-  coverage: { source: string; status: 'ok' | 'missing'; reason?: string }[];
-}
-
-export interface RunResult {
-  status: 'completed' | 'awaiting_approval';
-  answer?: string;
-  intent: AgentStateType['intent'];
-  /** Область разбора: весь портфель, счёт или отдельная бумага. */
-  scope?: AgentStateType['scope'];
-  scopeTarget?: string;
-  scopeLabel?: string;
-  partial: boolean;
-  approval?: ApprovePayload;
-  /** Метаданные отчёта: идентификатор для выгрузки, вид, время данных и покрытие. */
-  report?: RunReport | NewsReport;
-  /** Ссылка на трейс LangSmith, если трассировка включена. */
-  traceUrl?: string;
-}
-
-const extractInterrupt = (result: unknown): ApprovePayload | undefined => {
-  const interrupts = (result as { __interrupt__?: { value?: unknown }[] }).__interrupt__;
-  const value = interrupts?.[0]?.value;
-  return value ? (value as ApprovePayload) : undefined;
-};
-
-/** Ответ помечается частичным, если инструмент упёрся в бюджет прогона. */
-const hasBudgetError = (messages: AgentStateType['messages'] | undefined): boolean =>
-  (messages ?? []).some(
-    (message) =>
-      (message as { _getType?: () => string })._getType?.() === 'tool' &&
-      typeof message.content === 'string' &&
-      /run_budget_exceeded|Лимит вызовов|Лимит времени/.test(message.content),
-  );
-
-const lastAnswer = (messages: AgentStateType['messages'] | undefined): string | undefined => {
-  const list = messages ?? [];
-  for (let index = list.length - 1; index >= 0; index -= 1) {
-    const message = list[index];
-    const type = (message as { _getType?: () => string })._getType?.();
-    if (type === 'ai' && typeof message.content === 'string' && message.content.trim() !== '') {
-      return message.content;
-    }
-  }
-  return undefined;
-};
+export { RUN_RECURSION_LIMIT } from './runner/runner.types.js';
+export type { NewsReport, RunReport, RunResult } from './runner/runner.types.js';
 
 /**
  * Запуск и продолжение прогонов: ленивая сборка графа (сеть не нужна до первого вопроса),

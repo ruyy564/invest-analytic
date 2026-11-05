@@ -1,9 +1,9 @@
-import { formatNumber } from '../../agent/report/portfolio-report.js';
+﻿import { formatNumber } from '../../report/portfolio-report.js';
 import { resultsInGroup } from '../../collection/executor.js';
 import type { FactContext, FactProvider, SectionFacts } from '../engine.js';
 import { formatPercent } from '../renderers.js';
 import { parseForecast, RECOMMENDATIONS } from './market.js';
-import { concentrationOf, gapsOf } from './portfolio.js';
+import { concentrationOf, gapsOf } from './portfolio/index.js';
 
 /**
  * Итог по портфелю: факты для модели — диверсификация, тип стратегии и что

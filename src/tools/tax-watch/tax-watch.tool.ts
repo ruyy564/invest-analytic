@@ -1,5 +1,5 @@
 ﻿import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { formatNumber } from '../../agent/report/portfolio-report.js';
+import { formatNumber } from '../../report/portfolio-report.js';
 import type { SourceCoverageEntry, NewsRegistry } from '../../news/news.registry.js';
 import type { SourceItem } from '../../news/news.types.js';
 import { asJson } from '../portfolio-snapshot/portfolio-snapshot.tool.js';

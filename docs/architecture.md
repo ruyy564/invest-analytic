@@ -86,6 +86,7 @@ src/
   agent/                      оркестрация диалога
     agent.module.ts           модуль графа
     agent-runner.service.ts   прогон: run / approve / отчёт
+    runner/{runner.types,runner.helpers}.ts  типы результата и хелперы состояния
     agent-runtime.ts, agent.server.ts  сборка графа вне Nest (Studio)
     approvals/                правила подтверждений
     graph/                    state, routers, build-graph
@@ -96,14 +97,20 @@ src/
       review/{plan.node.ts,collect.node.ts,report.node.ts,deps.ts,instruments.ts,interpretation.ts,index.ts}
 
   knowledge/                  знания: сервис, репозиторий, отбор, формат, схема
-  report/                     шаблон, движок фактов, провайдеры, рендер
+  report/                     отчёт: шаблон, движок, провайдеры, рендер, compose
+    engine.ts                 сборка фактов по секциям
+    compose.ts                итоговый markdown
+    portfolio-report.ts       рендер сводки по счетам и дисклеймеры
+    providers/portfolio/      по файлу на секцию: table, structure, concentration, gaps
+      holdings.ts, sectors.ts  общие расчёты позиций и секторов
   collection/                 план и исполнение сбора
   news/                       новости: реестр, фильтры, алиасы, источники
     news.types.ts, news.registry.ts, news.factory.ts, news.filters.ts, news.aliases.ts
     sources/{defaults,feed,smartlab-tag,tinkoff}.ts
   key-rate/                   ключевая ставка ЦБ: типы, источник, кэш, фабрика
-  parsing/                    парсинг ответов: mappers/, yaml.ts
+  parsing/                    парсинг: mappers/, yaml.ts, feed.ts (RSS/Atom/JSON)
   mcp/                        инфраструктура MCP: реестр, клиент, прокси, адаптер, схемы, бюджет
+    local-tools.ts            локальные тулы (счета, динамика, новости, налоги, ставка)
   tools/<tool>/               сами тулы: key-rate, knowledge, news-digest, portfolio-snapshot, price-dynamics, tax-watch
   accounts/                   счёт по умолчанию
   llm/, state/, observability/, config/
@@ -152,7 +159,10 @@ src/
 | MCP: подключение и прокси | `src/mcp/{mcp-client.factory,mcp-proxy.service}.ts` |
 | Парсинг ответов MCP | `src/parsing/mappers/*` |
 | Парсинг YAML | `src/parsing/yaml.ts` |
-| Расчёты отчёта | `src/report/{engine.ts,providers/*}` |
+| Расчёты отчёта | `src/report/{engine.ts,compose.ts,providers/*}` |
+| Секции портфеля | `src/report/providers/portfolio/{table,structure,concentration,gaps}.provider.ts` |
+| Локальные тулы MCP | `src/mcp/local-tools.ts` |
+| Парсинг лент | `src/parsing/feed.ts` |
 | Шаблон отчёта | `reports/portfolio-review.yaml` |
 | Темы знаний | `data/knowledge/*.yaml` |
 | Правила подтверждений | `src/agent/approvals/approval-rules.ts` |

@@ -1,4 +1,5 @@
-﻿import { createFeedSource, parseFeed, stripMarkup } from '../../src/news/sources/feed.js';
+﻿import { createFeedSource, parseFeed } from '../../src/news/sources/feed.js';
+import { stripMarkup } from '../../src/parsing/feed.js';
 import { FEED_DEFAULTS, feedUrl } from '../../src/news/sources/defaults.js';
 import { createSmartLabTagSource } from '../../src/news/sources/smartlab-tag.js';
 import { isDigestTitle } from '../../src/news/news.filters.js';

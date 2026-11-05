@@ -1,5 +1,5 @@
 ﻿import { readFileSync } from 'node:fs';
-import { formatNumber } from '../../agent/report/portfolio-report.js';
+import { formatNumber } from '../../report/portfolio-report.js';
 import type { SourceCoverageEntry } from '../../news/news.registry.js';
 import type { KeyRateSource, KeyRateSnapshot } from '../../key-rate/key-rate.types.js';
 import { DEFAULT_TAX_KEYWORDS } from '../tax-watch/tax-watch.tool.js';

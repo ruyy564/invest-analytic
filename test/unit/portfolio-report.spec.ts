@@ -8,7 +8,7 @@
   formatPortfolioReport,
   formatPosition,
   UNAVAILABLE,
-} from '../../src/agent/report/portfolio-report.js';
+} from '../../src/report/portfolio-report.js';
 import { buildPortfolioReportPrompt } from '../../src/agent/nodes/agent/portfolio-report.prompt.js';
 import type { Portfolio } from '../../src/parsing/mappers/portfolio.mapper.js';
 

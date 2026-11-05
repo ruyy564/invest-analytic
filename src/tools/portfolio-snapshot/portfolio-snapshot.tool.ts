@@ -2,7 +2,7 @@
 import {
   formatAllAccountsReport,
   type AccountPortfolio,
-} from '../../agent/report/portfolio-report.js';
+} from '../../report/portfolio-report.js';
 import { mapMarketValues, priceOf } from '../../parsing/mappers/market-values.mapper.js';
 import type { Money } from '../../parsing/mappers/money.js';
 import { mapPortfolio } from '../../parsing/mappers/portfolio.mapper.js';

@@ -1,4 +1,4 @@
-﻿import { formatNumber, UNAVAILABLE } from '../../agent/report/portfolio-report.js';
+﻿import { formatNumber, UNAVAILABLE } from '../../report/portfolio-report.js';
 import { resultsInGroup } from '../../collection/executor.js';
 import type { FactContext, FactProvider, SectionFacts } from '../engine.js';
 import {
@@ -11,7 +11,7 @@ import {
 import { formatPercent } from '../renderers.js';
 import { UNKNOWN_SECTOR } from '../sector.js';
 import { parseForecast, RECOMMENDATIONS, type ForecastFacts } from './market.js';
-import { sectorMapOf, totalValue, valuedHoldings, portfolioTotalOf } from './portfolio.js';
+import { sectorMapOf, totalValue, valuedHoldings, portfolioTotalOf } from './portfolio/index.js';
 
 /**
  * Разбор по бумагам: у каждой бумаги сектор, доля, движение цены за периоды,

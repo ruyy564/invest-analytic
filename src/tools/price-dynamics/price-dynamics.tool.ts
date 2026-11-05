@@ -1,5 +1,5 @@
 ﻿import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { formatNumber } from '../../agent/report/portfolio-report.js';
+import { formatNumber } from '../../report/portfolio-report.js';
 import { asJson } from '../portfolio-snapshot/portfolio-snapshot.tool.js';
 import { withTimeout } from '../../mcp/mcp-tool.adapter.js';
 

@@ -1,25 +1,21 @@
 ﻿import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { DynamicStructuredTool as DynamicTool } from '@langchain/core/tools';
 import { AppConfigService } from '../config/app-config.service.js';
 import type { McpServerConfig } from '../config/env.schema.js';
 import { isForbiddenTool } from '../config/env.schema.js';
-import { missingAllowedTools, selectAllowedTools, withTimeout, wrapTool } from './mcp-tool.adapter.js';
+import { missingAllowedTools, selectAllowedTools, wrapTool } from './mcp-tool.adapter.js';
 import { buildNewsRegistry } from '../news/news.factory.js';
 import type { NewsRegistry } from '../news/news.registry.js';
 import { buildKeyRateSource } from '../key-rate/key-rate.factory.js';
 import type { KeyRateSource } from '../key-rate/key-rate.types.js';
-import { ALL_ACCOUNTS_TOOL, collectAllAccounts, openAccounts } from '../tools/portfolio-snapshot/portfolio-snapshot.tool.js';
-import { collectDynamics, PRICE_DYNAMICS_TOOL } from '../tools/price-dynamics/price-dynamics.tool.js';
-import { collectKeyRate, formatKeyRate, KEY_RATE_TOOL, loadTaxKeywords } from '../tools/key-rate/key-rate.tool.js';
-import {
-  collectNewsDigest,
-  formatNewsDigest,
-  NEWS_DIGEST_TOOL,
-} from '../tools/news-digest/news-digest.tool.js';
-import { collectTaxFacts, formatTaxFacts, TAX_WATCH_TOOL } from '../tools/tax-watch/tax-watch.tool.js';
-import { toZodV3 } from './tool-schema.js';
 import { ToolBudget } from './tool-budget.js';
+import {
+  ALL_ACCOUNTS_TOOL,
+  PRICE_DYNAMICS_TOOL,
+  createAllAccountsTool,
+  createDynamicsTool,
+  createThematicTools,
+} from './local-tools.js';
 
 export const MCP_CLIENT_FACTORY = Symbol('MCP_CLIENT_FACTORY');
 /** Локальный инструмент знаний: тонкая обёртка над `KnowledgeService`. */
@@ -154,11 +150,11 @@ export class McpRegistryService {
     this.toolsCache = [
       ...tools,
       // Тематические имена (см. data-sources) и алиасы старых имён на время миграции.
-      this.createAllAccountsTool(tools, PORTFOLIO_SNAPSHOT_TOOL),
-      this.createAllAccountsTool(tools, ALL_ACCOUNTS_TOOL),
-      this.createDynamicsTool(tools, MARKET_DYNAMICS_TOOL),
-      this.createDynamicsTool(tools, PRICE_DYNAMICS_TOOL),
-      ...this.createThematicTools(byName),
+      createAllAccountsTool(tools, PORTFOLIO_SNAPSHOT_TOOL, this.config.value.run.mcpToolTimeoutMs),
+      createAllAccountsTool(tools, ALL_ACCOUNTS_TOOL, this.config.value.run.mcpToolTimeoutMs),
+      createDynamicsTool(tools, MARKET_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
+      createDynamicsTool(tools, PRICE_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
+      ...createThematicTools({ newsRegistry: this.newsRegistry, keyRate: this.keyRate, byName, config: { timeoutMs: this.config.value.run.mcpToolTimeoutMs, scanPages: this.config.value.sources.news.scanPages, maxItems: this.config.value.sources.news.maxItems, taxKeywordsFile: this.config.value.sources.taxKeywordsFile } }),
       ...(this.knowledgeTool ? [this.knowledgeTool] : []),
     ];
   }
@@ -170,174 +166,6 @@ export class McpRegistryService {
 
   get news(): NewsRegistry | undefined {
     return this.newsRegistry;
-  }
-
-  /**
-   * Тематические инструменты: тонкие обёртки над реестром источников.
-   * Логика источников живёт в адаптерах, здесь только текст и схема аргументов.
-   */
-  private createThematicTools(
-    byName: Map<string, DynamicStructuredTool>,
-  ): DynamicStructuredTool[] {
-    const registry = this.newsRegistry;
-    if (!registry) {
-      return [];
-    }
-
-    const newsTool = new DynamicTool({
-      name: NEWS_DIGEST_TOOL,
-      description:
-        'Сводка новостей по бумагам портфеля и по общей ленте: свежие, за неделю, за месяц, ' +
-        'за полгода. Источник и дата указаны у каждой новости.',
-      schema: toZodV3({
-        type: 'object',
-        properties: {
-          tickers: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Тикеры портфеля, по которым нужны новости',
-          },
-          names: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Названия компаний бумаг: по ним фильтруются общие ленты',
-          },
-          days: { type: 'number', description: 'Глубина выборки в днях, по умолчанию 180' },
-        },
-      }) as never,
-      func: async (input: unknown) => {
-        const args = (input ?? {}) as { tickers?: string[]; names?: string[]; days?: number };
-        const result = await collectNewsDigest(registry, {
-          tickers: Array.isArray(args.tickers) ? args.tickers : [],
-          names: Array.isArray(args.names) ? args.names : [],
-          pages: this.config.value.sources.news.scanPages,
-          maxItems: this.config.value.sources.news.maxItems,
-        });
-        const total = result.periods.reduce((sum, period) => sum + period.items.length, 0);
-        if (total === 0) {
-          // В отчёте видно только «новостей нет», причина — в логе.
-          console.warn(
-            '[news] пусто:',
-            JSON.stringify(args.tickers ?? []),
-            JSON.stringify(result.coverage.filter((entry) => entry.status !== 'ok' || !entry.items)),
-          );
-        }
-        return formatNewsDigest(result);
-      },
-    } as never);
-
-    const taxTool = new DynamicTool({
-      name: TAX_WATCH_TOOL,
-      description:
-        'Налоги: фактически удержанные суммы из истории операций и публикации об изменениях ' +
-        'налогообложения по словарю терминов.',
-      schema: toZodV3({ type: 'object', properties: {} }) as never,
-      func: async () => {
-        const accounts = await this.openAccountIds(byName);
-        const facts = await collectTaxFacts({
-          registry,
-          tool: (name) => byName.get(name),
-          timeoutMs: this.config.value.run.mcpToolTimeoutMs,
-          accounts,
-          keywords: loadTaxKeywords(this.config.value.sources.taxKeywordsFile),
-          pages: this.config.value.sources.news.scanPages,
-          maxItems: this.config.value.sources.news.maxItems,
-        });
-        return formatTaxFacts(facts);
-      },
-    } as never);
-
-    const keyRateTool = new DynamicTool({
-      name: KEY_RATE_TOOL,
-      description:
-        'Ключевая ставка ЦБ: текущее значение, дата решения и история изменений с указанием источника.',
-      schema: toZodV3({ type: 'object', properties: {} }) as never,
-      func: async () => formatKeyRate(await collectKeyRate(this.keyRate)),
-    } as never);
-
-    return [
-      newsTool,
-      taxTool,
-      ...(this.keyRate ? [keyRateTool] : []),
-    ];
-  }
-
-  /** Открытые счета для налогового наблюдения: служебное чтение без подтверждения. */
-  private async openAccountIds(byName: Map<string, DynamicStructuredTool>): Promise<string[]> {
-    const tool = byName.get('invest_list_accounts');
-    if (!tool) {
-      return [];
-    }
-    try {
-      const raw = await withTimeout(
-        tool.invoke({} as never),
-        this.config.value.run.mcpToolTimeoutMs,
-        () => new Error('таймаут списка счетов'),
-      );
-      return openAccounts(raw).map((account) => account.accountId);
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * Динамика цены бумаги за период: свечи считает код, модель получает готовые
-   * цифры (иначе она «вспоминает» чужие значения вместо данных брокера).
-   */
-  private createDynamicsTool(
-    tools: DynamicStructuredTool[],
-    name: string = PRICE_DYNAMICS_TOOL,
-  ): DynamicStructuredTool {
-    const byName = new Map(tools.map((tool) => [tool.name, tool]));
-
-    return new DynamicTool({
-      name,
-      description:
-        'Динамика цены бумаги за период: изменение в валюте и процентах, минимум и максимум ' +
-        'с датами. Используй для вопросов «почему упал/вырос X», «что с ценой за полгода».',
-      schema: toZodV3({
-        type: 'object',
-        properties: {
-          ticker: { type: 'string', description: 'Тикер или название: PLZL, Полюс, SBER' },
-          days: { type: 'number', description: 'Период в днях, по умолчанию 180' },
-        },
-        required: ['ticker'],
-      }) as never,
-      func: async (input: unknown) => {
-        const args = (input ?? {}) as { ticker?: string; days?: number };
-        const days = Number.isFinite(args.days) && Number(args.days) > 0 ? Number(args.days) : 180;
-        return collectDynamics(
-          { tool: (name) => byName.get(name), timeoutMs: this.config.value.run.mcpToolTimeoutMs },
-          args.ticker ?? '',
-          days,
-        );
-      },
-    } as never);
-  }
-
-  /**
-   * Сводка по всем открытым счетам одним инструментом: модель вызывает его сразу,
-   * не перебирая счета вручную (иначе она смотрит только первый счёт из списка).
-   * Схема — zod 3, как и у остальных инструментов (требование GigaChat).
-   */
-  private createAllAccountsTool(
-    tools: DynamicStructuredTool[],
-    name: string = ALL_ACCOUNTS_TOOL,
-  ): DynamicStructuredTool {
-    const byName = new Map(tools.map((tool) => [tool.name, tool]));
-
-    return new DynamicTool({
-      name,
-      description:
-        'Состав и стоимость портфеля по ВСЕМ открытым счетам брокера: ' +
-        'по каждому счёту — бумаги и количество, итоговая стоимость, доходность.',
-      schema: toZodV3({ type: 'object', properties: {} }) as never,
-      func: async () =>
-        collectAllAccounts({
-          tool: (name) => byName.get(name),
-          timeoutMs: this.config.value.run.mcpToolTimeoutMs,
-        }),
-    } as never);
   }
 
   get tools(): DynamicStructuredTool[] {

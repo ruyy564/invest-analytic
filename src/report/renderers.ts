@@ -1,4 +1,4 @@
-import { formatNumber, UNAVAILABLE } from '../agent/report/portfolio-report.js';
+﻿import { formatNumber, UNAVAILABLE } from '../report/portfolio-report.js';
 
 /** Доля в процентах с одним знаком: «54,3 %». */
 export const formatPercent = (share: number): string =>

@@ -1,10 +1,10 @@
-import type { FactProvider } from '../engine.js';
+﻿import type { FactProvider } from '../engine.js';
 import {
   concentrationProvider,
   gapsProvider,
   structureProvider,
   tableProvider,
-} from './portfolio.js';
+} from './portfolio/index.js';
 import { macroProvider, taxProvider } from './market.js';
 import { opinionsProvider, securitiesProvider } from './securities.js';
 import { briefProvider } from './verdict.js';
