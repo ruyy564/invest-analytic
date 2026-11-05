@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+﻿import { join } from 'node:path';
 import { ConfigError } from '../../src/config/config.error.js';
 import { buildCollectionPlan, planKey, ANALYTICS_MAX_INSTRUMENTS, CANDLES_MAX_INSTRUMENTS } from '../../src/collection/plan.js';
 import type { CollectionResult } from '../../src/collection/executor.js';
@@ -6,7 +6,9 @@ import { buildReport, composeMarkdown, missingProviders, type FactProvider } fro
 import { createProviderMap } from '../../src/report/providers/index.js';
 import { parseYaml } from '../../src/report/yaml.js';
 import { loadReportTemplate, parseReportTemplate, templateProviders } from '../../src/report/template.js';
-import { loadKnowledgeBase, type KnowledgeBase } from '../../src/knowledge/knowledge.js';
+import { KnowledgeRepository, KnowledgeService } from '../../src/knowledge/index.js';
+import type { AppConfigService } from '../../src/config/app-config.service.js';
+import type { KnowledgeProvider } from '../../src/knowledge/index.js';
 
 const templatePath = join(import.meta.dirname, '..', '..', 'reports', 'portfolio-review.yaml');
 
@@ -462,6 +464,21 @@ describe('область разбора в отчёте', () => {
 describe('справочный контекст разбора', () => {
   const knowledgePath = join(import.meta.dirname, '..', '..', 'data', 'knowledge');
 
+  /** Сервис знаний на реальном каталоге: движку нужен только контракт. */
+  const knowledgeService = (): KnowledgeProvider =>
+    new KnowledgeService(
+      new KnowledgeRepository({
+        value: {
+          run: {
+            knowledgeEnabled: true,
+            knowledgeDir: knowledgePath,
+            knowledgeFile: undefined,
+            knowledgeMaxChars: 1_800,
+          },
+        },
+      } as unknown as AppConfigService),
+    );
+
   const fakeTemplate = () =>
     parseReportTemplate(
       {
@@ -499,7 +516,7 @@ describe('справочный контекст разбора', () => {
       ['fake.opinions', { id: 'fake.opinions', section: () => ({ markdown: 'SBER', brief: 'SBER' }) }],
     ]);
 
-  const buildFake = (knowledge?: KnowledgeBase) =>
+  const buildFake = (knowledge?: KnowledgeProvider) =>
     buildReport({
       template: fakeTemplate(),
       providers: fakeProviders(),
@@ -511,7 +528,7 @@ describe('справочный контекст разбора', () => {
     });
 
   it('подбирает знания под раздел и секторы, не подменяя факты', () => {
-    const report = buildFake(loadKnowledgeBase(knowledgePath));
+    const report = buildFake(knowledgeService());
     const macro = report.interpretation.find((request) => request.id === 'macro');
     const opinions = report.interpretation.find((request) => request.id === 'opinions');
 
@@ -540,7 +557,7 @@ describe('справочный контекст разбора', () => {
       plan: { entries: [], maxInstruments: 15 },
       collected: { results: new Map(), coverage: [], partial: false },
       reportId: 'report-k3',
-      knowledge: loadKnowledgeBase(knowledgePath),
+      knowledge: knowledgeService(),
       knowledgeMaxChars: 400,
     });
 

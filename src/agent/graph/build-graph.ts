@@ -16,7 +16,7 @@ import {
   createPlanNode,
   createReportNode,
   type ReviewDeps,
-} from '../nodes/review.nodes.js';
+} from '../nodes/review/index.js';
 import { afterClassify, createAfterAgent } from './routers.js';
 import { AgentState } from './state.js';
 
@@ -36,10 +36,6 @@ export interface BuildAgentGraphDeps {
   newsEnabled?: boolean;
   /** `false` — вопрос о возможностях уходит прежним маршрутом. */
   helpEnabled?: boolean;
-  /** `false` — справочная ветка выключена, вопрос уходит прежним маршрутом. */
-  knowledgeEnabled?: boolean;
-  /** Готовый блок знаний для системного промпта агента (чек-лист решений). */
-  knowledge?: string;
 }
 
 /** Топология: classify → (offTopic | news | agent ⇄ approve → tools | plan → approve → collect → report). */
@@ -47,13 +43,22 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
   const reviewEnabled = deps.reviewEnabled ?? true;
   const newsEnabled = deps.newsEnabled ?? true;
   const helpEnabled = deps.helpEnabled ?? true;
-  const knowledgeEnabled = deps.knowledgeEnabled ?? true;
+  // Знания приходят сервисом: ветка активна, если каталог тем загрузился.
+  const knowledge = deps.review.knowledge;
+  const knowledgeEnabled = !knowledge.isEmpty;
+  // Чек-лист решений для системного промпта агента: только он, без остальных тем.
+  const knowledgeText = knowledge.promptBlock({
+    section: 'verdict',
+    required: ['decision-checklist'],
+    limit: 1,
+    maxChars: deps.review.config.value.run.knowledgeMaxChars,
+  });
 
   const base = new StateGraph(AgentState)
-    .addNode('classify', createClassifyNode(deps.routerModel))
+    .addNode('classify', createClassifyNode(deps.routerModel, knowledge))
     .addNode('offTopic', offTopicNode)
     .addNode('help', createHelpNode({ config: deps.review.config }))
-    .addNode('knowledge', createKnowledgeNode({ config: deps.review.config }))
+    .addNode('knowledge', createKnowledgeNode({ knowledge }))
     .addNode(
       'news',
       createNewsNode({ config: deps.review.config, registry: deps.review.registry }),
@@ -62,7 +67,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
       'agent',
       createAgentNode(deps.answerModel, deps.tools, {
         accountId: deps.accountId,
-        knowledge: deps.knowledge,
+        knowledge: knowledgeText,
       }),
     )
     .addNode('approve', createApproveNode(deps), {

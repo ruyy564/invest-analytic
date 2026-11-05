@@ -1,38 +1,29 @@
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { Logger } from '@nestjs/common';
 import { SystemMessage } from '@langchain/core/messages';
-import { PORTFOLIO_SCOPE_PROMPT } from '../prompts/off-topic.js';
+import { PORTFOLIO_SCOPE_PROMPT } from './off-topic/prompt.js';
 import type { AgentStateType } from '../graph/state.js';
 import { withTimeout } from '../../tools/mcp-tool.adapter.js';
 import { loadTickerAliases } from '../../sources/aliases.js';
 import { detectScope } from '../scope.js';
-import { CAPABILITIES_PATTERN } from '../prompts/capabilities.js';
+import { CAPABILITIES_PATTERN } from './help/capabilities.js';
 import {
   KNOWLEDGE_QUESTION_PATTERN,
-  knowledgeSources,
-  loadKnowledgeBase,
-  topicForQuestion,
-} from '../../knowledge/knowledge.js';
+  type KnowledgeProvider,
+} from '../../knowledge/index.js';
 import {
   CLASSIFIER_FALLBACK_PROMPT,
   CLASSIFIER_SYSTEM_PROMPT,
   heuristicIntent,
   heuristicNewsIntent,
   parseIntentText,
-} from '../prompts/classifier.prompt.js';
+} from './classify/prompt.js';
 
 /** Предел ожидания классификатора: одно слово, дольше ждать бессмысленно. */
 export const CLASSIFY_TIMEOUT_MS = 8_000;
 
-/** Ветка справочных ответов включена (флаг `KNOWLEDGE_ENABLED`). */
-const knowledgeEnabled = (): boolean =>
-  process.env.KNOWLEDGE_ENABLED?.trim().toLowerCase() !== 'false';
-
-/** Каталог тем: та же настройка, что у разбора и ответов. */
-const knowledgeDir = (): string => process.env.KNOWLEDGE_DIR?.trim() || 'data/knowledge';
-
-/** Дополнительный файл-тема, если задан. */
-const knowledgeFile = (): string | undefined => process.env.KNOWLEDGE_FILE?.trim();
+/** Ветка справочных ответов включена: база знаний загружена. */
+// Знания приходят сервисом: модуль сам решает, читать ли файлы.
 
 /**
  * Классификация области вопроса дешёвой моделью с текстовым фолбэком.
@@ -49,7 +40,7 @@ const knowledgeFile = (): string | undefined => process.env.KNOWLEDGE_FILE?.trim
  * Метка разбирается из текста, при любой проблеме вопрос уходит как `portfolio`
  * — данные всё равно защищены подтверждением.
  */
-export const createClassifyNode = (model: BaseChatModel) => {
+export const createClassifyNode = (model: BaseChatModel, knowledge?: KnowledgeProvider) => {
   const logger = new Logger('ClassifyNode');
 
   return async (state: AgentStateType): Promise<Partial<AgentStateType>> => {
@@ -87,13 +78,13 @@ export const createClassifyNode = (model: BaseChatModel) => {
 
     // Справочный вопрос по понятию: термин базы знаний и просьба объяснить.
     // Проверяем до эвристик — «что такое диверсификация» иначе уходит в разбор портфеля.
-    if (knowledgeEnabled()) {
-      const base = loadKnowledgeBase(
-        knowledgeSources({ knowledgeDir: knowledgeDir(), knowledgeFile: knowledgeFile() }),
-      );
-      if (KNOWLEDGE_QUESTION_PATTERN.test(question) && topicForQuestion(base, question)) {
-        return { intent: 'knowledge_question', ...scopeFields };
-      }
+    if (
+      knowledge &&
+      !knowledge.isEmpty &&
+      KNOWLEDGE_QUESTION_PATTERN.test(question) &&
+      knowledge.topicFor(question)
+    ) {
+      return { intent: 'knowledge_question', ...scopeFields };
     }
 
     const heuristic = heuristicIntent(question);

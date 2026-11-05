@@ -11,7 +11,8 @@ import { MultiServerMcpFactory } from '../tools/mcp-client.factory.js';
 import { McpProxyService } from '../tools/mcp-proxy.service.js';
 import { McpRegistryService } from '../tools/mcp-registry.service.js';
 import { resolveDefaultAccount } from '../tools/resolve-account.js';
-import { knowledgeSources, loadAgentKnowledge } from '../knowledge/knowledge.js';
+import { KnowledgeRepository, KnowledgeService } from '../knowledge/index.js';
+import { createKnowledgeTool } from '../tools/knowledge/knowledge.tool.js';
 
 /**
  * Сборка рабочего агента вне NestJS: те же классы и тот же `.env`, что у сервиса
@@ -40,6 +41,8 @@ export interface AgentRuntime {
   flow: ApprovalFlowService;
   /** Реестр нужен ветке разбора: инструменты, бюджет, источники. */
   registry: McpRegistryService;
+  /** База знаний: сервис с кэшем тем (тот же, что в Nest-модуле). */
+  knowledge: KnowledgeService;
   /** Для логов: какие MCP-серверы поднялись. */
   mcpServers: { name: string; status: string; tools: string[] }[];
 }
@@ -57,7 +60,13 @@ export const createAgentRuntime = async (
 
   const llm = new LlmRegistry(configService);
   const mcpFactory = new MultiServerMcpFactory(new McpProxyService(configService), needsProxy);
-  const registry = new McpRegistryService(configService, mcpFactory.create);
+  // Знания — тот же класс, что и в Nest: сервис + репозиторий, без дублирования логики.
+  const knowledge = new KnowledgeService(new KnowledgeRepository(configService));
+  const registry = new McpRegistryService(
+    configService,
+    mcpFactory.create,
+    createKnowledgeTool(knowledge),
+  );
   await registry.ensureInitialized();
 
   const statuses = registry.serverStatuses;
@@ -94,6 +103,7 @@ export const createAgentRuntime = async (
     policy,
     flow: new ApprovalFlowService(configService),
     registry,
+    knowledge,
     mcpServers: registry.serverStatuses.map(({ name, status, tools }) => ({ name, status, tools })),
   };
 };
@@ -106,13 +116,8 @@ export const createAgentRuntime = async (
 let compiled: Promise<ReturnType<typeof buildAgentGraph>> | undefined;
 
 export const graphForServer = (): Promise<ReturnType<typeof buildAgentGraph>> => {
-  compiled ??= createAgentRuntime().then((runtime) => {
-    const knowledge = loadAgentKnowledge(
-      runtime.config.run.knowledgeEnabled,
-      knowledgeSources(runtime.config.run),
-      runtime.config.run.knowledgeMaxChars,
-    );
-    return buildAgentGraph({
+  compiled ??= createAgentRuntime().then((runtime) =>
+    buildAgentGraph({
       routerModel: runtime.routerModel,
       answerModel: runtime.answerModel,
       tools: runtime.tools,
@@ -123,13 +128,12 @@ export const graphForServer = (): Promise<ReturnType<typeof buildAgentGraph>> =>
         config: configServiceFor(runtime.config),
         registry: runtime.registry,
         model: runtime.answerModel,
+        knowledge: runtime.knowledge,
       },
       reviewEnabled: runtime.config.run.reviewEnabled,
       newsEnabled: runtime.config.sources.newsFeed.enabled,
       helpEnabled: runtime.config.run.agentHelpEnabled,
-      knowledgeEnabled: knowledge.enabled,
-      knowledge: knowledge.text,
-    });
-  });
+    }),
+  );
   return compiled;
 };

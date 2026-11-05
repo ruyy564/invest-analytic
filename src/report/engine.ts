@@ -4,9 +4,8 @@ import type { CollectionResult } from '../collection/executor.js';
 import type { CollectionPlan } from '../collection/plan.js';
 import {
   DEFAULT_KNOWLEDGE_MAX_CHARS,
-  knowledgeForPrompt,
-  type KnowledgeBase,
-} from '../knowledge/knowledge.js';
+  type KnowledgeProvider,
+} from '../knowledge/index.js';
 import type { CoverageEntry } from '../sources/registry.js';
 import { renderUnavailable } from './renderers.js';
 import { UNKNOWN_SECTOR } from './sector.js';
@@ -79,7 +78,7 @@ export interface BuildReportDeps {
   /** Тикер бумаги в разборе по бумаге. */
   scopeTarget?: string;
   /** База знаний: из неё собирается справочный контекст интерпретируемых секций. */
-  knowledge?: KnowledgeBase;
+  knowledge?: KnowledgeProvider;
   /** Предел объёма справочного блока в символах. */
   knowledgeMaxChars?: number;
 }
@@ -192,12 +191,12 @@ export const buildReport = (deps: BuildReportDeps): ReportBuildResult => {
     });
   }
 
-  if (deps.knowledge && deps.knowledge.topics.length > 0 && interpretation.length > 0) {
+  if (deps.knowledge && !deps.knowledge.isEmpty && interpretation.length > 0) {
     const sectors = sectorsOf(sections);
     const maxChars = deps.knowledgeMaxChars ?? DEFAULT_KNOWLEDGE_MAX_CHARS;
     for (const request of interpretation) {
       // Отбор идёт по разделу и секторам: вся база в промпт не попадает.
-      request.knowledge = knowledgeForPrompt(deps.knowledge, {
+      request.knowledge = deps.knowledge.promptBlock({
         section: request.id,
         sectors,
         maxChars,

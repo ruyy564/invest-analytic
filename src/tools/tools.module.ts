@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { AppConfigService } from '../config/app-config.service.js';
+import { KnowledgeModule, KnowledgeService } from '../knowledge/index.js';
 import { MultiServerMcpFactory } from './mcp-client.factory.js';
 import { McpProxyService } from './mcp-proxy.service.js';
-import { MCP_CLIENT_FACTORY, McpRegistryService } from './mcp-registry.service.js';
+import { KNOWLEDGE_TOOL, MCP_CLIENT_FACTORY, McpRegistryService } from './mcp-registry.service.js';
+import { createKnowledgeTool } from './knowledge/knowledge.tool.js';
 import { withTimeout } from './mcp-tool.adapter.js';
 
 /** Набор инструментов агента: `() => Promise<DynamicStructuredTool[]>`, с ленивой инициализацией. */
@@ -57,6 +59,7 @@ export const resolveDefaultAccount = async (
 };
 
 @Module({
+  imports: [KnowledgeModule],
   providers: [
     McpProxyService,
     {
@@ -68,6 +71,13 @@ export const resolveDefaultAccount = async (
       provide: MCP_CLIENT_FACTORY,
       useFactory: (factory: MultiServerMcpFactory) => factory.create,
       inject: [MultiServerMcpFactory],
+    },
+    // Тонкий инструмент знаний: бизнес-логика — в KnowledgeService, здесь только схема.
+    {
+      provide: KNOWLEDGE_TOOL,
+      useFactory: (knowledge: KnowledgeService): DynamicStructuredTool =>
+        createKnowledgeTool(knowledge),
+      inject: [KnowledgeService],
     },
     McpRegistryService,
     { provide: MCP_REGISTRY, useExisting: McpRegistryService },
@@ -87,6 +97,7 @@ export const resolveDefaultAccount = async (
     MCP_TOOLS,
     MCP_REGISTRY,
     MCP_CLIENT_FACTORY,
+    KNOWLEDGE_TOOL,
     MultiServerMcpFactory,
     McpProxyService,
   ],

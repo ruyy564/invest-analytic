@@ -1,12 +1,13 @@
-import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+﻿import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { MemorySaver } from '@langchain/langgraph';
 import { ApprovalFlowService } from '../../src/agent/approval-flow.service.js';
 import { withToolResults } from '../../src/agent/nodes/agent.node.js';
 import { ApprovalPolicyService } from '../../src/agent/approvals/approval-policy.service.js';
 import { buildAgentGraph } from '../../src/agent/graph/build-graph.js';
-import { OFF_TOPIC_ANSWER } from '../../src/agent/prompts/off-topic.js';
+import { OFF_TOPIC_ANSWER } from '../../src/agent/nodes/off-topic/prompt.js';
 import { AppConfigService } from '../../src/config/app-config.service.js';
 import type { McpRegistryService } from '../../src/tools/mcp-registry.service.js';
+import { KnowledgeRepository, KnowledgeService } from '../../src/knowledge/index.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
@@ -22,6 +23,10 @@ const configStub = (): AppConfigService =>
         reviewMaxInstruments: 15,
         mcpToolTimeoutMs: 15_000,
         reviewEnabled: true,
+        knowledgeEnabled: true,
+        knowledgeDir: 'data/knowledge',
+        knowledgeFile: undefined,
+        knowledgeMaxChars: 1_800,
       },
       report: {
         templateFile: 'reports/portfolio-review.yaml',
@@ -48,7 +53,11 @@ const buildGraph = (
     policy,
     flow,
     checkpointer: new MemorySaver(),
-    review: { config: configStub(), registry: registryStub },
+    review: {
+      config: configStub(),
+      registry: registryStub,
+      knowledge: new KnowledgeService(new KnowledgeRepository(configStub())),
+    },
     reviewEnabled,
   });
 };

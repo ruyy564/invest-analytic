@@ -1,8 +1,8 @@
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import { bindToolsCompat } from '../../llm/bind-tools.js';
-import { buildAgentSystemPrompt } from '../prompts/agent.prompt.js';
+import { buildAgentSystemPrompt } from './agent/prompt.js';
 import { ALL_ACCOUNTS_TOOL } from '../../tools/portfolio-snapshot.js';
 import type { AgentStateType } from '../graph/state.js';
 import { withTimeout } from '../../tools/mcp-tool.adapter.js';

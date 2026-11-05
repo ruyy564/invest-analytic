@@ -1,10 +1,10 @@
-import {
+﻿import {
   availableCapabilities,
   buildCapabilitiesAnswer,
   CAPABILITIES,
   CAPABILITIES_PATTERN,
   disabledCapabilitiesNote,
-} from '../../src/agent/prompts/capabilities.js';
+} from '../../src/agent/nodes/help/capabilities.js';
 
 describe('справка о возможностях', () => {
   it('узнаёт вопрос про возможности в разных формулировках', () => {

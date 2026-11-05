@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+﻿import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { DynamicStructuredTool as DynamicTool } from '@langchain/core/tools';
 import { AppConfigService } from '../config/app-config.service.js';
@@ -20,6 +20,8 @@ import { toZodV3 } from './tool-schema.js';
 import { ToolBudget } from './tool-budget.js';
 
 export const MCP_CLIENT_FACTORY = Symbol('MCP_CLIENT_FACTORY');
+/** Локальный инструмент знаний: тонкая обёртка над `KnowledgeService`. */
+export const KNOWLEDGE_TOOL = Symbol('KNOWLEDGE_TOOL');
 
 /** Тематические имена локальных инструментов (см. спецификацию data-sources). */
 export const PORTFOLIO_SNAPSHOT_TOOL = 'portfolio__snapshot';
@@ -68,6 +70,7 @@ export class McpRegistryService {
   constructor(
     private readonly config: AppConfigService,
     @Inject(MCP_CLIENT_FACTORY) private readonly factory: McpClientFactory,
+    @Optional() @Inject(KNOWLEDGE_TOOL) private readonly knowledgeTool?: DynamicStructuredTool,
   ) {}
 
   /** Ленивая инициализация: удерживает `AppModule` от сетевых вызовов при старте. */
@@ -153,6 +156,7 @@ export class McpRegistryService {
       this.createDynamicsTool(tools, MARKET_DYNAMICS_TOOL),
       this.createDynamicsTool(tools, PRICE_DYNAMICS_TOOL),
       ...this.createThematicTools(byName),
+      ...(this.knowledgeTool ? [this.knowledgeTool] : []),
     ];
   }
 

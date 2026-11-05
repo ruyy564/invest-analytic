@@ -1,14 +1,34 @@
-import { HumanMessage } from '@langchain/core/messages';
+﻿import { HumanMessage } from '@langchain/core/messages';
 import { createClassifyNode } from '../../src/agent/nodes/classify.node.js';
-import { OFF_TOPIC_PATTERN } from '../../src/agent/prompts/classifier.prompt.js';
+import { OFF_TOPIC_PATTERN } from '../../src/agent/nodes/classify/prompt.js';
+import type { AppConfigService } from '../../src/config/app-config.service.js';
+import {
+  KnowledgeRepository,
+  KnowledgeService,
+} from '../../src/knowledge/index.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
+
+/** Сервис знаний на реальном каталоге: классификатор получает его как зависимость. */
+const knowledge = (): KnowledgeService =>
+  new KnowledgeService(
+    new KnowledgeRepository({
+      value: {
+        run: {
+          knowledgeEnabled: true,
+          knowledgeDir: 'data/knowledge',
+          knowledgeFile: undefined,
+          knowledgeMaxChars: 1_800,
+        },
+      },
+    } as unknown as AppConfigService),
+  );
 
 /**
  * Справочный вопрос по инвестиционному понятию: правило должно срабатывать до
  * эвристик «разбор портфеля» (иначе «что такое диверсификация» уходит в отчёт).
  */
 const classify = async (question: string): Promise<string | undefined> => {
-  const node = createClassifyNode(new ScriptedChatModel(['data_lookup']));
+  const node = createClassifyNode(new ScriptedChatModel(['data_lookup']), knowledge());
   const result = await node({ messages: [new HumanMessage(question)] } as never);
   return result.intent;
 };

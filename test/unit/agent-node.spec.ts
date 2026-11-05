@@ -1,9 +1,10 @@
-import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+﻿import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { createAgentNode } from '../../src/agent/nodes/agent.node.js';
 import { createHelpNode } from '../../src/agent/nodes/help.node.js';
-import { buildAgentSystemPrompt } from '../../src/agent/prompts/agent.prompt.js';
+import { buildAgentSystemPrompt } from '../../src/agent/nodes/agent/prompt.js';
 import { isApprovedDecision } from '../../src/agent/nodes/approve.node.js';
-import { agentKnowledgePrompt, loadKnowledgeBase } from '../../src/knowledge/knowledge.js';
+import { KnowledgeRepository, KnowledgeService } from '../../src/knowledge/index.js';
+import type { AppConfigService } from '../../src/config/app-config.service.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
@@ -107,8 +108,26 @@ describe('узел агента после сводки по счетам', () =
 
 
 describe('принципы принятия решений в промпте агента', () => {
-  const knowledge = () =>
-    agentKnowledgePrompt(loadKnowledgeBase('data/knowledge'), 1_800);
+  const knowledge = () => {
+    const service = new KnowledgeService(
+      new KnowledgeRepository({
+        value: {
+          run: {
+            knowledgeEnabled: true,
+            knowledgeDir: 'data/knowledge',
+            knowledgeFile: undefined,
+            knowledgeMaxChars: 1_800,
+          },
+        },
+      } as unknown as AppConfigService),
+    );
+    return service.promptBlock({
+      section: 'verdict',
+      required: ['decision-checklist'],
+      limit: 1,
+      maxChars: 1_800,
+    });
+  };
 
   it('добавляет чек-лист и правило про оценки', () => {
     const prompt = buildAgentSystemPrompt({ knowledge: knowledge() });

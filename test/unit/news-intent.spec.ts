@@ -1,4 +1,4 @@
-import { heuristicNewsIntent, parseIntentText } from '../../src/agent/prompts/classifier.prompt.js';
+﻿import { heuristicNewsIntent, parseIntentText } from '../../src/agent/nodes/classify/prompt.js';
 
 describe('новостной интент', () => {
   it('узнаёт вопросы про новости рынка', () => {

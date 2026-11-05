@@ -1,4 +1,4 @@
-import { buildPortfolioReportPrompt } from './portfolio-report.js';
+﻿import { buildPortfolioReportPrompt } from './portfolio-report.prompt.js';
 
 export interface AgentPromptOptions {
   accountId?: string;

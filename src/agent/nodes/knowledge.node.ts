@@ -1,16 +1,9 @@
-import { AIMessage } from '@langchain/core/messages';
-import type { AppConfigService } from '../../config/app-config.service.js';
-import {
-  formatKnowledgeAnswer,
-  formatKnowledgeMiss,
-  knowledgeSources,
-  loadKnowledgeBase,
-  topicForQuestion,
-} from '../../knowledge/knowledge.js';
+﻿import { AIMessage } from '@langchain/core/messages';
+import type { KnowledgeProvider } from '../../knowledge/index.js';
 import type { AgentStateType } from '../graph/state.js';
 
 export interface KnowledgeDeps {
-  config: AppConfigService;
+  knowledge: KnowledgeProvider;
 }
 
 /** Последний вопрос пользователя: по нему ищем тему в базе. */
@@ -26,15 +19,14 @@ const lastQuestion = (state: AgentStateType): string => {
 };
 
 /**
- * Узел справочного ответа: объясняет инвестиционное понятие по базе знаний.
- * Данные брокера не читаются, модель не вызывается, подтверждение не нужно.
+ * Узел справочного ответа: объясняет инвестиционное понятие. Логика отбора и
+ * формата живёт в `KnowledgeService`; узел только спрашивает его и кладёт ответ.
  */
 export const createKnowledgeNode =
   (deps: KnowledgeDeps) =>
   async (state: AgentStateType): Promise<Partial<AgentStateType>> => {
-    const base = loadKnowledgeBase(knowledgeSources(deps.config.value.run));
-    const topic = topicForQuestion(base, lastQuestion(state));
-    const answer = topic ? formatKnowledgeAnswer(topic) : formatKnowledgeMiss(base);
+    const question = lastQuestion(state);
+    const answer = deps.knowledge.answerFor(question) ?? deps.knowledge.miss();
 
     return {
       intent: 'knowledge_question',

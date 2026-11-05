@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+﻿import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { HumanMessage } from '@langchain/core/messages';
 import { Command, type BaseCheckpointSaver } from '@langchain/langgraph';
@@ -14,10 +14,10 @@ import {
   type ApprovePayload,
 } from './approval-flow.service.js';
 import { NotAwaitingApprovalError } from './approval.errors.js';
-import { NO_TOOLS_ANSWER } from './prompts/off-topic.js';
+import { NO_TOOLS_ANSWER } from './nodes/off-topic/prompt.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
-import { knowledgeSources, loadAgentKnowledge } from '../knowledge/knowledge.js';
+import { KnowledgeService } from '../knowledge/index.js';
 import type { AgentStateType } from './graph/state.js';
 import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../observability/run-collector.js';
 import { ReportStoreService } from '../state/report-store.service.js';
@@ -102,6 +102,8 @@ export class AgentRunnerService {
     @Inject(LLM_ANSWER_MODEL) private readonly answerModel: BaseChatModel,
     @Inject(CHECKPOINTER) private readonly checkpointer: BaseCheckpointSaver,
     private readonly reports: ReportStoreService,
+    // База знаний — обычный Nest-провайдер: файлы и кэш живут в модуле знаний.
+    private readonly knowledge: KnowledgeService,
   ) {}
 
   async run(message: string, sessionId: string, requestId?: string): Promise<RunResult> {
@@ -212,11 +214,7 @@ export class AgentRunnerService {
     }
 
     // База знаний читается один раз при сборке графа: она — данные, не состояние прогона.
-    const knowledge = loadAgentKnowledge(
-      this.config.value.run.knowledgeEnabled,
-      knowledgeSources(this.config.value.run),
-      this.config.value.run.knowledgeMaxChars,
-    );
+    const knowledge = this.knowledge;
 
     this.compiled = buildAgentGraph({
       routerModel: this.routerModel,
@@ -226,12 +224,15 @@ export class AgentRunnerService {
       flow: this.flow,
       accountId: this.defaultAccount,
       checkpointer: this.checkpointer,
-      review: { config: this.config, registry: this.registry, model: this.answerModel },
+      review: {
+        config: this.config,
+        registry: this.registry,
+        model: this.answerModel,
+        knowledge,
+      },
       reviewEnabled: this.config.value.run.reviewEnabled,
       newsEnabled: this.config.value.sources.newsFeed.enabled,
       helpEnabled: this.config.value.run.agentHelpEnabled,
-      knowledgeEnabled: knowledge.enabled,
-      knowledge: knowledge.text,
     });
     return this.compiled;
   }

@@ -1,6 +1,6 @@
-import { AIMessage } from '@langchain/core/messages';
+﻿import { AIMessage } from '@langchain/core/messages';
 import type { AppConfigService } from '../../config/app-config.service.js';
-import { buildCapabilitiesAnswer } from '../prompts/capabilities.js';
+import { buildCapabilitiesAnswer } from './help/capabilities.js';
 import type { AgentStateType } from '../graph/state.js';
 
 export interface HelpDeps {
