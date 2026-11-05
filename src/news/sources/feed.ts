@@ -30,8 +30,8 @@ export { parseFeed };
 export const defaultFetchText = async (url: string): Promise<string> => {
   const response = await fetch(url, {
     headers: { 'user-agent': 'invest-analytic/0.1 (+portfolio review)' },
-    // Публичные мосты RSS отвечают медленно на холодную: 10 с мало.
-    signal: AbortSignal.timeout(20_000),
+    // Лента не должна съедать весь таймаут тула: медленный источник отбрасываем.
+    signal: AbortSignal.timeout(8_000),
   });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -48,33 +48,37 @@ export const defaultFetchText = async (url: string): Promise<string> => {
 const FEED_CACHE_TTL_MS = 300_000;
 /** Короткая память ошибки: дольше держать нельзя — теряются новости у следующих бумаг. */
 const FEED_FAILURE_TTL_MS = 5_000;
-/** Мост Telegram не любит параллельных запросов: читаем ленты по одной. */
-const FEED_MAX_CONCURRENCY = 1;
-/** Паузы перед повтором: мост отвечает 429/таймаутом на всплеск запросов. */
-const FEED_RETRY_DELAYS_MS = [400, 1_200];
+/** Обычные RSS можно тянуть параллельно: они отвечают быстро. */
+const FEED_MAX_CONCURRENCY = 4;
+/** Паузы перед повтором: сайт может ответить 429 на всплеск запросов. */
+const FEED_RETRY_DELAYS_MS = [300, 900];
 const feedCache = new Map<string, { at: number; items: SourceItem[] }>();
 const feedPending = new Map<string, Promise<SourceItem[]>>();
 const feedFailures = new Map<string, { at: number; error: Error }>();
-let activeFetches = 0;
-const waiting: (() => void)[] = [];
 
 /** Ограничитель одновременных запросов к лентам. */
-const withSlot = async <T>(task: () => Promise<T>): Promise<T> => {
-  if (activeFetches >= FEED_MAX_CONCURRENCY) {
-    await new Promise<void>((resolve) => waiting.push(resolve));
-  }
-  activeFetches += 1;
-  try {
-    return await task();
-  } finally {
-    activeFetches -= 1;
-    waiting.shift()?.();
-  }
+const createLimiter = (limit: number): (<T>(task: () => Promise<T>) => Promise<T>) => {
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    if (active >= limit) {
+      await new Promise<void>((resolve) => waiting.push(resolve));
+    }
+    active += 1;
+    try {
+      return await task();
+    } finally {
+      active -= 1;
+      waiting.shift()?.();
+    }
+  };
 };
+
+const feedSlot = createLimiter(FEED_MAX_CONCURRENCY);
 
 /**
  * Отдаёт разобранные элементы ленты, переиспользуя недавний ответ.
- * Сбой повторяем с паузой и переходим на резервный мост: публичные мосты
+ * Сбой повторяем с паузой и переходим на резервный адрес: публичные ленты
  * отвечают таймаутом или 429 на всплеск запросов.
  */
 const loadCached = async (
@@ -94,7 +98,7 @@ const loadCached = async (
   if (running) {
     return running;
   }
-  const request = withSlot(async () => {
+  const request = feedSlot(async () => {
     let lastError: Error | undefined;
     for (let attempt = 0; attempt <= FEED_RETRY_DELAYS_MS.length; attempt += 1) {
       for (const url of urls) {

@@ -1,36 +1,54 @@
 ﻿import type { FactProvider } from '../engine.js';
+import { EMPTY_PROFILES, type CompanyProfiles } from '../company-profiles.js';
 import {
   concentrationProvider,
+  createExposureProvider,
   gapsProvider,
   structureProvider,
   tableProvider,
 } from './portfolio/index.js';
 import { macroProvider, taxProvider } from './market.js';
-import { opinionsProvider, securitiesProvider } from './securities/index.js';
+import {
+  createSecuritiesProvider,
+  opinionsProvider,
+  securitiesProvider,
+} from './securities/index.js';
 import { briefProvider } from './verdict.js';
 
+/** Настройки реестра: профили компаний нужны секциям разбора и внешнеэкономического профиля. */
+export interface ProviderMapOptions {
+  profiles?: CompanyProfiles;
+}
+
 /** Реестр поставщиков фактов: имена совпадают с `provider` в шаблоне отчёта. */
-export const createProviderMap = (): Map<string, FactProvider> =>
-  new Map(
+export const createProviderMap = (
+  options: ProviderMapOptions = {},
+): Map<string, FactProvider> => {
+  const profiles = options.profiles ?? EMPTY_PROFILES;
+  return new Map(
     [
       tableProvider,
       structureProvider,
       concentrationProvider,
       gapsProvider,
-      securitiesProvider,
+      createExposureProvider(profiles),
+      createSecuritiesProvider(profiles),
       opinionsProvider,
       macroProvider,
       taxProvider,
       briefProvider,
     ].map((provider) => [provider.id, provider] as const),
   );
+};
 
 export {
   tableProvider,
   structureProvider,
   concentrationProvider,
   gapsProvider,
+  createExposureProvider,
   securitiesProvider,
+  createSecuritiesProvider,
   opinionsProvider,
   macroProvider,
   taxProvider,

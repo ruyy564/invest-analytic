@@ -1,4 +1,5 @@
 ﻿import { resultsInGroup } from '../../../collection/executor.js';
+import { formatNumber } from '../../portfolio-report.js';
 import type { FactContext } from '../../engine.js';
 import {
   formatChangePct,
@@ -7,6 +8,8 @@ import {
   type PeriodChange,
 } from '../../market-facts.js';
 import { UNKNOWN_SECTOR } from '../../sector.js';
+import { seriesRange, sparklineOf } from '../../sparkline.js';
+import { bondFactsOf, type BondFacts } from './bond-facts.js';
 import { parseForecast, type ForecastFacts } from '../market.js';
 import { portfolioTotalOf, sectorMapOf, totalValue, valuedHoldings } from '../portfolio/index.js';
 
@@ -19,9 +22,21 @@ export interface SecurityFacts {
   sector: string;
   share: number;
   value?: number;
+  /** Цена за одну бумагу и её валюта: нужна в разборе бумаги. */
+  price?: number;
+  currency: string;
   periods: PeriodChange[];
+  /** Спарклайн цены за доступную историю: форма движения прямо в тексте. */
+  chart?: string;
+  /** Минимум и максимум закрытия за историю: подпись к спарклайну. */
+  range?: { min: number; max: number };
   forecast?: ForecastFacts;
+  /** Сколько дивидендных выплат в истории. */
   dividends?: number;
+  /** Ближайшая и последняя выплата: размер, даты отсечки и выплаты. */
+  dividend?: DividendFacts;
+  /** Облигация: категория, купон, погашение, НКД. */
+  bond?: BondFacts;
   news: string[];
   /** Почему новостей нет: источник не ответил или публикаций не было. */
   newsNote?: string;
@@ -35,18 +50,115 @@ const asJson = (text: string): unknown => {
   }
 };
 
-/** Сколько записей в первом массиве ответа: дивиденды, сделки, сигналы. */
-const countItems = (text: string): number | undefined => {
-  const parsed = asJson(text);
-  if (typeof parsed !== 'object' || parsed === null) {
+/** Одна дивидендная выплата из ответа `invest_get_share_dividends`. */
+export interface DividendPayment {
+  amount?: number;
+  currency: string;
+  /** Дата отсечки реестра: после неё покупка не даёт права на выплату. */
+  recordDate?: string;
+  /** Последний день покупки с дивидендом. */
+  lastBuyDate?: string;
+  paymentDate?: string;
+  declaredDate?: string;
+  /** `Annual`, `Quarter`, … как отдаёт брокер. */
+  regularity?: string;
+  /** Дивидендная доходность к цене закрытия, %. */
+  yieldPct?: number;
+}
+
+export interface DividendFacts {
+  count: number;
+  /** Ближайшая будущая выплата (по дате отсечки или выплаты). */
+  next?: DividendPayment;
+  /** Последняя прошедшая выплата. */
+  last?: DividendPayment;
+}
+
+const REGULARITY_LABELS: Record<string, string> = {
+  annual: 'раз в год',
+  quarter: 'раз в квартал',
+  semiannual: 'раз в полгода',
+  monthly: 'раз в месяц',
+};
+
+const moneyOf = (value: unknown): { amount?: number; currency: string } => {
+  const record = value as { value?: string; units?: string; nano?: number; currency?: string } | undefined;
+  const currency = (record?.currency ?? 'rub').toUpperCase();
+  if (typeof record?.value === 'string' && record.value.trim() !== '') {
+    const amount = Number(record.value);
+    return { amount: Number.isFinite(amount) ? amount : undefined, currency };
+  }
+  if (record && (record.units !== undefined || record.nano !== undefined)) {
+    const amount = Number(record.units ?? 0) + Number(record.nano ?? 0) / 1_000_000_000;
+    return { amount: Number.isFinite(amount) ? amount : undefined, currency };
+  }
+  return { currency };
+};
+
+/**
+ * Дивиденды бумаги: сколько выплат в истории, ближайшая и последняя выплата.
+ * Даты у брокера — `YYYY-MM-DD`, сравнение строковое.
+ */
+export const dividendsOf = (text: string, now: Date = new Date()): DividendFacts | undefined => {
+  const parsed = asJson(text) as { dividends?: unknown[] } | undefined;
+  const list = Array.isArray(parsed?.dividends) ? parsed.dividends : undefined;
+  if (!list) {
     return undefined;
   }
-  for (const value of Object.values(parsed as Record<string, unknown>)) {
-    if (Array.isArray(value)) {
-      return value.length;
+  const today = now.toISOString().slice(0, 10);
+  const payments: DividendPayment[] = list.flatMap((raw) => {
+    const item = raw as Record<string, unknown>;
+    if (typeof item !== 'object' || item === null) {
+      return [];
     }
+    const net = moneyOf(item.dividendNet);
+    const yieldValue = Number((item.yieldValue as { value?: string } | undefined)?.value);
+    return [
+      {
+        amount: net.amount,
+        currency: net.currency,
+        recordDate: typeof item.recordDate === 'string' ? item.recordDate : undefined,
+        lastBuyDate: typeof item.lastBuyDate === 'string' ? item.lastBuyDate : undefined,
+        paymentDate: typeof item.paymentDate === 'string' ? item.paymentDate : undefined,
+        declaredDate: typeof item.declaredDate === 'string' ? item.declaredDate : undefined,
+        regularity: typeof item.regularity === 'string' ? item.regularity : undefined,
+        yieldPct: Number.isFinite(yieldValue) ? yieldValue : undefined,
+      },
+    ];
+  });
+  if (payments.length === 0) {
+    return { count: 0 };
   }
-  return undefined;
+  const dateOf = (payment: DividendPayment): string => payment.recordDate ?? payment.paymentDate ?? '';
+  const sorted = [...payments].sort((left, right) => dateOf(left).localeCompare(dateOf(right)));
+  const next = sorted.find((payment) => dateOf(payment) >= today);
+  const passed = sorted.filter((payment) => dateOf(payment) < today);
+  return { count: payments.length, next, last: passed.at(-1) ?? sorted.at(-1) };
+};
+
+/** Строка дивидендов для карточки бумаги: размер, доходность, даты, регулярность. */
+export const dividendLine = (facts: DividendFacts | undefined): string => {
+  if (!facts) {
+    return '• дивиденды: данных нет';
+  }
+  if (facts.count === 0) {
+    return '• дивиденды: выплат в истории нет';
+  }
+  const payment = facts.next ?? facts.last;
+  if (!payment) {
+    return `• дивиденды: выплат в истории ${facts.count}`;
+  }
+  const parts = [
+    payment.amount !== undefined ? `${formatNumber(payment.amount)} ${payment.currency}` : undefined,
+    payment.yieldPct !== undefined ? `доходность ${formatNumber(payment.yieldPct)} %` : undefined,
+    payment.recordDate ? `отсечка ${payment.recordDate}` : undefined,
+    payment.paymentDate ? `выплата ${payment.paymentDate}` : undefined,
+    payment.regularity
+      ? (REGULARITY_LABELS[payment.regularity.toLowerCase()] ?? payment.regularity)
+      : undefined,
+  ].filter((part): part is string => part !== undefined);
+  const prefix = facts.next ? 'ближайшая выплата' : 'последняя выплата';
+  return `• дивиденды: ${prefix} — ${parts.join(', ')}; всего выплат ${facts.count}`;
 };
 
 /** Заголовки новостей из текста сводки: строки списка без служебных примечаний. */
@@ -102,7 +214,7 @@ export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
     );
 
   const forecasts = byTicker('analytics', parseForecast);
-  const dividends = byTicker('dividends', countItems);
+  const dividends = byTicker('dividends', (text) => dividendsOf(text, ctx.now));
   const news = byTicker('news', (text) => ({
     items: headlinesOf(text, 3),
     note: noteOf(text),
@@ -116,9 +228,15 @@ export const securitiesOf = (ctx: FactContext): SecurityFacts[] => {
       sector: sectors.get(holding.ticker) ?? UNKNOWN_SECTOR,
       share: total > 0 ? (holding.value?.amount ?? 0) / total : 0,
       value: holding.value?.amount,
+      price: holding.price?.amount,
+      currency: holding.currency,
       periods: priceSeries ? periodChanges(priceSeries, ctx.template.periods, ctx.now) : [],
+      chart: sparklineOf(priceSeries, 20),
+      range: seriesRange(priceSeries),
       forecast: forecasts.get(holding.ticker),
-      dividends: dividends.get(holding.ticker),
+      dividend: dividends.get(holding.ticker),
+      dividends: dividends.get(holding.ticker)?.count,
+      bond: bondFactsOf(ctx, holding.ticker, holding.classCode),
       news: headlines?.items ?? [],
       newsNote: headlines?.note,
     };

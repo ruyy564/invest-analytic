@@ -37,7 +37,8 @@ const runEntry = async (
     try {
       const raw = await withTimeout(
         tool.invoke(entry.args as never),
-        deps.timeoutMs,
+        // Новости идут по лентам и мостам: им нужен запас времени.
+        entry.group === 'news' ? deps.timeoutMs * 3 : deps.timeoutMs,
         () => new Error('таймаут'),
       );
       return { ok: true, text: typeof raw === 'string' ? raw : JSON.stringify(raw) };

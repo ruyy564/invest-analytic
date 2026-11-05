@@ -75,6 +75,7 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
     },
     taxKeywordsFile: env.TAX_KEYWORDS_FILE,
     tickerAliasesFile: env.TICKER_ALIASES_FILE,
+    companyProfilesFile: env.COMPANY_PROFILES_FILE,
   },
   state: {
     backend: env.STATE_BACKEND,

@@ -5,6 +5,9 @@ import { FEED_DEFAULTS, feedFallbackUrl, feedUrl } from './sources/defaults.js';
 import { NewsRegistry } from './news.registry.js';
 import { createTinkoffNewsSource } from './sources/tinkoff.js';
 import { createSmartLabTagSource } from './sources/smartlab-tag.js';
+import { createRbcQuoteSource } from './sources/rbc-quote.js';
+import { createTbankResearchSource } from './sources/tbank-research.js';
+import type { NewsSourceAdapter } from './news.types.js';
 
 export interface NewsFactoryDeps {
   config: AppConfig;
@@ -23,7 +26,7 @@ export const buildNewsRegistry = (deps: NewsFactoryDeps): NewsRegistry => {
   const { config } = deps;
   const enabled = new Set(config.sources.enabled);
   const env = deps.env ?? process.env;
-  const news: ReturnType<typeof createFeedSource>[] = [];
+  const news: NewsSourceAdapter[] = [];
 
   if (enabled.has('tinkoff')) {
     news.push(
@@ -45,6 +48,25 @@ export const buildNewsRegistry = (deps: NewsFactoryDeps): NewsRegistry => {
         // Ошибка по бумаге не должна теряться: она видна в логе сервиса.
         onError: (ticker, error) =>
           console.warn(`[smartlab_tag] ${ticker}:`, error.message.slice(0, 120)),
+      }),
+    );
+  }
+
+  // РБК Инвестиции и research Т-Инвестиций: HTML-страницы с SSR-состоянием.
+  // Telegram не используется — у брокеров нет публичного RSS.
+  if (enabled.has('rbc_quote')) {
+    news.push(
+      createRbcQuoteSource({
+        url: env.NEWS_RBC_QUOTE_URL?.trim() || undefined,
+        fetchText: deps.fetchText,
+      }),
+    );
+  }
+  if (enabled.has('tbank_research')) {
+    news.push(
+      createTbankResearchSource({
+        url: env.NEWS_TBANK_RESEARCH_URL?.trim() || undefined,
+        fetchText: deps.fetchText,
       }),
     );
   }

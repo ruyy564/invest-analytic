@@ -8,6 +8,8 @@ import { buildNewsRegistry } from '../news/news.factory.js';
 import type { NewsRegistry } from '../news/news.registry.js';
 import { buildKeyRateSource } from '../key-rate/key-rate.factory.js';
 import type { KeyRateSource } from '../key-rate/key-rate.types.js';
+import { buildCommoditySource } from '../commodities/commodity.factory.js';
+import type { CommoditySource } from '../commodities/commodity.types.js';
 import { ToolBudget } from './tool-budget.js';
 import { createThematicTools } from './local-tools.js';
 import {
@@ -148,6 +150,7 @@ export class McpRegistryService {
       tool: (name) => byName.get(name),
     });
     this.keyRate = buildKeyRateSource({ config: this.config.value });
+    this.commodity = buildCommoditySource({ config: this.config.value });
 
     this.toolsCache = [
       ...tools,
@@ -156,7 +159,7 @@ export class McpRegistryService {
       createAllAccountsTool(tools, ALL_ACCOUNTS_TOOL, this.config.value.run.mcpToolTimeoutMs),
       createPriceDynamicsTool(tools, MARKET_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
       createPriceDynamicsTool(tools, PRICE_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
-      ...createThematicTools({ newsRegistry: this.newsRegistry, keyRate: this.keyRate, byName, config: { timeoutMs: this.config.value.run.mcpToolTimeoutMs, scanPages: this.config.value.sources.news.scanPages, maxItems: this.config.value.sources.news.maxItems, taxKeywordsFile: this.config.value.sources.taxKeywordsFile } }),
+      ...createThematicTools({ newsRegistry: this.newsRegistry, keyRate: this.keyRate, commodity: this.commodity, byName, config: { timeoutMs: this.config.value.run.mcpToolTimeoutMs, scanPages: this.config.value.sources.news.scanPages, maxItems: this.config.value.sources.news.maxItems, taxKeywordsFile: this.config.value.sources.taxKeywordsFile } }),
       ...(this.knowledgeTool ? [this.knowledgeTool] : []),
     ];
   }
@@ -165,6 +168,8 @@ export class McpRegistryService {
   private newsRegistry?: NewsRegistry;
   /** Источник ключевой ставки: отдельная фича, не новости. */
   private keyRate?: KeyRateSource;
+  /** Учётные цены металлов ЦБ: сырьевой фактор для бумаг вроде PLZL. */
+  private commodity?: CommoditySource;
 
   get news(): NewsRegistry | undefined {
     return this.newsRegistry;

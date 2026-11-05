@@ -23,6 +23,8 @@ export interface ReportSection {
   interpret: boolean;
   /** В каких разборах показывать секцию; пусто — во всех. */
   scopes: SectionScope[];
+  /** Темы базы знаний, обязательные для этой секции (дополняют отбор по секторам). */
+  knowledge: string[];
 }
 
 export interface ReportThresholds {
@@ -135,6 +137,10 @@ export const parseReportTemplate = (raw: unknown, source: string): ReportTemplat
       interpret: section.interpret === true,
       // Пусто — секция общая для всех разборов.
       scopes: scopes.length > 0 ? scopes : [...SECTION_SCOPES],
+      // Темы знаний из шаблона: конкретная секция может требовать свою тему.
+      knowledge: Array.isArray(section.knowledge)
+        ? section.knowledge.map(String).filter((id) => id.trim().length > 0)
+        : [],
     });
   });
 

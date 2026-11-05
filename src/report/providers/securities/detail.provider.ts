@@ -1,12 +1,85 @@
+﻿import { resultsInGroup } from '../../../collection/executor.js';
 import { formatNumber, UNAVAILABLE } from '../../../report/portfolio-report.js';
+import { METAL_LABELS, metalForTicker, metalQuoteOf } from '../../../commodities/commodity.links.js';
+import {
+  EXPOSURE_LABELS,
+  EMPTY_PROFILES,
+  exposureOf,
+  sectorProfileOf,
+  sensitivityWord,
+  type CompanyProfiles,
+} from '../../company-profiles.js';
 import type { FactContext, FactProvider, SectionFacts } from '../../engine.js';
 import { formatChangePct, trendWord, type PeriodChange } from '../../market-facts.js';
 import { formatPercent } from '../../renderers.js';
 import { RECOMMENDATIONS } from '../market.js';
-import { noHoldingsReason, periodsLine, securitiesOf } from './shared.js';
+import {
+  dividendLine,
+  noHoldingsReason,
+  periodsLine,
+  securitiesOf,
+  type SecurityFacts,
+} from './shared.js';
+import { bondLine } from './bond-facts.js';
 
-/** Разбор по бумагам: сектор, доля, движение цены, аналитики, дивиденды, новости. */
-export const securitiesProvider: FactProvider = {
+/**
+ * Сырьевой фактор бумаги: для PLZL важна цена золота, а не только свечи.
+ * Строка появляется, только если металл известен и ЦБ дал котировку.
+ */
+const commodityLine = (ctx: FactContext, ticker: string): string | undefined => {
+  const metal = metalForTicker(ticker);
+  if (!metal) {
+    return undefined;
+  }
+  const text = resultsInGroup(ctx.plan, ctx.collected, 'commodities')[0]?.text ?? '';
+  const quote = metalQuoteOf(text, metal);
+  return quote
+    ? `• сырьё: ${METAL_LABELS[metal]} ${formatNumber(quote.price)} ₽/г на ${quote.date} (ЦБ РФ)`
+    : undefined;
+};
+
+/** Нормализованный заголовок: по нему отчёт понимает, что новость уже показана. */
+export const headlineKey = (headline: string): string =>
+  headline
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
+/**
+ * Профиль бумаги: экспортёр / внутренний рынок / импортёр и драйверы её сектора.
+ * Данные — из `data/company-profiles.yaml`; без файла строки просто не выводятся.
+ */
+const profileLines = (profiles: CompanyProfiles, security: SecurityFacts): string[] => {
+  // Облигация — это долг: профиль «экспортёр / импортёр» к ней не применяется.
+  if (security.bond) {
+    return [];
+  }
+  const lines: string[] = [];
+  const exposure = exposureOf(profiles, security.ticker, security.sector);
+  const sectorProfile = sectorProfileOf(profiles, security.sector);
+
+  if (exposure) {
+    const parts = [EXPOSURE_LABELS[exposure.exposure]];
+    if (exposure.currencyShare !== undefined) {
+      parts.push(`валютная выручка около ${formatPercent(exposure.currencyShare)}`);
+    }
+    lines.push(`• профиль: ${parts.join(', ')}`);
+  }
+  if (sectorProfile) {
+    lines.push(
+      `• чувствительность: ${sensitivityWord(sectorProfile.currency, 'курс')}, ` +
+        `${sensitivityWord(sectorProfile.rate, 'ставка')}`,
+    );
+    if (sectorProfile.drivers.length > 0) {
+      lines.push(`• драйверы сектора: ${sectorProfile.drivers.join(', ')}`);
+    }
+  }
+  return lines;
+};
+
+/** Разбор по бумагам: сектор, доля, график, движение цены, аналитики, дивиденды, новости. */
+export const createSecuritiesProvider = (profiles: CompanyProfiles): FactProvider => ({
   id: 'securities.detail',
   section(ctx: FactContext): SectionFacts | undefined {
     const securities = securitiesOf(ctx);
@@ -14,10 +87,15 @@ export const securitiesProvider: FactProvider = {
       return { missing: noHoldingsReason(ctx) };
     }
 
+    // Одна и та же новость может относиться к нескольким бумагам (например,
+    // «выросли VK, М.Видео и Самолет»): показываем её только в первой карточке.
+    const shownNews = new Set<string>();
+
     const blocks = securities.map((security) => {
       const lines = [
         `**${security.ticker} — ${security.sector}, ${formatPercent(security.share)} портфеля**`,
-        `• стоимость: ${security.value === undefined ? UNAVAILABLE : formatNumber(security.value)} RUB`,
+        `• стоимость: ${security.value === undefined ? UNAVAILABLE : formatNumber(security.value)} ${security.currency}`,
+        `• цена за 1 шт.: ${security.price === undefined ? UNAVAILABLE : formatNumber(security.price)} ${security.currency}`,
       ];
 
       if (security.periods.length > 0) {
@@ -27,6 +105,16 @@ export const securitiesProvider: FactProvider = {
         );
       } else {
         lines.push('• цена: истории меньше периода, движение посчитать нельзя');
+      }
+
+      if (security.chart) {
+        const range = security.range;
+        lines.push(
+          `• график: ${security.chart}` +
+            (range
+              ? ` (${formatNumber(range.min)} — ${formatNumber(range.max)} ${security.currency})`
+              : ''),
+        );
       }
 
       const forecast = security.forecast;
@@ -43,13 +131,29 @@ export const securitiesProvider: FactProvider = {
         lines.push('• аналитики: прогноза нет');
       }
 
-      if (security.dividends !== undefined) {
-        lines.push(`• дивиденды: ${security.dividends} выплат в истории`);
+      lines.push(dividendLine(security.dividend));
+      if (security.bond) {
+        lines.push(bondLine(security.bond));
       }
+      const commodity = commodityLine(ctx, security.ticker);
+      if (commodity) {
+        lines.push(commodity);
+      }
+      lines.push(...profileLines(profiles, security));
+      const freshNews = security.news.filter((headline) => {
+        const key = headlineKey(headline);
+        if (shownNews.has(key)) {
+          return false;
+        }
+        shownNews.add(key);
+        return true;
+      });
       lines.push(
-        security.news.length > 0
-          ? `• новости бумаги: ${security.news.join('; ')}`
-          : `• новости бумаги: ${security.newsNote ?? 'публикаций по тикеру нет'}`,
+        freshNews.length > 0
+          ? `• новости бумаги: ${freshNews.join('; ')}`
+          : security.news.length > 0
+            ? '• новости бумаги: общие с другими бумагами портфеля (см. выше)'
+            : `• новости бумаги: ${security.newsNote ?? 'публикаций по тикеру нет'}`,
       );
 
       return lines.join('\n');
@@ -64,4 +168,7 @@ export const securitiesProvider: FactProvider = {
         .join('; '),
     };
   },
-};
+});
+
+/** Провайдер без профилей: используется в тестах и там, где файл не передан. */
+export const securitiesProvider = createSecuritiesProvider(EMPTY_PROFILES);

@@ -101,10 +101,13 @@ export const buildReport = (deps: BuildReportDeps): ReportBuildResult => {
     const maxChars = deps.knowledgeMaxChars ?? DEFAULT_KNOWLEDGE_MAX_CHARS;
     for (const request of interpretation) {
       // Отбор идёт по разделу и секторам: вся база в промпт не попадает.
+      // Темы, закреплённые за секцией в шаблоне, добавляются как обязательные.
+      const section = deps.template.sections.find((item) => item.id === request.id);
       request.knowledge = deps.knowledge.promptBlock({
         section: request.id,
         sectors,
         maxChars,
+        required: section?.knowledge.length ? section.knowledge : undefined,
       });
     }
   }

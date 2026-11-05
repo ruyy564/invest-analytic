@@ -71,7 +71,8 @@ export class NewsRegistry {
       tickers.length > 0 || matchers.length > 0
         ? all.filter(
             (source) =>
-              source.supportsTickerQuery || (matchers.length > 0 && source.supportsMatcherQuery),
+              source.supportsTickerQuery ||
+              (matchers.length > 0 && source.supportsMatcherQuery),
           )
         : all;
     const batches: { source: string; items: SourceItem[] }[] = [];

@@ -1,0 +1,182 @@
+# Профили секторов и компаний: драйверы и внешнеэкономический профиль.
+# Данные, а не код: драйверы сектора и профиль бумаги правятся без сборки.
+# currency / rate — чувствительность выручки: positive (рост фактора в плюс),
+# negative (в минус), neutral (влияние слабое или двустороннее).
+version: 1
+sectors:
+  - key: energy
+    drivers: [цена нефти Brent и Urals, курс рубля, налоговый режим (НДПИ, демпфер), объёмы добычи и экспорта]
+    currency: positive
+    rate: negative
+  - key: materials
+    drivers: [мировые цены на металлы и сырьё, курс рубля, экспортные пошлины, спрос Китая]
+    currency: positive
+    rate: negative
+  - key: financial
+    drivers: [ключевая ставка, качество кредитного портфеля, инфляция, регулирование и достаточность капитала]
+    currency: neutral
+    rate: positive
+  - key: consumer
+    drivers: [реальные доходы населения, инфляция издержек, потребительский спрос, импортная составляющая]
+    currency: negative
+    rate: negative
+  - key: consumer_goods
+    drivers: [реальные доходы, трафик и средний чек, инфляция издержек и логистики, доля импортного ассортимента]
+    currency: negative
+    rate: negative
+  - key: consumer_services
+    drivers: [реальные доходы, занятость, ставка по потребительским кредитам, уверенность потребителя]
+    currency: negative
+    rate: negative
+  - key: it
+    drivers: [экспортная выручка и курс, господдержка, доступность оборудования и софта, стоимость капитала]
+    currency: positive
+    rate: negative
+  - key: telecom
+    drivers: [тарифное регулирование, капитальные затраты на инфраструктуру, курс на оборудование]
+    currency: negative
+    rate: neutral
+  - key: utilities
+    drivers: [тарифы, цены на топливо, износ сетей, стоимость обслуживания долга]
+    currency: negative
+    rate: negative
+  - key: green_energy
+    drivers: [стоимость капитала, господдержка и тарифы, цены на оборудование и комплектующие]
+    currency: negative
+    rate: negative
+  - key: real_estate
+    drivers: [ипотечная ставка и льготные программы, реальные доходы, стоимость проектного финансирования]
+    currency: negative
+    rate: negative
+  - key: transport
+    drivers: [грузооборот и пассажиропоток, тарифы, стоимость топлива, доступность лизинга]
+    currency: negative
+    rate: negative
+  - key: healthcare
+    drivers: [госзакупки, регулирование цен на препараты, импорт оборудования, курс]
+    currency: negative
+    rate: neutral
+  - key: electronics
+    drivers: [госзаказ и инвестиционный спрос, доступность комплектующих, курс, ставка]
+    currency: negative
+    rate: negative
+  - key: industrials
+    drivers: [инвестиционный спрос, госзаказ, стоимость кредита, логистика]
+    currency: negative
+    rate: negative
+  - key: other
+    drivers: []
+    currency: neutral
+    rate: neutral
+companies:
+  # Экспортёры: выручка привязана к мировым ценам и валюте.
+  - ticker: LKOH
+    exposure: export
+    currencyShare: 0.45
+  - ticker: ROSN
+    exposure: export
+    currencyShare: 0.5
+  - ticker: GAZP
+    exposure: export
+    currencyShare: 0.55
+  - ticker: TATN
+    exposure: export
+    currencyShare: 0.45
+  - ticker: SNGS
+    exposure: export
+    currencyShare: 0.5
+  - ticker: SNGSP
+    exposure: export
+    currencyShare: 0.5
+  - ticker: PLZL
+    exposure: export
+    currencyShare: 0.85
+  - ticker: GMKN
+    exposure: export
+    currencyShare: 0.8
+  - ticker: NLMK
+    exposure: export
+    currencyShare: 0.6
+  - ticker: CHMF
+    exposure: export
+    currencyShare: 0.5
+  - ticker: MAGN
+    exposure: export
+    currencyShare: 0.45
+  - ticker: ALRS
+    exposure: export
+    currencyShare: 0.7
+  - ticker: RUAL
+    exposure: export
+    currencyShare: 0.75
+  - ticker: PHOR
+    exposure: export
+    currencyShare: 0.8
+  - ticker: FESH
+    exposure: export
+    currencyShare: 0.6
+  - ticker: AGRO
+    exposure: export
+    currencyShare: 0.6
+  # Внутренний рынок: выручка в рублях, спрос зависит от доходов и ставки.
+  - ticker: SBER
+    exposure: domestic
+    currencyShare: 0
+  - ticker: VTBR
+    exposure: domestic
+    currencyShare: 0
+  - ticker: MOEX
+    exposure: domestic
+    currencyShare: 0
+  - ticker: T
+    exposure: domestic
+    currencyShare: 0
+  - ticker: MTSS
+    exposure: domestic
+    currencyShare: 0.05
+  - ticker: MGTS
+    exposure: domestic
+    currencyShare: 0
+  - ticker: AFLT
+    exposure: domestic
+    currencyShare: 0.1
+  - ticker: YDEX
+    exposure: domestic
+    currencyShare: 0.15
+  - ticker: VKCO
+    exposure: domestic
+    currencyShare: 0.1
+  - ticker: POSI
+    exposure: domestic
+    currencyShare: 0
+  - ticker: LSR
+    exposure: domestic
+    currencyShare: 0
+  - ticker: PIKK
+    exposure: domestic
+    currencyShare: 0
+  - ticker: SMLT
+    exposure: domestic
+    currencyShare: 0
+  # Импортёры: себестоимость зависит от валюты и логистики.
+  - ticker: OZON
+    exposure: import
+    currencyShare: 0
+  - ticker: FIVE
+    exposure: import
+    currencyShare: 0
+  - ticker: LENT
+    exposure: import
+    currencyShare: 0
+  - ticker: MGNT
+    exposure: import
+    currencyShare: 0
+  - ticker: DSKY
+    exposure: import
+    currencyShare: 0
+  - ticker: MVID
+    exposure: import
+    currencyShare: 0
+  - ticker: RSTI
+    exposure: import
+    currencyShare: 0

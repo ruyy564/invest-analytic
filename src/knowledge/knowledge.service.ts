@@ -47,11 +47,14 @@ export class KnowledgeService implements KnowledgeProvider {
   promptBlock(
     query: KnowledgeQuery & { maxChars?: number; requireChecklist?: boolean },
   ): string | undefined {
-    const required =
-      query.required ??
-      (query.requireChecklist !== false && query.section && CHECKLIST_SECTIONS.includes(query.section)
+    const checklist =
+      query.requireChecklist !== false &&
+      query.section !== undefined &&
+      CHECKLIST_SECTIONS.includes(query.section)
         ? ['decision-checklist']
-        : undefined);
+        : [];
+    // Темы из шаблона отчёта (если заданы) идут вместе с обязательным чек-листом.
+    const required = [...new Set([...(query.required ?? []), ...checklist])];
     const topics = this.select({ ...query, required });
     return withPreamble(formatKnowledge(topics, query.maxChars ?? DEFAULT_KNOWLEDGE_MAX_CHARS));
   }

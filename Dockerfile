@@ -15,6 +15,9 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
-RUN mkdir -p /app/data
+# Данные и шаблон отчёта нужны в рантайме: без них отчёт не соберётся.
+COPY data ./data
+COPY reports ./reports
+RUN mkdir -p /app/data /app/.state
 EXPOSE 3000
 CMD ["node", "dist/main.js"]

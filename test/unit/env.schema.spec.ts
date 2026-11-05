@@ -150,11 +150,12 @@ describe('конфигурация окружения', () => {
       },
       newsFeed: {
         enabled: true,
-        periodDays: [1, 7, 30, 180],
-        maxPerPeriod: 5,
+        periodDays: [1, 7],
+        maxPerPeriod: 8,
       },
       taxKeywordsFile: 'data/tax-keywords.yaml',
       tickerAliasesFile: 'data/ticker-aliases.yaml',
+      companyProfilesFile: 'data/company-profiles.yaml',
     });
   });
 

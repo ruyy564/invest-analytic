@@ -267,22 +267,29 @@ describe('шумовые заголовки', () => {
 });
 
 describe('ленты по умолчанию', () => {
-  it('каналы РБК, БКС и Т-Банка читаются через RSS-мост Telegram', () => {
-    expect(FEED_DEFAULTS.rbc_news.url).toContain('/telegram/channel/rbc_news');
-    expect(FEED_DEFAULTS.bcs.url).toContain('/telegram/channel/bcs_express');
-    expect(FEED_DEFAULTS.tbank.url).toContain('/telegram/channel/tbank');
+  it('не использует Telegram: деловые ленты читаются напрямую', () => {
+    expect(FEED_DEFAULTS.vedomosti.url).toBe('https://www.vedomosti.ru/rss/news');
+    expect(FEED_DEFAULTS.kommersant.url).toContain('kommersant.ru/RSS');
+    expect(FEED_DEFAULTS.tass.url).toContain('tass.ru/rss/v2.xml');
+    expect(FEED_DEFAULTS.finam.url).toContain('finam.ru');
+    // Каналы брокеров приходят со страниц research/quote, а не через мост.
+    expect(FEED_DEFAULTS.bcs).toBeUndefined();
+    expect(FEED_DEFAULTS.tbank).toBeUndefined();
+    expect(FEED_DEFAULTS.rbc_news).toBeUndefined();
   });
 
   it('адрес ленты переопределяется переменной NEWS_<ID>_URL', () => {
-    const env = { NEWS_BCS_URL: 'https://mirror.example/feed' } as NodeJS.ProcessEnv;
+    const env = { NEWS_VEDOMOSTI_URL: 'https://mirror.example/feed' } as NodeJS.ProcessEnv;
 
-    expect(feedUrl(FEED_DEFAULTS.bcs, env)).toBe('https://mirror.example/feed');
-    expect(feedUrl(FEED_DEFAULTS.bcs, {} as NodeJS.ProcessEnv)).toBe(FEED_DEFAULTS.bcs.url);
+    expect(feedUrl(FEED_DEFAULTS.vedomosti, env)).toBe('https://mirror.example/feed');
+    expect(feedUrl(FEED_DEFAULTS.vedomosti, {} as NodeJS.ProcessEnv)).toBe(
+      FEED_DEFAULTS.vedomosti.url,
+    );
   });
 
   it('фильтрует ленту по подстрокам бумаги: тикер и название', async () => {
     const source = createFeedSource({
-      id: 'bcs',
+      id: 'finam',
       url: 'https://example/feed',
       format: 'rss',
       fetchText: async () => RSS,

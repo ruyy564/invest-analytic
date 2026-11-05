@@ -2,10 +2,11 @@
 import { resultsInGroup } from '../../../collection/executor.js';
 import type { FactContext, FactProvider, SectionFacts } from '../../engine.js';
 import { formatChangePct, periodChanges, seriesByTicker } from '../../market-facts.js';
+import { sparklineOf } from '../../sparkline.js';
 import { formatPercent, renderTable } from '../../renderers.js';
 import { UNKNOWN_SECTOR } from '../../sector.js';
 import { parseForecast, RECOMMENDATIONS } from '../market.js';
-import { portfolioTotalOf, totalValue, valuedHoldings } from './holdings.js';
+import { portfolioTotalOf, portfolioYieldOf, totalValue, valuedHoldings } from './holdings.js';
 import { sectorMapOf } from './sectors.js';
 
 /**
@@ -33,6 +34,8 @@ export const tableProvider: FactProvider = {
     }
 
     const holdingsTotal = totalValue(allHoldings);
+    // В разборе одной бумаги итог — её стоимость: сумма портфеля тут не при чём.
+    const scopeTotal = scopedTarget ? totalValue(holdings) : holdingsTotal;
     // Долю считаем от стоимости всего портфеля: в разборе одной бумаги в выборке
     // остаётся одна позиция, и «100 %» было бы неправдой.
     const shareBase = portfolioTotalOf(ctx) ?? holdingsTotal;
@@ -59,7 +62,9 @@ export const tableProvider: FactProvider = {
         holding.ticker,
         sectors.get(holding.ticker) ?? UNKNOWN_SECTOR,
         formatPercent(share),
+        holding.price ? formatMoney(holding.price) : UNAVAILABLE,
         holding.value ? formatMoney(holding.value) : UNAVAILABLE,
+        sparklineOf(priceSeries, 12) || UNAVAILABLE,
         change ? formatChangePct(change.changePct) : UNAVAILABLE,
         forecast?.upside === undefined
           ? (RECOMMENDATIONS[forecast?.recommendation ?? ''] ?? UNAVAILABLE)
@@ -67,16 +72,32 @@ export const tableProvider: FactProvider = {
       ];
     });
 
+    const yieldFacts = portfolioYieldOf(ctx);
+    const yieldLine =
+      yieldFacts && !scopedTarget && (yieldFacts.pct !== undefined || yieldFacts.dailyPct !== undefined)
+        ? `Доходность портфеля: ${
+            yieldFacts.pct !== undefined ? formatChangePct(yieldFacts.pct) : UNAVAILABLE
+          }` +
+          (yieldFacts.amount !== undefined
+            ? ` (${formatNumber(yieldFacts.amount)} ${yieldFacts.currency})`
+            : '') +
+          (yieldFacts.dailyPct !== undefined
+            ? `, за день ${formatChangePct(yieldFacts.dailyPct)}`
+            : '')
+        : undefined;
+
     return {
       markdown: [
         renderTable(
-          ['Тикер', 'Сектор', 'Доля', 'Стоимость', '180 дней', 'Аналитики'],
+          ['Тикер', 'Сектор', 'Доля', 'Цена', 'Стоимость', 'График', '180 дней', 'Аналитики'],
           rows,
         ),
-        `Итого по текущим ценам: ${formatNumber(holdingsTotal)} ${holdings[0]?.currency ?? 'RUB'}`,
+        `${scopedTarget ? 'Итого по бумаге' : 'Итого по текущим ценам'}: ` +
+          `${formatNumber(scopeTotal)} ${holdings[0]?.currency ?? 'RUB'}`,
+        ...(yieldLine ? [yieldLine] : []),
       ].join('\n'),
       structured: {
-        total: holdingsTotal,
+        total: scopeTotal,
         currency: holdings[0]?.currency,
         rows: holdings.map((holding, index) => ({ ticker: holding.ticker, cells: rows[index] })),
       },

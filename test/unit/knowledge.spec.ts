@@ -97,9 +97,9 @@ describe('модуль знаний (Nest)', () => {
     const repository = new KnowledgeRepository(configFor());
     const files = repository.files(BASE_DIR);
 
-    expect(files.length).toBeGreaterThanOrEqual(10);
+    expect(files.length).toBeGreaterThanOrEqual(17);
     expect(files[0].endsWith('01-cycles.yaml')).toBe(true);
-    expect(files.at(-1)?.endsWith('10-sources.yaml')).toBe(true);
+    expect(files.at(-1)?.endsWith('17-trade-balance.yaml')).toBe(true);
     expect(repository.files(files[0])).toEqual([files[0]]);
     expect(repository.files(join(tmpdir(), 'нет-такого-каталога'))).toEqual([]);
   });

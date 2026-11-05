@@ -31,7 +31,28 @@ export type PlanGroup =
   | 'news'
   | 'tax'
   | 'macro'
+  | 'commodities'
+  | 'bonds'
+  | 'bond_events'
+  | 'bond_accrued'
   | 'indices';
+
+/** Режимы торгов облигаций: по ним определяется категория бумаги и её купон. */
+export const BOND_CLASS_CODES = [
+  'TQCB',
+  'TQOB',
+  'TQIR',
+  'TQMO',
+  'TQTC',
+  'TQBD',
+  'TQOD',
+  'PSAU',
+  'PTOB',
+] as const;
+
+/** Бумага — облигация: по коду режима торгов. */
+export const isBondClass = (classCode: string | undefined): boolean =>
+  classCode !== undefined && (BOND_CLASS_CODES as readonly string[]).includes(classCode);
 
 export interface PlanEntry {
   /** Имя инструмента: MCP (`invest_get_candles`) или локальное (`macro__key_rate`). */
@@ -156,6 +177,44 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
         priority: 'optional',
         target: baseTicker(id),
       });
+      // Облигация: категория, купон, погашение и НКД берутся из карточки,
+      // календаря событий и накопленного дохода.
+      if (isBondClass(id.split('_').slice(1).join('_'))) {
+        const target = baseTicker(id);
+        add({
+          tool: 'invest_get_bond',
+          args: {
+            instrumentId: id,
+            idType: 'INSTRUMENT_ID_TYPE_ID',
+            responseView: ['FULL'],
+          },
+          group: 'bonds',
+          priority: 'optional',
+          target,
+        });
+        add({
+          tool: 'invest_get_bond_events',
+          args: { instrumentId: id },
+          group: 'bond_events',
+          priority: 'optional',
+          target,
+        });
+        add({
+          tool: 'invest_get_bond_accrued',
+          args: {
+            instrumentId: id,
+            from: new Date(to.getTime() - 400 * 24 * 60 * 60 * 1000).toISOString(),
+            to: to.toISOString(),
+          },
+          group: 'bond_accrued',
+          priority: 'optional',
+          target,
+        });
+      }
+    }
+    // Сырьевой фактор: бумагам вроде PLZL важна цена металла, а не только свечи.
+    if (ctx.tickers.length > 0) {
+      add({ tool: 'macro__commodities', args: {}, group: 'commodities', priority: 'optional' });
     }
   }
   if (wants('securities.opinions')) {

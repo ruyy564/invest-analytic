@@ -83,6 +83,8 @@ export interface AppConfig {
     taxKeywordsFile: string;
     /** Алиасы тикеров: подстроки для поиска новостей по эмитенту. */
     tickerAliasesFile: string;
+    /** Профили секторов и компаний: драйверы и внешнеэкономический профиль. */
+    companyProfilesFile: string;
   };
   state: {
     backend: StateBackend;

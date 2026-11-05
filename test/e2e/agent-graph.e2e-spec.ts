@@ -164,7 +164,10 @@ describe('граф агента с подтверждением', () => {
     // Подтверждение не запрашивается: публичные новости, не данные счёта.
     expect(result.approval).toBeUndefined();
     expect(result.answer).toContain('Новости инвестиционного рынка');
-    expect(result.answer).toContain('Сегодня');
+    // Пустые окна больше не печатаются: при одной нерелевантной новости ответ
+    // честно говорит, что инвестиционных публикаций нет.
+    expect(result.answer).toMatch(/Сегодня|За выбранный период/);
+    expect(result.answer).toContain('Источники: tinkoff — получено');
     expect(result.report).toMatchObject({ type: 'market_news' });
     // Портфель не читается: ни одного вызова инструментов моделью.
     expect(toolCalls()).toBe(0);

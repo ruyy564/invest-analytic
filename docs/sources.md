@@ -35,38 +35,61 @@
 
 | id | Что даёт | Адрес | Формат |
 |---|---|---|---|
-| `tinkoff` | портфель, операции (включая удержанные налоги), новости по тикерам, справочники, прогнозы, сигналы | T-Invest MCP | MCP (JSON) |
+| `tinkoff` | портфель, операции (включая удержанные налоги), новости по тикерам, справочники, прогнозы, сигналы, дивиденды, карточки облигаций и календарь купонов | T-Invest MCP | MCP (JSON) |
 | `cbr` | ключевая ставка и история решений | `https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx` (метод `KeyRateXML`) | SOAP → XML |
 | `interfax` | общие новости | `https://www.interfax.ru/rss.asp` | RSS 2.0 |
 | `rbc` | новости экономики и рынков | `https://rssexport.rbc.ru/rbcnews/news/30/full.rss` | RSS 2.0 |
 | `smartlab` | мнения сообщества, разборы налогов | `https://smart-lab.ru/rss/` | RSS 2.0 |
 | `smartlab_tag` | разборы и новости **по конкретному тикеру** | `https://smart-lab.ru/rss/tag/<TICKER>` | RSS 2.0 |
-| `rbc_news` | РБК: новости и разборы по эмитентам (канал) | `https://rsshub.rssforever.com/telegram/channel/rbc_news` | RSS через мост |
-| `bcs` | БКС Экспресс: аналитика и идеи по бумагам | `https://rsshub.rssforever.com/telegram/channel/bcs_express` | RSS через мост |
-| `tbank` | Т-Банк (Т-Инвестиции): новости, налоги, обзоры | `https://rsshub.rssforever.com/telegram/channel/tbank` | RSS через мост |
+| `rbc_quote` | РБК Инвестиции: новости фондового рынка с тикерами | `https://www.rbc.ru/quote` | HTML + `__NEXT_DATA__` |
+| `tbank_research` | Т-Инвестиции: идеи и разборы по бумагам | `https://www.tbank.ru/invest/research/` | HTML + SSR-состояние |
+| `vedomosti` | деловые новости и рынки | `https://www.vedomosti.ru/rss/news` | RSS 2.0 |
+| `kommersant` | финансы и бизнес | `https://www.kommersant.ru/RSS/section-finance.xml` | RSS 2.0 |
+| `tass` | экономика (раздел «Экономика») | `https://tass.ru/rss/v2.xml?category=ekonomika` | RSS 2.0 |
+| `finam` | новости компаний и рынка | `https://www.finam.ru/analysis/conews/rsspoint/` | RSS 2.0 |
 
-### Почему Telegram читается через мост
+### Telegram не используется
 
-Публичное превью `https://t.me/s/<канал>` отдаётся только браузеру: из процесса
-соединение с `t.me` не устанавливается (блокировка/таймаут), а прямых ключей
-Telegram API у сервиса нет. Поэтому каналы читаются как обычные RSS-ленты через
-публичный мост RSSHub. Адрес любого источника переопределяется переменной
-`NEWS_<ID>_URL` — например `NEWS_BCS_URL=https://другой-мост/telegram/channel/bcs_express`.
+У БКС и Т-Инвестиций нет публичного RSS (проверено 05.11.2026):
+`bcs-express.ru/rss`, `/rss/news`, `/rss.xml` отдают HTML лендинга или `403`
+даже с браузерным User-Agent, а `tbank.ru/invest/research` и `tinkoff.ru/invest` —
+HTML без `<link rel="alternate" type="application/rss+xml">`. Вместо мостов
+Telegram читаются сами страницы:
+
+- **`rbc_quote`** — `https://www.rbc.ru/quote`: новости рынка лежат в
+  `<script id="__NEXT_DATA__" type="application/json">` (`props.pageProps.materials`
+  и `newsfeed`); у материала есть `header`, `anons`, `publishDate` и `tickers`.
+- **`tbank_research`** — `https://www.tbank.ru/invest/research/`: идеи аналитиков
+  лежат в SSR-состоянии Tramvai (`<script type="application/json">` →
+  `growth-research-portal*.stores.tradingIdeas.ideas`), у идеи есть `title`,
+  `date`, `description` и `tickers`.
+
+Разбор HTML — в `src/parsing/html.ts` (`jsonScriptsOf`), адаптеры — рядом с лентами
+(`src/news/sources/rbc-quote.ts`, `tbank-research.ts`). Оба источника объявляют
+`supportsTickerQuery`, поэтому по бумаге отдают только её новости (по `tickers`).
+
+Объём новостей добирают деловые RSS: Ведомости, Коммерсантъ (раздел «Финансы»),
+ТАСС (раздел «Экономика») и Финам. По бумаге также работают `smartlab_tag`
+и брокер (`invest_get_news`).
 
 ### Сводка новостей рынка (ветка `news`)
 
 Отдельная ветка графа отвечает на вопросы вида «какие последние новости в мире
 инвестиций»: собирает общую повестку всех включённых источников и раскладывает
-её по окнам времени — сегодня (24 часа), за неделю, месяц и полгода. Портфель
+её по окнам времени — по умолчанию сегодня (24 часа) и за неделю. Портфель
 не читается, подтверждение не запрашивается, модель не вызывается: ответ
 собирается кодом.
 
-- окна и лимит задаются `NEWS_FEED_PERIODS` (дни через запятую) и
-  `NEWS_FEED_MAX_PER_PERIOD`;
+- окна и лимит задаются `NEWS_FEED_PERIODS` (дни через запятую, по умолчанию
+  `1,7`) и `NEWS_FEED_MAX_PER_PERIOD` (по умолчанию 8);
+- пул кандидатов намеренно шире выдачи (в 8 раз больше лимита на окно): иначе
+  в сводку попадают только самые свежие посты двух-трёх лент, а Ведомости,
+  Коммерсантъ и Финам не видны вовсе;
 - публикация попадает только в самое свежее окно, куда укладывается по дате;
 - общие сводки («утренняя сводка», «итоги торгов») и нерелевантная повестка
-  (спорт, развлечения, происшествия) отбрасываются;
-- пустой период помечается «новостей нет», а не заполняется старыми новостями;
+  (спорт, развлечения, происшествия, гуманитарные «акции») отбрасываются;
+- пустые окна не показываются: если новостей нет ни в одном окне, ответ —
+  одна строка «За выбранный период инвестиционных новостей нет»;
 - недоступный источник перечисляется в ответе с причиной, остальные источники
   продолжают собираться.
 
@@ -79,9 +102,26 @@ Telegram API у сервиса нет. Поэтому каналы читают�
 3. Остальные ленты: заголовок и аннотация проверяются на подстроки — тикер,
    название из позиции и алиасы из `data/ticker-aliases.yaml` («Сбер», «ЛУКОЙЛ»,
    «Полюс», «Россети Московский регион»). Файл расширяется без правки кода.
-4. Общие сводки («утренний дайджест», «итоги торгов», «неделя на рынке»,
+4. `rbc_quote` и `tbank_research` отдают новости по тикеру напрямую: у материалов
+   есть список `tickers`, поэтому в разбор бумаги попадают только её публикации.
+5. Общие сводки («утренний дайджест», «итоги торгов», «неделя на рынке»,
    «корпоративные события») отбрасываются: бумага в них упоминается, но новостью
    это не является.
+
+## Сырьевой фактор: цены металлов
+
+Для бумаг, чья выручка зависит от металла (`PLZL`, `POLY` — золото), в разбор
+бумаги добавляется строка «сырьё: золото 10 187,57 ₽/г на 03.11.2026 (ЦБ РФ)».
+
+| id | Что даёт | Адрес | Формат |
+|---|---|---|---|
+| `cbr` (metals) | учётные цены золота, серебра, платины, палладия, ₽/г | `https://www.cbr.ru/scripts/XML_metall.asp?date_req1=…&date_req2=…` | XML (windows-1251) |
+
+- источник включён вместе с `cbr` и кэширует снимок в памяти процесса на 6 часов;
+- карта «бумага → металл» живёт в `src/commodities/commodity.links.ts`;
+- инструмент модели — `macro__commodities`, группа плана `commodities`;
+- если металл для бумаги неизвестен или ЦБ не ответил, строка просто не выводится
+  (никаких «недоступно» в разборе бумаги).
 
 Резервные пути для ставки: HTML-таблица `https://www.cbr.ru/hd_base/KeyRate/`
 (параметры `UniDbQuery.From`/`To`, дата в формате `дд.мм.гггг`) и сид-файл
@@ -97,7 +137,8 @@ Telegram API у сервиса нет. Поэтому каналы читают�
 
 ```dotenv
 # id источников через запятую: tinkoff | cbr | interfax | rbc | smartlab
-SOURCES=tinkoff,cbr,interfax,rbc,smartlab
+# | smartlab_tag | rbc_quote | tbank_research | vedomosti | kommersant | tass | finam
+SOURCES=tinkoff,cbr,interfax,rbc,smartlab,smartlab_tag,rbc_quote,tbank_research,vedomosti,kommersant,tass,finam
 
 # live — кэш → SOAP ЦБ → сид → HTML-таблица; seed — только файл; off — без ставки
 KEY_RATE_SOURCE_MODE=live
@@ -106,10 +147,13 @@ KEY_RATE_SOAP_URL=https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx
 KEY_RATE_HTML_URL=https://www.cbr.ru/hd_base/KeyRate/
 KEY_RATE_CACHE_TTL_HOURS=24
 
-# ленты, участвующие в сводке новостей
-NEWS_SOURCES=interfax,rbc,smartlab,rbc_news,bcs,tbank
+# ленты новостей и мнений (RSS 2.0) + HTML-страницы брокеров; Telegram не используется
+NEWS_SOURCES=interfax,rbc,smartlab,smartlab_tag,rbc_quote,tbank_research,vedomosti,kommersant,tass,finam
 NEWS_SCAN_PAGES=3
 NEWS_DIGEST_MAX_ITEMS=10
+# окна сводки в днях: сегодня и неделя
+NEWS_FEED_PERIODS=1,7
+NEWS_FEED_MAX_PER_PERIOD=8
 
 # словарь налоговых терминов и алиасы эмитентов для поиска новостей
 TAX_KEYWORDS_FILE=data/tax-keywords.yaml
@@ -121,9 +165,9 @@ TICKER_ALIASES_FILE=data/ticker-aliases.yaml
 
 ## Как добавить источник
 
-1. Добавьте адаптер в `src/sources/`:
+1. Добавьте адаптер в `src/news/sources/`:
    - для RSS/Atom/JSON достаточно `createFeedSource({ id, url, format, topics, mapping })`;
-   - для нового типа данных — реализуйте соответствующий контракт из `src/sources/types.ts`.
+   - для нового типа данных — реализуйте `NewsSourceAdapter` из `src/news/news.types.ts`.
 2. Зарегистрируйте id в `SOURCES` (и в `FEED_DEFAULTS`, если это лента).
 3. Если источник должен попасть в отчёт — добавьте его тему в провайдер фактов и,
    при необходимости, секцию в шаблон `reports/portfolio-review.yaml`.

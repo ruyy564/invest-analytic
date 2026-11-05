@@ -2,63 +2,75 @@
  * Секторы отдаёт бренд актива, поэтому путь до них — три запроса
  * (`share → asset → brand`); он собран в `reference.ts`.
  * Здесь остаётся разбор ответов и честный фолбэк «не определён».
+ *
+ * Ключи секторов — как в T-Invest API (`financial`, `energy`, …): по ним же
+ * подбираются драйверы сектора и профиль «экспортёр / внутренний рынок».
  */
 
 /** Человекочитаемые названия секторов T-Invest API. */
 export const SECTOR_LABELS: Record<string, string> = {
-  SECTOR_FINANCIAL: 'финансы',
-  SECTOR_CONSUMER_GOODS: 'потребительские товары',
-  SECTOR_HEALTH_CARE: 'здравоохранение',
-  SECTOR_MATERIALS: 'материалы',
-  SECTOR_INDUSTRIALS: 'промышленность',
-  SECTOR_ENERGY: 'энергетика',
-  SECTOR_ELECTRONICS: 'электроника',
-  SECTOR_CONSUMER_SERVICES: 'потребительские услуги',
-  SECTOR_TELECOM: 'телеком',
-  SECTOR_UTILITIES: 'коммунальные услуги',
-  SECTOR_REAL_ESTATE: 'недвижимость',
-  SECTOR_IT: 'информационные технологии',
-  SECTOR_TRANSPORT: 'транспорт',
-  SECTOR_OTHER: 'прочее',
+  financial: 'финансы',
+  consumer: 'потребительский сектор',
+  consumer_goods: 'потребительские товары',
+  consumer_services: 'потребительские услуги',
+  healthcare: 'здравоохранение',
+  materials: 'материалы',
+  industrials: 'промышленность',
+  energy: 'нефть и газ',
+  electronics: 'электроника',
+  telecom: 'телеком',
+  utilities: 'электроэнергетика',
+  green_energy: 'зелёная энергетика',
+  real_estate: 'недвижимость',
+  it: 'технологии',
+  transport: 'транспорт',
+  other: 'прочее',
 };
 
 /** Значение, когда брокер не сообщил сектор. */
 export const UNKNOWN_SECTOR = 'сектор не определён';
 
 /**
- * Бренд отдаёт сектор строкой в нижнем регистре (`financial`), а справочник
- * актива — enum-ом (`SECTOR_FINANCIAL`). Приводим оба вида к русскому названию.
+ * Алиасы: бренд отдаёт сектор строкой (`energy`), справочник актива — enum-ом
+ * (`SECTOR_ENERGY`). Оба вида приводим к ключу сектора.
  */
 export const SECTOR_ALIASES: Record<string, string> = {
-  financial: 'финансы',
-  financials: 'финансы',
-  banks: 'финансы',
-  energy: 'энергетика',
-  oil_and_gas: 'энергетика',
-  oil_gas: 'энергетика',
-  materials: 'материалы',
-  basic_materials: 'материалы',
-  metals: 'материалы',
-  industrials: 'промышленность',
-  industry: 'промышленность',
-  healthcare: 'здравоохранение',
-  health_care: 'здравоохранение',
-  consumer_goods: 'потребительские товары',
-  consumer: 'потребительские товары',
-  consumer_cyclical: 'потребительские товары',
-  consumer_services: 'потребительские услуги',
-  retail: 'потребительские товары',
-  telecom: 'телеком',
-  telecommunications: 'телеком',
-  utilities: 'коммунальные услуги',
-  real_estate: 'недвижимость',
-  it: 'информационные технологии',
-  technology: 'информационные технологии',
-  information_technology: 'информационные технологии',
-  electronics: 'электроника',
-  transport: 'транспорт',
-  transportation: 'транспорт',
-  other: 'прочее',
+  financial: 'financial',
+  financials: 'financial',
+  banks: 'financial',
+  energy: 'energy',
+  oil_and_gas: 'energy',
+  oil_gas: 'energy',
+  oil: 'energy',
+  gas: 'energy',
+  materials: 'materials',
+  basic_materials: 'materials',
+  metals: 'materials',
+  mining: 'materials',
+  industrials: 'industrials',
+  industry: 'industrials',
+  healthcare: 'healthcare',
+  health_care: 'healthcare',
+  consumer: 'consumer',
+  consumer_goods: 'consumer_goods',
+  consumer_cyclical: 'consumer_goods',
+  retail: 'consumer_goods',
+  consumer_services: 'consumer_services',
+  telecom: 'telecom',
+  telecommunications: 'telecom',
+  utilities: 'utilities',
+  power: 'utilities',
+  electricity: 'utilities',
+  green_energy: 'green_energy',
+  alternative_energy: 'green_energy',
+  real_estate: 'real_estate',
+  it: 'it',
+  technology: 'it',
+  information_technology: 'it',
+  electronics: 'electronics',
+  transport: 'transport',
+  transportation: 'transport',
+  other: 'other',
 };
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -67,20 +79,38 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 const asText = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
 
+const normalizeSector = (raw: string): string =>
+  raw
+    .toLowerCase()
+    .trim()
+    .replace(/^sector_/, '')
+    .replace(/[\s-]+/g, '_');
+
+/** Русские названия → ключи: сектор приходит и строкой бренда, и названием. */
+const LABEL_TO_KEY: Record<string, string> = Object.fromEntries(
+  Object.entries(SECTOR_LABELS).map(([key, label]) => [normalizeSector(label), key]),
+);
+
+/** Ключ сектора: `SECTOR_ENERGY`, `energy`, `oil_and_gas`, «нефть и газ» → `energy`. */
+export const sectorKey = (raw: string | undefined): string | undefined => {
+  if (!raw || raw === 'SECTOR_UNSPECIFIED' || raw === 'unspecified') {
+    return undefined;
+  }
+  const normalized = normalizeSector(raw);
+  return (
+    SECTOR_ALIASES[normalized] ??
+    LABEL_TO_KEY[normalized] ??
+    (SECTOR_LABELS[normalized] ? normalized : undefined)
+  );
+};
+
 /** Название сектора: enum или строка бренда → русское название. */
 export const sectorLabel = (raw: string | undefined): string => {
   if (!raw || raw === 'SECTOR_UNSPECIFIED' || raw === 'unspecified') {
     return UNKNOWN_SECTOR;
   }
-  const upper = raw.toUpperCase();
-  if (SECTOR_LABELS[upper]) {
-    return SECTOR_LABELS[upper];
-  }
-  const normalized = raw
-    .toLowerCase()
-    .replace(/^sector_/, '')
-    .replace(/[\s-]+/g, '_');
-  return SECTOR_ALIASES[normalized] ?? raw;
+  const key = sectorKey(raw);
+  return key ? SECTOR_LABELS[key] : raw;
 };
 
 /**

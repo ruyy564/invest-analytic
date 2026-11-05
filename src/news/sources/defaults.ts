@@ -16,19 +16,12 @@ export interface FeedDefault {
 
 /**
  * Проверенные ленты (см. docs/sources.md): интерфакс — общие новости,
- * РБК — экономика и рынки, smart-lab — мнения сообщества и налоговые разборы.
- * Каналы РБК, БКС и Т-Банка читаются через публичный RSS-мост Telegram:
- * прямой `t.me` отдаёт превью только из браузера, из процесса он недоступен.
- * Адрес моста можно заменить через `NEWS_<ID>_URL`.
+ * РБК — экономика и рынки, smart-lab — мнения сообщества и налоговые разборы,
+ * Ведомости/Коммерсантъ/ТАСС/Финам — деловые новости и рынки.
+ * Telegram не используется: у БКС и Т-Инвестиций нет публичного RSS, поэтому их
+ * материалы берутся со страниц research/quote (см. rbc-quote.ts, tbank-research.ts).
+ * Адрес любой ленты можно заменить через `NEWS_<ID>_URL`.
  */
-export const TELEGRAM_BRIDGE = 'https://rsshub.rssforever.com/telegram/channel';
-
-/**
- * Каналы с аналитикой по эмитентам: разборы, идеи, комментарии к отчётности.
- * Текст поста длиннее обычной аннотации — иначе упоминание бумаги теряется.
- */
-export const TELEGRAM_FALLBACK = 'https://tg.i-c-a.su/rss';
-
 export const FEED_DEFAULTS: Record<string, FeedDefault> = {
   interfax: {
     id: 'interfax',
@@ -48,31 +41,31 @@ export const FEED_DEFAULTS: Record<string, FeedDefault> = {
     format: 'rss',
     topics: ['news', 'tax'],
   },
-  // Каналы с аналитикой по эмитентам: разборы, идеи, комментарии к отчётности.
-  // Текст поста длиннее обычной аннотации — иначе упоминание бумаги теряется.
-  rbc_news: {
-    id: 'rbc_news',
-    url: `${TELEGRAM_BRIDGE}/rbc_news`,
-    fallbackUrl: `${TELEGRAM_FALLBACK}/rbc_news`,
+  // Деловые ленты: дают объём и рынок без Telegram.
+  vedomosti: {
+    id: 'vedomosti',
+    url: 'https://www.vedomosti.ru/rss/news',
     format: 'rss',
     topics: ['news'],
-    summaryLimit: 1_200,
   },
-  bcs: {
-    id: 'bcs',
-    url: `${TELEGRAM_BRIDGE}/bcs_express`,
-    fallbackUrl: `${TELEGRAM_FALLBACK}/bcs_express`,
+  kommersant: {
+    id: 'kommersant',
+    url: 'https://www.kommersant.ru/RSS/section-finance.xml',
     format: 'rss',
     topics: ['news'],
-    summaryLimit: 1_200,
   },
-  tbank: {
-    id: 'tbank',
-    url: `${TELEGRAM_BRIDGE}/tbank`,
-    fallbackUrl: `${TELEGRAM_FALLBACK}/tbank`,
+  tass: {
+    id: 'tass',
+    // Раздел «Экономика»: общая лента ТАСС приносит спорт и региональные происшествия.
+    url: 'https://tass.ru/rss/v2.xml?category=ekonomika',
     format: 'rss',
-    topics: ['news', 'tax'],
-    summaryLimit: 1_200,
+    topics: ['news'],
+  },
+  finam: {
+    id: 'finam',
+    url: 'https://www.finam.ru/analysis/conews/rsspoint/',
+    format: 'rss',
+    topics: ['news'],
   },
 };
 

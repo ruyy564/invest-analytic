@@ -14,6 +14,10 @@ export interface Portfolio {
   currency: string;
   totalValue?: Money;
   expectedYield?: Money;
+  /** Дневная доходность в валюте портфеля. */
+  dailyYield?: Money;
+  /** Дневная доходность в процентах (`dailyYieldRelative`). */
+  dailyYieldPct?: number;
   positions: PortfolioPosition[];
   /**
    * `true`, если у счёта есть стоимость, но массив позиций в ответе не пришёл:
@@ -82,12 +86,16 @@ export const mapPortfolio = (raw: unknown, now: Date = new Date()): Portfolio =>
   // Текущий API отдаёт итог в `totalAmountPortfolio`; `totalValue` — старый формат.
   const totalValue = asMoney(root.totalAmountPortfolio ?? root.totalValue, rawCurrency);
   const expectedYield = asMoney(root.expectedYield, rawCurrency);
+  const dailyYield = asMoney(root.dailyYield, rawCurrency);
+  const dailyYieldPct = Number(asRecord(root.dailyYieldRelative)?.value);
 
   return {
     accountId: asString(root.accountId),
     currency: normalizeCurrency(rawCurrency),
     totalValue,
     expectedYield,
+    dailyYield,
+    dailyYieldPct: Number.isFinite(dailyYieldPct) ? dailyYieldPct : undefined,
     positions,
     // Инструмент `invest_get_portfolio` некоторых версий API отдаёт только итоги:
     // непустой счёт без массива позиций — это «данных нет», а не «позиций нет».

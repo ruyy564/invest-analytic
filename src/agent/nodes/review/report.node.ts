@@ -2,6 +2,7 @@
 import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
 import { buildReport, composeMarkdown, type ReportBuildResult } from '../../../report/engine.js';
 import { createProviderMap } from '../../../report/providers/index.js';
+import { loadCompanyProfiles } from '../../../report/company-profiles.js';
 import type { PlanEntry } from '../../../collection/plan.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { templateOf, type ReviewDeps } from './deps.js';
@@ -16,7 +17,10 @@ export const createReportNode =
 
     const report = buildReport({
       template,
-      providers: createProviderMap(),
+      providers: createProviderMap({
+        // Драйверы секторов и профили «экспортёр / внутренний рынок» — данные из файла.
+        profiles: loadCompanyProfiles(deps.config.value.sources.companyProfilesFile),
+      }),
       plan: {
         entries: state.readingPlan as PlanEntry[],
         maxInstruments: deps.config.value.run.reviewMaxInstruments,

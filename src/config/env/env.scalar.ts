@@ -93,26 +93,28 @@ export const scalarEnvObject = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
-    /** Окна периодов в днях: сегодня, неделя, месяц, полгода. */
+    /** Окна периодов в днях: по умолчанию сегодня и неделя. */
     NEWS_FEED_PERIODS: z
       .string()
       .trim()
-      .default('1,7,30,180')
+      .default('1,7')
       .refine(
         (value) =>
           value
             .split(',')
             .map((part) => Number(part.trim()))
             .every((days) => Number.isFinite(days) && days > 0),
-        'NEWS_FEED_PERIODS: ожидается список положительных чисел, например 1,7,30,180',
+        'NEWS_FEED_PERIODS: ожидается список положительных чисел, например 1,7',
       )
       .refine((value) => {
         const days = value.split(',').map((part) => Number(part.trim()));
         return days.every((day, index) => index === 0 || day > days[index - 1]);
       }, 'NEWS_FEED_PERIODS: периоды должны возрастать'),
-    NEWS_FEED_MAX_PER_PERIOD: z.coerce.number().int().positive().max(50).default(5),
+    NEWS_FEED_MAX_PER_PERIOD: z.coerce.number().int().positive().max(50).default(8),
     TAX_KEYWORDS_FILE: z.string().trim().min(1).default('data/tax-keywords.yaml'),
-  TICKER_ALIASES_FILE: z.string().trim().min(1).default('data/ticker-aliases.yaml'),
+    TICKER_ALIASES_FILE: z.string().trim().min(1).default('data/ticker-aliases.yaml'),
+    /** Драйверы секторов и профили компаний: экспортёр / внутренний рынок. */
+    COMPANY_PROFILES_FILE: z.string().trim().min(1).default('data/company-profiles.yaml'),
 
     STATE_BACKEND: z
       .enum(SUPPORTED_STATE_BACKENDS, {

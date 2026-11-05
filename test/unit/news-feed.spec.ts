@@ -1,5 +1,6 @@
 ﻿import { NewsRegistry } from '../../src/news/news.registry.js';
 import type { NewsSourceAdapter, SourceItem } from '../../src/news/news.types.js';
+import { isOffTopicTitle } from '../../src/news/news.filters.js';
 import { collectNewsFeed, formatNewsFeed } from '../../src/tools/news-digest/news-digest.service.js';
 import { feedPeriodTitle } from '../../src/agent/nodes/news/index.js';
 
@@ -112,16 +113,32 @@ describe('сводка новостей рынка', () => {
     expect(week[0]).toBe('Акции выросли три дня назад');
   });
 
-  it('показывает пустой период и покрытие источников', async () => {
+  it('скрывает пустые периоды и показывает покрытие источников', async () => {
     const feed = await collect([item('Акции выросли на торгах', 0)]);
     const text = formatNewsFeed(feed);
 
     expect(text).toContain('Новости инвестиционного рынка');
     expect(text).toContain('Сегодня');
-    expect(text).toContain('За месяц');
-    expect(text).toContain('• новостей нет');
+    // Пустые окна (неделя/месяц/полгода) в ответ не попадают: они только шумят.
+    expect(text).not.toContain('За месяц');
+    expect(text).not.toContain('• новостей нет');
     expect(text).toContain('Источники: rbc — получено (1)');
     expect(text).toContain('Данные обновлены:');
+  });
+
+  it('без единой публикации пишет одну строку вместо пустых окон', async () => {
+    const feed = await collect([]);
+    const text = formatNewsFeed(feed);
+
+    expect(text).toContain('За выбранный период инвестиционных новостей нет.');
+    expect(text).not.toContain('Сегодня');
+  });
+
+  it('отсекает «акции» вне инвестиционной повестки', () => {
+    expect(
+      isOffTopicTitle('Львова-Белова анонсировала новую акцию по возвращению детей на Украину'),
+    ).toBe(true);
+    expect(isOffTopicTitle('Акции «Полюса» выросли на 3 %')).toBe(false);
   });
 
   it('отказ одного источника не ломает сводку', async () => {

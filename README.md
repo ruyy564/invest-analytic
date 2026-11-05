@@ -1,349 +1,520 @@
-﻿# invest-analytic
+# invest-analytic
 
-Агент-аналитик портфеля Tinkoff Invest: **NestJS 12 + LangGraph 1.x + MCP**.
+Агент-аналитик портфеля **T-Invest**: NestJS 12 + LangGraph 1.x + MCP.
 
-Агент отвечает на вопрос «что у меня в портфеле» строго по данным брокера, запрашивает подтверждение перед каждым чтением и пишет трейсы в LangSmith. Провайдер LLM и MCP-серверы подключаются только конфигурацией.
+Отвечает на вопросы о вашем портфеле строго по данным брокера, спрашивает подтверждение
+перед каждым чтением данных, собирает отчёт по шаблону и объясняет инвестиционные понятия
+по собственной базе знаний. Провайдер модели и MCP-серверы задаются только конфигурацией.
 
-> Все 61 задача MVP закрыты и проверены вживую (локально и в Docker). Спецификации — в [`openspec/specs/`](openspec/specs/), завершённое изменение — в `openspec/changes/archive/2026-10-29-portfolio-analyst-agent-mvp/`.
+- Node.js **>= 22**, ESM (`"type": "module"`)
+- Данные — только чтение: торговые операции запрещены на уровне allowlist и правил подтверждений
+- Отчёт — markdown-файл: можно скачать (`md`/`json`/`html`) и распечатать
 
-## Как это работает
+---
 
-```
+## Что умеет
+
+| Что | Пример вопроса | Что получите |
+|---|---|---|
+| Портфель и счета | «что у меня в портфеле?» | позиции, количество, цена за штуку, стоимость, доходность портфеля и за день |
+| Разбор портфеля | «проанализируй мой портфель» | отчёт: цикл и ставка, состав, графики, секторы, концентрация, налоги, экспорт/импорт, пробелы, итог |
+| Разбор счёта | «разбери счёт Портфельное инвестирование» | то же по одному счёту, без «шумных» секций |
+| Разбор бумаги | «разбери бумагу PLZL», «разбери Сбер» | цена за штуку, динамика 1/7/30/180 дней, график, аналитики, дивиденды, облигационный купон, профиль экспортёра, новости бумаги |
+| Аналитика и макро | «какая ключевая ставка ЦБ?», «какие дивиденды у SBER?» | ставка с историей решений, прогнозы, дивидендный календарь |
+| Новости рынка | «какие последние новости в мире инвестиций?» | сводка за сегодня и неделю из деловых лент, без Telegram |
+| Объяснение понятий | «что такое дюрация?», «что такое P/E?» | ответ из базы знаний: определение, тезисы, подразделы, ошибки, источники |
+| Справка | «что ты умеешь» | карта возможностей и границы сервиса |
+
+Чего не делает: не торгует, не выводит деньги, не даёт индивидуальных инвестиционных
+рекомендаций, не отвечает на посторонние темы.
+
+### Что показывает отчёт
+
+| Раздел | Содержимое |
+|---|---|
+| Состав портфеля | тикер, сектор, доля, цена за штуку, стоимость, спарклайн за 180 дней, изменение, мнение аналитиков; итог и доходность портфеля |
+| Экономический цикл | ключевая ставка ЦБ, что она значит для классов активов (модель + база знаний) |
+| Разбор по бумагам | цена за штуку, динамика, график, аналитики, дивиденды (размер, дата отсечки и выплаты, регулярность), облигация (категория, купон, погашение, НКД), профиль «экспортёр / внутренний рынок / импортёр», драйверы сектора, новости бумаги без дублей |
+| Оценка бумаг и секторов | динамика, потенциал, новостной фон (модель, темы `reporting` + `multiples`) |
+| Структура и концентрация | разрезы по классу, сектору, валюте, эмитенту; крупнейшая позиция, топ-3 |
+| Экспортёры, импортёры и внутренний рынок | доли трёх групп, валютная выручка, влияние курса и ставки |
+| Налоговый контекст | удержанные налоги, изменения налогообложения (тема `taxes`) |
+| Пробелы в портфеле | классы и секторы ниже порога |
+| Итог | диверсификация, тип стратегии, что менять (тема `strategies`) |
+
+Секторы называются по существу: `energy` — «нефть и газ», `utilities` —
+«электроэнергетика», `green_energy` — «зелёная энергетика», `it` — «технологии».
+
+### Как это работает
+
+```text
 POST /api/v1/agent/chat
         │
-        ▼
-   classify (LLM-роутер) ── off_topic ──────────▶ offTopic ─▶ ответ без доступа к данным
+   classify (роутер) ── off_topic ─────────────▶ ответ без доступа к данным
         │
-        ├── data_lookup / security_analysis ─────▶ agent (LLM + инструменты MCP)
-        │                                              │ просит вызвать инструмент
-        │                                              ▼
-        │                                          approve (interrupt) ─▶ 202 + действия
-        │                                              │ approve
-        │                                              ▼
-        │                                          tools (MCP) ─▶ agent ─▶ ответ
-        │
-        ├── agent_help ──────────────────────────▶ help (справка о возможностях) ─▶ ответ без данных
-        │
-        ├── knowledge_question ──────────────────▶ knowledge (объяснение понятия) ─▶ ответ из базы знаний
-        │
-        ├── market_news ─────────────────────────▶ news (сводка по периодам) ─▶ ответ без портфеля
-        │
-        └── portfolio_review ──▶ plan (план чтений) ─▶ approve (один запрос на весь план)
-                                                        │ approve
-                                                        ▼
-                                   collect (пачки, бюджет, покрытие) ─▶ report
-                                                        │ шаблон + поставщики фактов
-                                                        │ один вызов модели: «макро» и «итог»
-                                                        ▼
-                                        отчёт + reportId ─▶ 200 completed
+        ├─ data_lookup / security_analysis ────▶ agent (LLM + MCP) ─▶ approve ─▶ tools ─▶ ответ
+        ├─ portfolio_review ───────────────────▶ plan ─▶ approve ─▶ collect ─▶ report ─▶ отчёт
+        ├─ market_news ─────────────────────────▶ сводка новостей (код, без модели)
+        ├─ knowledge_question ──────────────────▶ база знаний (код, без модели)
+        └─ agent_help ──────────────────────────▶ справка (код, без модели)
 ```
 
-- **Граф** — LangGraph с чекпоинтером: прерывание на `approve` можно возобновить после перезапуска процесса.
-- **Новости** — отдельная ветка `news`: «какие последние новости в мире инвестиций» → сводка
-  по периодам (сегодня, неделя, месяц, полгода) из всех включённых источников. Портфель не
-  читается, подтверждение не запрашивается, модель не вызывается — ответ собирается кодом.
-  Пример: `{"message":"какие последние новости в мире инвестиций?"}` → `intent: "market_news"`,
-  `report.type: "market_news"` с покрытием источников.
-- **Справка** — отдельная ветка `help`: вопрос «что ты умеешь» получает карту возможностей
-  с примерами вопросов и границами сервиса. Данные не читаются, подтверждение не
-  запрашивается, модель не вызывается — текст собирается кодом из
-  `src/agent/prompts/capabilities.ts`. Откат: `AGENT_HELP_ENABLED=false`.
-- **База знаний** — каталог `data/knowledge/*.yaml`, по файлу на тему: циклы, макро,
-  мультипликаторы, диверсификация, психология решений, зависимости секторов, металлы,
-  история кризисов, чек-лист решений и литература. Разделы `macro`, `opinions`, `verdict`
-  получают подобранный блок принципов (числа — только из брифинга), системный промпт
-  агента — чек-лист, вопрос «что такое P/E» отвечает ветка `knowledge` без чтения данных.
-  Подробности — `docs/knowledge.md`, откат — `KNOWLEDGE_ENABLED=false`.
-Границы модулей, контракты расширения (инструмент, MCP-сервер, источник, провайдер фактов,
-узел, тема знаний) и чек-лист ревью — в [`docs/architecture.md`](docs/architecture.md).
-- **Подтверждение** — на каждое чтение данных портфеля; политика выводится из правил (`src/agent/approvals/approval-rules.ts`).
-- **Инструменты** — `MultiServerMCPClient` + allowlist по серверу; имена вида `tinkoff__invest_get_portfolio`.
-- **MCP-прокси** — `McpProxyService` поднимает `http://127.0.0.1:<port>/mcp`, говорит с T-Invest MCP по протоколу MCP (сессия, SSE → JSON) и отдаёт адаптеру обычный JSON. Нужен потому, что сервер отдаёт `tools/list` потоком SSE, который адаптер не досчитывает до конца. К апстриму ходит через `node:https`, поэтому `MCP_<NAME>_TLS_MODE`/`CA_FILE` применяются именно к этому соединению.
-- **LLM** — реестр провайдеров по `LLM_PROVIDER`, две модели: роутер и ответчик.
-- **Состояние** — SQLite (`data/state.db`), очистка по `STATE_TTL_DAYS`.
-- **Наблюдаемость** — трейсы LangSmith по env, `traceUrl` в каждом ответе, структурные логи с маскированием секретов.
+- Граф LangGraph с чекпоинтером: прерывание на `approve` переживает перезапуск процесса.
+- Данные портфеля читаются только после подтверждения; новости, знания и справка — без
+  доступа к счёту.
+- Отчёт собирается по шаблону `reports/portfolio-review.yaml`: состав, порядок, пороги и
+  темы знаний меняются файлом, без правок кода.
+- Числа считает код; модель только трактует факты и помечает выводы «(оценка)».
+
+---
 
 ## Требования
 
-- Node.js **>= 22** (проект ESM: `"type": "module"`)
-- Токен T-Invest API с доступом к чтению портфеля
-- Ключ LLM-провайдера (GigaChat, OpenAI или совместимый)
+| Что | Зачем | Обязательно |
+|---|---|---|
+| Node.js >= 22 | рантайм (ESM) | да |
+| Токен T-Invest API | данные портфеля и рынка через MCP | да |
+| Ключ LLM (GigaChat / OpenAI / совместимый) | классификация вопроса и тексты разделов | да |
+| Ключ LangSmith | трассировка прогонов | нет |
+| Docker + Compose | запуск контейнером | нет |
 
-## Запуск
+---
+
+## Быстрый старт
 
 ```bash
 npm install
-cp .env.example .env      # заполните токены
+cp .env.example .env      # Windows PowerShell: Copy-Item .env.example .env
+```
+
+Заполните в `.env` минимум три вещи (подробно — в следующем разделе):
+
+```dotenv
+MCP_TINKOFF_URL=https://invest-public-api.tinkoff.ru/mcp
+MCP_TINKOFF_TOKEN=<токен T-Invest, только чтение>
+LLM_PROVIDER=gigachat
+LLM_MODEL=GigaChat-2-Max
+GIGACHAT_CREDENTIALS=<base64 от client_id:client_secret>
+```
+
+T-Invest MCP отдаёт цепочку сертификатов, которой нет в системном хранилище, поэтому один
+раз сохраните её и включите режим `extra-ca`:
+
+```bash
+node scripts/fetch-mcp-ca.mjs         # создаст certs/mcp-chain.pem
+```
+
+```dotenv
+MCP_TINKOFF_TLS_MODE=extra-ca
+MCP_TINKOFF_CA_FILE=certs/mcp-chain.pem
+```
+
+Соберите и запустите:
+
+```bash
 npm run build
 npm start                 # http://localhost:3000/api/v1
 ```
 
-```bash
-npm test                  # unit-тесты (Jest, ESM)
-npm run test:e2e          # e2e на тестовом MCP-сервере
-npm run lint
-```
-
-Через Docker (порт `3000`, состояние в `./data`, CA для T-Invest — из `./certs`):
+Проверка, что всё поднялось:
 
 ```bash
-node scripts/fetch-mcp-ca.mjs   # один раз: сохранит цепочку T-Invest в certs/mcp-chain.pem
-docker compose up -d --build
-docker compose ps                # ждём статус (healthy)
-docker compose logs -f
-docker compose down
+curl -s http://localhost:3000/api/v1/health
+# {"status":"ok","info":{"llm":{"status":"up"},"mcp:tinkoff":{"status":"up"}}}
 ```
 
-`docker-compose.yml` явно передаёт `MCP_TINKOFF_URL`, `MCP_TINKOFF_TLS_MODE=extra-ca` и `MCP_TINKOFF_CA_FILE=/app/certs/mcp-chain.pem`, чтобы контейнер не зависел от локальных значений `.env`. В образе `better-sqlite3` собирается из исходников (`python3`, `make`, `g++`), если готового бинарника для платформы нет.
+Первый вопрос (сценарий «вопрос → подтверждение → ответ»):
 
-## API
+```bash
+curl -s -X POST http://localhost:3000/api/v1/agent/chat \
+  -H 'content-type: application/json' \
+  -d '{"message":"что у меня в портфеле?"}'
+# 202 {"status":"awaiting_approval","sessionId":"<uuid>","approval":{...}}
 
-- `POST /api/v1/agent/chat` — вопрос агенту (`200` — ответ, `202` — нужно подтверждение);
-- `POST /api/v1/agent/chat/approve` — решение по подтверждению (`approved: true|false`);
-- `GET /api/v1/health` — состояние LLM и каждого MCP-сервера.
+curl -s -X POST http://localhost:3000/api/v1/agent/chat/approve \
+  -H 'content-type: application/json' \
+  -d '{"sessionId":"<uuid>","approved":true}'
+# 200 {"status":"completed","intent":"data_lookup","answer":"..."}
+```
 
-Примеры `curl` и таблица кодов ошибок — в [`docs/api.md`](docs/api.md). Подробности о трассировке и логах — в [`docs/observability.md`](docs/observability.md).
+---
 
-## Конфигурация
+## Где взять токены и куда их положить
 
-Все переменные читаются один раз при старте и проверяются zod-схемой (`src/config/env.schema.ts`). Некорректная конфигурация — падение с перечнем **всех** проблемных переменных (значения секретов в вывод не попадают).
+Все секреты живут только в `.env` (файл в `.gitignore`); в логах и ошибках значения
+маскируются.
 
-### Приложение
+### 1. T-Invest API (данные брокера)
 
-| Переменная | По умолчанию | Описание |
-|---|---|---|
-| `NODE_ENV` | `development` | `development` \| `production` \| `test` |
-| `PORT` | `3000` | HTTP-порт |
-| `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
-| `LOG_QUESTION_TEXT` | `false` | Логировать текст вопросов пользователя |
-| `USER_ID` | `default` | Пространство имён глобального хранилища |
+**Где взять**
 
-### LLM
+1. T-Invest / Т-Банк Инвестиции → **Настройки** → **Токены для API**
+   (веб: `https://www.tinkoff.ru/invest/settings/api/`).
+2. Создайте токен и выдайте **только права чтения** — торговые и платёжные методы
+   сервису не нужны и запрещены allowlist-ом.
+3. Скопируйте токен: он показывается один раз.
 
-| Переменная | По умолчанию | Описание |
-|---|---|---|
-| `LLM_PROVIDER` | — (обязательна) | `gigachat` \| `openai` \| `openai-compatible` |
-| `LLM_MODEL` | — (обязательна) | Модель для ответов |
-| `LLM_ROUTER_MODEL` | = `LLM_MODEL` | Модель для классификации вопроса |
-| `LLM_TEMPERATURE` | `0.2` | Температура (0–2) |
-| `LLM_API_KEY` | — | Обязательна для `openai` и `openai-compatible` |
-| `LLM_BASE_URL` | — | Обязательна для `openai-compatible` |
-| `GIGACHAT_CREDENTIALS` | — | Обязательна для `gigachat` |
-| `GIGACHAT_SCOPE` | `GIGACHAT_API_PERS` | Скоуп GigaChat API |
-| `GIGACHAT_AUTH_URL` | публичный OAuth | Адрес авторизации (меняется для внутреннего контура) |
-
-Креденшелы проверяются только для выбранного провайдера.
-
-### MCP
-
-Список серверов задаётся одной переменной, а параметры — по шаблону `MCP_<NAME>_*`:
-
-| Переменная | По умолчанию | Описание |
-|---|---|---|
-| `MCP_SERVERS` | — (обязательна) | Имена серверов через запятую, например `tinkoff` |
-| `MCP_<NAME>_URL` | — (обязательна) | URL MCP-сервера |
-| `MCP_<NAME>_TRANSPORT` | `http` | `http` (streamable) \| `sse` |
-| `MCP_<NAME>_TOKEN` | — | Bearer-токен сервера |
-| `MCP_<NAME>_ALLOWED_TOOLS` | — (обязательна) | Allowlist инструментов; торговые и денежные операции запрещены |
-| `MCP_<NAME>_TLS_MODE` | `strict` | `strict` \| `extra-ca` (доп. CA) \| `insecure` (без проверки, только для MCP) |
-| `MCP_<NAME>_CA_FILE` | — | PEM-файл с CA; обязателен при `TLS_MODE=extra-ca` |
-| `TINKOFF_ACCOUNT_ID` | — | Счёт по умолчанию; если пусто, агент узнаёт его через MCP |
-
-### Состояние и подтверждения
-
-| Переменная | По умолчанию | Описание |
-|---|---|---|
-| `STATE_BACKEND` | `sqlite` | `sqlite` \| `memory` (для тестов) |
-| `STATE_SQLITE_PATH` | `./.state/state.sqlite` | Файл состояния |
-| `STATE_TTL_DAYS` | `30` | Удаление сессий, не обновлявшихся дольше |
-| `APPROVAL_TTL_MINUTES` | `15` | Срок жизни запроса на подтверждение |
-| `APPROVAL_UNLISTED` | `require` | Политика для действий без правила: `require` \| `allow` |
-| `APPROVALS_FILE` | — | JSON-файл, заменяющий встроенные правила подтверждений |
-
-### Наблюдаемость
-
-| Переменная | По умолчанию | Описание |
-|---|---|---|
-| `LANGSMITH_TRACING` | `false` | Включить трассировку |
-| `LANGSMITH_API_KEY` | — | Обязательна при включённой трассировке |
-| `LANGSMITH_PROJECT` | `invest-analytic` | Проект в LangSmith |
-| `LANGSMITH_ORG_ID` | — | Организация для ссылки на трейс |
-| `LANGSMITH_HIDE_INPUTS` | `false` | Не отправлять содержимое промптов в трейсы |
-| `LANGSMITH_TRACE_URL_TEMPLATE` | ссылка Smith | Шаблон `traceUrl` (`{orgId}`, `{project}`, `{runId}`) |
-
-## Примеры для провайдеров
+**Куда положить**
 
 ```dotenv
-# GigaChat
+MCP_SERVERS=tinkoff
+MCP_TINKOFF_URL=https://invest-public-api.tinkoff.ru/mcp   # или ...tbank.ru/mcp
+MCP_TINKOFF_TRANSPORT=http
+MCP_TINKOFF_TOKEN=<токен из кабинета>
+# Необязательно: счёт по умолчанию. Если пусто — агент узнает счета через MCP
+TINKOFF_ACCOUNT_ID=
+```
+
+`MCP_TINKOFF_ALLOWED_TOOLS` в `.env.example` уже содержит полный набор read-only методов
+(портфель, позиции, операции, справочники, свечи, прогнозы, дивиденды, события облигаций,
+новости). Торговые методы запрещены и схемой (`FORBIDDEN_TOOL_PATTERNS`), и правилами
+подтверждений.
+
+**TLS.** Если без него MCP не подключается (`SELF_SIGNED_CERT_IN_CHAIN`,
+`unable to verify the first certificate`):
+
+```bash
+node scripts/fetch-mcp-ca.mjs                    # URL из MCP_TINKOFF_URL, файл certs/mcp-chain.pem
+node scripts/fetch-mcp-ca.mjs <url> certs/ca.pem # или явно
+```
+
+```dotenv
+MCP_TINKOFF_TLS_MODE=extra-ca
+MCP_TINKOFF_CA_FILE=certs/mcp-chain.pem
+```
+
+**Проверка**: `npm run smoke:mcp` — подключение к MCP, список инструментов и пример
+портфеля. Каталог `certs/` в `.gitignore`, сертификат не коммитится.
+
+### 2. LLM (обязательно один из провайдеров)
+
+**GigaChat**
+
+- Где взять: кабинет GigaChat API на `developers.sber.ru` → проект → **Client ID** и
+  **Client Secret**.
+- Куда положить: `base64(client_id:client_secret)` одной строкой.
+
+```dotenv
 LLM_PROVIDER=gigachat
 LLM_MODEL=GigaChat-2-Max
 LLM_ROUTER_MODEL=GigaChat-2
 GIGACHAT_CREDENTIALS=<base64 client_id:client_secret>
 GIGACHAT_SCOPE=GIGACHAT_API_PERS
-
-# OpenAI
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o-mini
-LLM_API_KEY=sk-...
-
-# Любой OpenAI-совместимый шлюз
-LLM_PROVIDER=openai-compatible
-LLM_MODEL=qwen2.5-72b-instruct
-LLM_API_KEY=...
-LLM_BASE_URL=https://llm.internal.example.com/v1
+GIGACHAT_STREAMING=false
 ```
 
-## Как добавить MCP-сервер
+**OpenAI**
 
-1. Добавьте имя в `MCP_SERVERS`: `MCP_SERVERS=tinkoff,news`.
-2. Заполните параметры нового сервера:
+- Где взять: `platform.openai.com` → API keys → Create new secret key.
 
 ```dotenv
-MCP_NEWS_URL=https://news-mcp.example.com/mcp
-MCP_NEWS_TRANSPORT=http
-MCP_NEWS_TOKEN=<токен>
-MCP_NEWS_ALLOWED_TOOLS=search_news,get_article
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+LLM_API_KEY=<ключ>
 ```
 
-3. Перезапустите сервис — инструменты появятся у агента с префиксом `news__`.
-4. Если действие должно требовать подтверждения, добавьте правило в `src/agent/approvals/approval-rules.ts` (или в файл из `APPROVALS_FILE`).
+**OpenAI-совместимый** (OpenRouter, локальный vLLM/Ollama с OpenAI API):
 
-Код графа и роутеров при этом не меняется.
-
-## Структура
-
+```dotenv
+LLM_PROVIDER=openai-compatible
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=<ключ>
+LLM_MODEL=<имя модели>
 ```
+
+**Проверка**: `GET /api/v1/health` → `llm: up`. Креденшелы проверяются только для
+выбранного провайдера — остальные переменные можно не заполнять.
+
+### 3. LangSmith (необязательно)
+
+- Где взять: `smith.langchain.com` → Settings → API Keys.
+- Зачем: трассировка прогонов (узлы графа, вызовы инструментов, время) и `traceUrl`
+  в каждом ответе.
+
+```dotenv
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=<ключ>
+LANGSMITH_PROJECT=invest-analytic
+LANGSMITH_ORG_ID=<id организации>     # нужен для ссылки на трейс
+LANGSMITH_HIDE_INPUTS=false
+```
+
+### Сводная таблица «переменная → где взять»
+
+| Переменная | Где взять |
+|---|---|
+| `MCP_TINKOFF_TOKEN` | T-Invest → Настройки → Токены для API (read-only) |
+| `MCP_TINKOFF_URL` | `https://invest-public-api.tinkoff.ru/mcp` |
+| `MCP_TINKOFF_CA_FILE` | `node scripts/fetch-mcp-ca.mjs` → `certs/mcp-chain.pem` |
+| `GIGACHAT_CREDENTIALS` | developers.sber.ru → GigaChat API → base64(client_id:client_secret) |
+| `LLM_API_KEY` / `LLM_BASE_URL` | platform.openai.com или ваш OpenAI-совместимый API |
+| `LANGSMITH_API_KEY` | smith.langchain.com → Settings → API Keys |
+| `TINKOFF_ACCOUNT_ID` | номер счёта в приложении (необязательно) |
+
+Проверить ключи до запуска сервиса:
+
+```bash
+npm run smoke:mcp          # токен T-Invest и подключение к MCP
+```
+
+
+---
+
+## Запуск
+
+### Локально
+
+```bash
+npm install
+npm run build
+npm start                 # node dist/main.js → http://localhost:3000/api/v1
+```
+
+Разработка с пересборкой (два терминала):
+
+```bash
+npm run start:dev         # tsc -w: пересобирает dist
+npm start                 # второй терминал: запускает сервис
+```
+
+### Docker
+
+```bash
+node scripts/fetch-mcp-ca.mjs      # один раз: сертификат T-Invest в certs/
+docker compose up -d --build
+docker compose ps                  # ждём healthy
+curl -s http://localhost:3000/api/v1/health
+docker compose logs -f
+docker compose down
+```
+
+Что важно в `docker-compose.yml`:
+
+- `env_file: .env` — все переменные из вашего `.env`;
+- `MCP_TINKOFF_URL`, `MCP_TINKOFF_TLS_MODE=extra-ca`, `MCP_TINKOFF_CA_FILE=/app/certs/mcp-chain.pem`
+  заданы явно, чтобы контейнер не зависел от локальных правок;
+- тома: `./data` (знания, профили, справочники), `./.state` (состояние и отчёты),
+  `./certs` (CA, только чтение);
+- healthcheck бьёт в `/api/v1/health`.
+
+### LangGraph Studio (отладка графа)
+
+```bash
+npm run studio            # собирает и поднимает dev-сервер на 127.0.0.1:2024
+npm run studio:check      # проверяет, что граф виден и отвечает
+npm run studio:open       # открывает Studio в браузере
+```
+
+Привязка к `127.0.0.1` обязательна: по умолчанию CLI слушает IPv6 `::1`, и браузер не
+достучится до API.
+
+### Выгрузка готового отчёта
+
+```bash
+curl -s "http://localhost:3000/api/v1/reports/<reportId>?format=md"    # по умолчанию
+curl -s "http://localhost:3000/api/v1/reports/<reportId>?format=json"
+curl -s "http://localhost:3000/api/v1/reports/<reportId>?format=html"  # для печати/PDF
+```
+
+---
+
+## API
+
+| Метод | Путь | Ответ |
+|---|---|---|
+| `POST` | `/api/v1/agent/chat` | `200` — ответ; `202` — нужно подтверждение |
+| `POST` | `/api/v1/agent/chat/approve` | `approved: true\|false`; `200`/`202` |
+| `GET` | `/api/v1/health` | состояние LLM и каждого MCP-сервера |
+| `GET` | `/api/v1/reports/:reportId?format=md\|json\|html` | готовый отчёт |
+
+Полные примеры, значения `intent` и коды ошибок — в [`docs/api.md`](docs/api.md).
+
+Что стоит знать заранее:
+
+- **Подтверждение** требуется на каждое чтение данных; внутри одного разбора весь план
+  подтверждается одним запросом (`actions` в ответе `202`).
+- **Дедлайн** прогона — `RUN_DEADLINE_MS` (240 с). Клиентский таймаут должен быть больше:
+  разбор делает отдельный вызов модели на раздел.
+- **Состояние** сессий и отчётов — SQLite (`.state/state.sqlite`); прерывание на
+  подтверждении переживает перезапуск процесса.
+
+
+---
+
+## Что где лежит
+
+```text
 src/
-  main.ts        точка входа (bootstrap Nest)
-  app.module.ts  корневой модуль
-  api/           контроллеры, DTO, фильтр ошибок
-  agent/         граф, узлы (nodes/<node>/), подтверждения, раннер
-  knowledge/     база знаний: сервис, репозиторий, отбор, формат
-  report/        шаблон, движок фактов, провайдеры, рендер
-  collection/    план и исполнение сбора
-  sources/       адаптеры источников (ЦБ, ленты)
-  parsing/       парсинг ответов MCP и YAML
-  mcp/           инфраструктура MCP: реестр, клиент, прокси, адаптер
-  tools/<tool>/  сами тулы
-  llm/, state/, observability/, config/, accounts/
-test/unit, test/e2e, test/fixtures
-data/            данные: темы знаний, словари, сиды
-reports/         шаблон отчёта и промпт интерпретации
-.agents/         инструкции агентов и скиллы (openspec-checkpoint и др.)
+  main.ts                 точка входа: Nest, префикс /api/v1, порт
+  app.module.ts           сборка feature-модулей
+  api/                    HTTP: controllers (agent, health, reports), dto, filters
+  agent/                  граф и узлы
+    agent-runner.service.ts   run / approve / отчёт
+    graph/                    state, routers, build-graph
+    nodes/<node>/             узел + промпт рядом (classify, agent, review, news, help, knowledge)
+    approvals/                правила подтверждений
+    scope.ts                  «портфель / счёт / бумага» по вопросу
+  collection/             план сбора данных и его исполнение (группы, приоритеты, бюджет)
+  report/                 отчёт: шаблон, движок фактов, провайдеры, рендер
+    engine.ts               сборка фактов по секциям
+    compose.ts              итоговый markdown (шапка с датой данных)
+    sparkline.ts            график-спарклайн из свечей
+    company-profiles.ts     драйверы секторов и профили «экспортёр / внутренний рынок»
+    providers/portfolio/    table, structure, exposure, concentration, gaps
+    providers/securities/   detail, opinions, bond-facts
+  news/                   ленты, фильтры, алиасы, реестр источников
+    sources/                RSS (Ведомости, Коммерсантъ, ТАСС, Финам, РБК, Интерфакс,
+                            smart-lab) + HTML-страницы rbc-quote и tbank-research
+  key-rate/               ключевая ставка ЦБ (SOAP → кэш → сид → HTML)
+  commodities/            учётные цены металлов ЦБ (золото, серебро, платина, палладий)
+  knowledge/              база знаний: репозиторий, отбор тем, формат ответа
+  mcp/                    транспорт MCP: реестр, прокси, адаптер, схемы, бюджет
+  tools/<tool>/           инструменты для модели: <tool>.tool.ts (схема) + <tool>.service.ts
+  llm/                    реестр провайдеров, bind-tools, structured output
+  state/                  чекпоинтер, хранилище отчётов, глобальные настройки, очистка
+  config/                 zod-схема env, типизированный конфиг, fail-fast
+  parsing/                разбор ответов MCP, YAML и лент (mappers/, yaml.ts, feed.ts, html.ts)
+  observability/          структурные логи, маскирование секретов, трейсы
+
+data/
+  knowledge/*.yaml        база знаний: 17 файлов-тем (файл = тема)
+  company-profiles.yaml   драйверы секторов и профили компаний
+  ticker-aliases.yaml     алиасы эмитентов для поиска новостей
+  tax-keywords.yaml       словарь налоговых терминов
+  key-rate-seed.json      офлайн-сид ключевой ставки
+
+reports/
+  portfolio-review.yaml   шаблон отчёта: секции, порядок, пороги, темы знаний
+  prompts/interpretation.md  промпт для разделов, которые пишет модель
+
+docs/                     архитектура, API, MCP, источники, знания, отчёты, состояние
+scripts/                  смок-тесты и утилиты (smoke:mcp, fetch-mcp-ca, studio-check, db-info)
+test/                     unit (Jest) и e2e (граф, HTTP, MCP, рестарт состояния)
+certs/                    CA для T-Invest MCP (.gitignore)
+.state/                   SQLite состояния и отчётов (.gitignore)
 ```
 
-Подробная карта «где что искать» и контракты расширения — в [`docs/architecture.md`](docs/architecture.md).
+Куда смотреть по задаче:
 
-### Гигиена рабочего дерева
+| Задача | Файл |
+|---|---|
+| Добавить инструмент для модели | `src/tools/<tool>/` + `src/mcp/local-tools.ts` |
+| Подключить MCP-сервер | `.env` (`MCP_SERVERS`, `MCP_<NAME>_*`), `docs/mcp.md` |
+| Добавить источник новостей | `src/news/sources/` + `NEWS_SOURCES` |
+| Добавить секцию отчёта | `reports/portfolio-review.yaml` + провайдер в `src/report/providers/` |
+| Изменить порядок или пороги отчёта | только `reports/portfolio-review.yaml` |
+| Добавить тему знаний | `data/knowledge/NN-<id>.yaml`, формат — `docs/knowledge.md` |
+| Поправить драйверы сектора или профиль компании | `data/company-profiles.yaml` |
+| Сменить модель или провайдера | `LLM_PROVIDER` + `docs/llm-providers.md` |
+| Разобраться с подтверждениями | `src/agent/approvals/`, `docs/approvals.md` |
 
-Временные артефакты прогонов, сборки и тестов убираются одной командой:
+Что **не** версионируется: `.env`, `.state/`, `certs/`, `dist/`, `node_modules/`.
+`data/` версионируется: это справочники и знания, а не состояние.
+
+
+---
+
+## Конфигурация
+
+Все переменные читаются один раз при старте и проверяются zod-схемой
+(`src/config/env/`). Некорректная конфигурация — падение с перечнем **всех** проблемных
+переменных; значения секретов в вывод не попадают. Полный список — в
+[`.env.example`](.env.example).
+
+### Ключевые группы
+
+| Группа | Переменные | Зачем |
+|---|---|---|
+| Приложение | `NODE_ENV`, `PORT`, `LOG_LEVEL`, `LOG_QUESTION_TEXT`, `USER_ID` | порт, логи, пространство имён хранилища |
+| LLM | `LLM_PROVIDER`, `LLM_MODEL`, `LLM_ROUTER_MODEL`, `LLM_TEMPERATURE`, `LLM_API_KEY`, `LLM_BASE_URL`, `GIGACHAT_*` | провайдер и модели |
+| MCP | `MCP_SERVERS`, `MCP_<NAME>_URL/TRANSPORT/TOKEN/ALLOWED_TOOLS/TLS_MODE/CA_FILE`, `TINKOFF_ACCOUNT_ID` | подключение к брокеру |
+| Прогон | `RUN_TOOL_MAX_CALLS`, `RUN_DEADLINE_MS`, `RUN_PARALLELISM`, `REVIEW_MAX_INSTRUMENTS`, `MCP_TOOL_TIMEOUT_MS` | лимиты и таймауты |
+| Отчёт | `REPORT_TEMPLATE_FILE`, `REPORT_INTERPRETATION_PROMPT_FILE`, `REVIEW_ENABLED` | шаблон, промпт, ветка разбора |
+| Знания | `KNOWLEDGE_ENABLED`, `KNOWLEDGE_DIR`, `KNOWLEDGE_FILE`, `KNOWLEDGE_MAX_CHARS` | каталог тем и объём блока |
+| Источники | `SOURCES`, `NEWS_SOURCES`, `NEWS_SCAN_PAGES`, `NEWS_DIGEST_MAX_ITEMS`, `NEWS_FEED_*`, `KEY_RATE_*`, `TAX_KEYWORDS_FILE`, `TICKER_ALIASES_FILE`, `COMPANY_PROFILES_FILE` | новости, ставка, налоги, профили |
+| Состояние | `STATE_BACKEND`, `STATE_SQLITE_PATH`, `STATE_TTL_DAYS`, `APPROVAL_TTL_MINUTES`, `APPROVAL_UNLISTED`, `APPROVALS_FILE` | SQLite, TTL, политика подтверждений |
+| Наблюдаемость | `LANGSMITH_*` | трассировка и `traceUrl` |
+
+Полезные ручки:
+
+- `REVIEW_ENABLED=false` — откат к поведению без глубокого разбора;
+- `NEWS_FEED_ENABLED=false` — отключить ветку сводки новостей;
+- `KNOWLEDGE_ENABLED=false` — отключить базу знаний и справочные ответы;
+- `AGENT_HELP_ENABLED=false` — отключить ветку «что ты умеешь»;
+- `SOURCES` / `NEWS_SOURCES` — включить или выключить конкретные источники
+  (`tinkoff`, `cbr`, `interfax`, `rbc`, `smartlab`, `smartlab_tag`, `rbc_quote`,
+  `tbank_research`, `vedomosti`, `kommersant`, `tass`, `finam`);
+- `NEWS_FEED_PERIODS=1,7` — окна сводки в днях (по возрастанию);
+- `COMPANY_PROFILES_FILE` — файл драйверов секторов и профилей компаний.
+
+### Проверки и тесты
 
 ```bash
-node scripts/clean-temp.mjs        # показать, что будет удалено
-node scripts/clean-temp.mjs --yes  # удалить
+npm run build             # tsc, строгая проверка типов
+npm run lint              # eslint (src + test)
+npm test                  # 302 unit-теста, 40 наборов
+npm run test:e2e          # 27 e2e: граф, HTTP, MCP, рестарт состояния
+npm run smoke:mcp         # живое подключение к T-Invest MCP (нужен .env)
+npm run studio:check      # граф виден в LangGraph Studio
 ```
 
-Скрипт трогает только закрытый список (логи, `*.tsbuildinfo`, `tmp/`, `coverage/`,
-`.browser-profile/`, `.langgraph_api/` и подобное) и никогда не удаляет код, `data/`,
-`certs/`, `dist/` и `node_modules/`. После каждого этапа OpenSpec это делает скилл
-`openspec-checkpoint`: чистит дерево, проверяет этап и коммитит его с сообщением по шаблону.
 
-## Трейсы и Studio (LangSmith)
-
-**Трейсы.** Каждый ответ API содержит `traceUrl` — ссылку на прогон графа этого запроса (спаны `classify`, `agent`, `approve`, `tools`, вызовы модели и инструментов). Проверка без UI: `npm run trace -- <runId из traceUrl>`.
-
-**Studio.** В LangSmith Studio запускается **рабочий агент** — тот же граф, что в сервисе:
-
-```bash
-npm run studio        # собирает проект и поднимает LangGraph Server на 127.0.0.1:2024
-npm run studio:open   # открывает Studio во вкладке VS Code (внешний браузер не запускается)
-npm run studio:check  # проверка через API сервера: тред, история, подтверждение
-```
-
-`npm run studio` больше не открывает браузер сам (`--no-browser`). `npm run studio:open` открывает Studio **в отдельном окне** браузера с изолированным профилем:
-
-- используется Chromium-браузер (Chrome → Edge → Яндекс) в режиме `--app`: окно без адресной строки и без ваших вкладок;
-- профиль отдельный — `.browser-profile/` в репозитории (в `.gitignore`), ваша основная сессия и открытые окна не затрагиваются;
-- вход в LangSmith в этом окне нужен один раз, дальше профиль его помнит.
-
-Альтернатива без внешнего окна: клик по ссылке в терминале (`workbench.browser.openLocalhostLinks` включён в `.vscode/settings.json`) или `Ctrl+Shift+P` → «Simple Browser: Show». Автоматически открыть встроенную вкладку VS Code нельзя: в 1.144 `code --open-url` возвращает успех, но вкладку не создаёт.
-
-Сервер печатает ссылку `https://smith.langchain.com/studio?baseUrl=http://127.0.0.1:2024` — открыть в браузере, где вы вошли в LangSmith. Вкладка **Chat** — полноценный диалог: вопрос уходит в `classify`, модель вызывает `portfolio_all_accounts` (сводка по всем открытым счетам), граф встаёт на `approve`, в панели Interrupt виден запрос, после решения кнопкой **Resume** прогон продолжается и приходит ответ по реальным данным брокера.
-
-**Как подтвердить.** В панели Interrupt есть поле значения (по умолчанию в нём `""` — это отказ). Впишите объект решения и нажмите **Resume**:
-
-```json
-{"approved": true}
-```
-
-Отказ — `{"approved": false}` (данные не запрашиваются, агент предложит подтвердить). Пустое значение, `""` и любой другой мусор тоже считаются отказом: подтверждение без явного «да» не принимается. Принимаются также `true`, `"да"`, `"{\"approved\": true}"` — разбор терпимый (`isApprovedDecision` в `src/agent/nodes/approve.node.ts`).
-
-**Что видит агент.** `MCP_TINKOFF_ALLOWED_TOOLS` — это allowlist: инструменты вне списка агенту недоступны (и в Studio их не будет). При старте `npm run studio` печатает фактический список, например `Агенту доступно инструментов: 17 — tinkoff__invest_get_candles, …`. Если вопрос про бумагу вызывает «не вижу данных», сначала проверьте этот список.
-
-Область ассистента — портфель **и** рыночные данные: состав и стоимость, доходность, цены и динамика бумаг, дивиденды, фундаментал, новости. Всё остальное (погода, политика, налоги, сделки) уходит в детерминированный отказ без вызова инструментов — поэтому там не появляется и запрос подтверждения. На вопрос «что ты умеешь» отвечает фиксированный список возможностей (`CAPABILITIES_ANSWER`): на общий вопрос GigaChat отвечает своей «визиткой», игнорируя системный промпт.
-
-Два инструмента собирает само приложение:
-
-| Инструмент | Что делает |
-|---|---|
-| `portfolio_all_accounts` | `invest_list_accounts` → по каждому счёту `invest_get_portfolio` (итог, доходность) + `invest_get_positions` (бумаги) → пакетный `invest_get_market_values` (цена) → стоимость позиции = цена × количество |
-| `price_dynamics` | `invest_find_instrument` → `invest_get_candles` (дневные) → изменение за период в валюте и процентах, минимум/максимум с датами |
-
-Оба считают числа кодом, а модель их пересказывает: иначе она «вспоминает» чужие цены вместо данных брокера. Доходность (`expectedYield`, `dailyYield`) берётся из ответа брокера и не пересчитывается. Если цену получить не удалось, позиция показывается без стоимости, а не с нулём.
-
-**Лимиты времени** (чтобы прогон не «висел»):
-
-| Что | Предел |
-|---|---|
-| классификация вопроса | 8 с, при сбое вопрос идёт как `portfolio` |
-| ответ модели | 15 с |
-| один вызов MCP-инструмента | 8 с |
-| ожидание подтверждения | 15 мин (`APPROVAL_TTL_MINUTES`) |
-| прогон через HTTP-API | 30 с (`RUN_DEADLINE_MS`), бюджет 8 вызовов инструментов |
-
-GigaChat по умолчанию работает **без SSE-потока**: `GIGACHAT_STREAMING=false`, плюс `disableStreaming` в модели. Иначе Studio включает поток через callbacks, клиент рвёт обрезанный чанк («Unterminated string in JSON») и повторяет запрос минутами — именно это выглядело как «ответ висит 2 минуты».
-
-Перед первым запуском в `.env` должны быть настройки TLS до MCP T-Invest (иначе `npm run studio` упадёт с понятной ошибкой «MCP недоступен»):
-
-```
-MCP_TINKOFF_TLS_MODE=extra-ca
-MCP_TINKOFF_CA_FILE=certs/mcp-chain.pem
-```
-
-Точка входа — `src/agent/agent.server.ts` (аналог `investServer.ts` из примера курса), конфигурация — `langgraph.json`:
-
-```ts
-export const graph = await graphForServer();
-```
-
-`graphForServer()` (`src/agent/agent-runtime.ts`) собирает вне NestJS те же зависимости: `loadConfiguration()` — ту же zod-схему `.env`, `LlmRegistry` (провайдер и две модели из `LLM_PROVIDER`/`LLM_MODEL`/`LLM_ROUTER_MODEL`), `McpRegistryService` (allowlist, прокси, TLS-режимы, бюджет вызовов), `ApprovalPolicyService` (правила подтверждений), счёт из `TINKOFF_ACCOUNT_ID`. Сам граф — тем же `buildAgentGraph`. Чекпоинтер не передаётся: персистентность треда держит сам dev-сервер LangGraph.
-
-Привязка к `127.0.0.1` обязательна: по умолчанию CLI слушает `localhost` (IPv6 `::1`), и браузер не может достучаться до API. Нужен `@langchain/langgraph-api` в `devDependencies` (ставится с `--legacy-peer-deps` из-за peer `typescript@5`, у нас TypeScript 6).
+---
 
 ## Ограничения
 
-- Доступ к данным — только чтение: торговые и денежные операции MCP запрещены и на уровне allowlist, и в правилах подтверждений.
-- Источник ключевой ставки — официальный SOAP-интерфейс ЦБ; при его недоступности используются кэш и сид-файл `data/key-rate-seed.json`, а раздел макро честно помечает происхождение данных.
-- Инфляции, макрокалендаря и текстовых обзоров инвест-домов в источниках нет: фаза цикла и привлекательность секторов помечаются как `(оценка)`.
-- Сектор бумаги берётся из справочника активов брокера (`brand.sector`); если брокер его не вернул, в разрезе честно выводится «сектор не определён» с указанием доли такого портфеля.
-- Новости брокера отдаются лентой без фильтра по дате: период определяется по времени публикации, глубина ограничена `NEWS_SCAN_PAGES`.
-- Подтверждение требуется заново на каждый вопрос, читающий данные; внутри одного разбора план подтверждается один раз.
-- Состояние сессий и отчётов хранится в SQLite (`.state/state.sqlite`, `STATE_BACKEND=sqlite`); при `STATE_BACKEND=memory` история теряется при перезапуске.
-- Одна сессия = один `USER_ID` из конфигурации: мультипользовательской авторизации нет.
-- Нет UI и стриминга ответа: ответ приходит одним JSON после подтверждения. Дедлайн прогона — `RUN_DEADLINE_MS` (90 с), клиентский таймаут должен быть больше.
-- Лимиты прогона — `RUN_TOOL_MAX_CALLS` (40), `RUN_DEADLINE_MS` (90 с), `RUN_PARALLELISM` (4), `REVIEW_MAX_INSTRUMENTS` (15); при исчерпании ответ помечается `partial: true`.
-- TLS до T-Invest MCP требует дополнительного CA (`MCP_TINKOFF_TLS_MODE=extra-ca`, файл из `scripts/fetch-mcp-ca.mjs`).
-- `REVIEW_ENABLED=false` возвращает прежнее поведение: две метки, только сводка по счетам, без ветки разбора.
+- Только чтение: торговые и платёжные операции MCP запрещены allowlist-ом и правилами
+  подтверждений.
+- Одна сессия = один `USER_ID`: мультипользовательской авторизации нет.
+- Нет UI и стриминга: ответ приходит одним JSON после подтверждения; дедлайн —
+  `RUN_DEADLINE_MS`.
+- Провайдер фактов по бумаге не отдаёт среднюю цену покупки, поэтому доходность считается
+  по портфелю (`expectedYield`, `dailyYieldRelative`), а не по каждой позиции.
+- Календарь отчётности (`invest_get_instrument_reports`) у брокера отдаёт ответ, не
+  проходящий его собственную валидацию, поэтому «дата следующего отчёта» не выводится;
+  дивидендный календарь работает.
+- Ставка купона облигации оценивается по накопленному доходу между выплатами (точного
+  поля в карточке нет) и помечается «(оценка)».
+- Инфляции, макрокалендаря и обзоров инвест-домов в источниках нет: выводы на принципах
+  помечаются «(оценка)».
+- Если брокер не отдал сектор бумаги, в разрезах честно пишется «сектор не определён»
+  с долей такого портфеля.
+- Telegram не используется: новости — деловые RSS и HTML-страницы брокеров.
 
-## Статус
+---
 
-Реализовано: конфигурация с проверкой zod, реестр LLM-провайдеров (gigachat/openai/openai-compatible), реестр MCP-серверов с allowlist, бюджетом вызовов и локальным прокси, граф `classify → (offTopic | agent ⇄ approve → tools)`, подтверждения через `interrupt` с возобновлением после рестарта, HTTP-слой (`202/409/410`, единый формат ошибок), health, SQLite-персистентность с очисткой TTL, маскирование секретов, трейсы LangSmith и `traceUrl`.
+## Если что-то не работает
 
-Проверено вживую (T-Invest MCP + GigaChat): `POST /chat` → `202 awaiting_approval` с действием `tinkoff__invest_get_portfolio`, `POST /chat/approve` → `200 completed` с отчётом и дисклеймером, `GET /health` → `ok` (`llm: up`, `mcp:tinkoff: up`), `traceUrl` открывает прогон со спанами `classify`, `agent`, `tools`, `approve`.
+| Симптом | Причина и решение |
+|---|---|
+| `SELF_SIGNED_CERT_IN_CHAIN`, `unable to verify the first certificate` | нет CA для T-Invest MCP: `node scripts/fetch-mcp-ca.mjs`, затем `MCP_TINKOFF_TLS_MODE=extra-ca` и `MCP_TINKOFF_CA_FILE=certs/mcp-chain.pem` |
+| `mcp_unauthorized` (503) | токен T-Invest неверный или без нужных прав — перевыпустите read-only токен |
+| `llm: down` в `/health` | не заполнены или истекли креденшелы выбранного провайдера |
+| `409 NOT_AWAITING_APPROVAL` | у сессии нет ожидающего подтверждения: начните новый вопрос |
+| `410 APPROVAL_EXPIRED` | подтверждение пришло позже `APPROVAL_TTL_MINUTES` (15 мин) — повторите вопрос |
+| Ответ «зависает» на минуты (GigaChat) | включён streaming: `GIGACHAT_STREAMING=false` |
+| Клиент отваливается по таймауту | клиентский таймаут должен быть больше `RUN_DEADLINE_MS` (240 с) |
+| `partial: true` в ответе | исчерпан бюджет вызовов или дедлайн: смотрите `report.coverage` и «Недоступные источники» |
+| Пустая сводка новостей | проверьте `SOURCES`/`NEWS_SOURCES` и `NEWS_FEED_PERIODS`; недоступные источники видны в покрытии |
+| «сектор не определён» | брокер не вернул `brand.sector`; сектор подтягивается цепочкой `share → asset → brand` |
+| После `docker compose up` отчёт не собирается | проверьте тома `./data`, `./.state`, `./certs` и что `certs/mcp-chain.pem` создан |
 
-Проверки: `npm run build`, `npm test` (104 unit), `npm run test:e2e` (22 e2e: граф, MCP, HTTP, рестарт состояния, пустой портфель, off-topic, невалидный ввод, fail-open трассировки), `npm run lint`, `npm run smoke:mcp` (живой MCP, см. [`docs/mcp.md`](docs/mcp.md)), `npm run studio` + `npm run studio:check` (живой агент в LangSmith Studio).
+---
 
-Проверено в Docker: `docker compose up -d --build` → контейнер `healthy`, `GET /health` → `ok`, «вопрос → подтверждение → ответ» → `202`/`200`, подтверждение после `docker compose restart` продолжает прогон (состояние в `./data`).
+## Документация
 
-Планирование и спецификации — в [`openspec/specs/`](openspec/specs/) (основные спеки) и [`openspec/changes/archive/2026-10-29-portfolio-analyst-agent-mvp/`](openspec/changes/archive/2026-10-29-portfolio-analyst-agent-mvp/) (предложение, дизайн и задачи реализованного MVP).
+| Документ | О чём |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | модули, правила зависимостей, контракты расширения, чек-лист ревью |
+| [`docs/api.md`](docs/api.md) | эндпоинты, `intent`, коды ошибок, примеры |
+| [`docs/mcp.md`](docs/mcp.md) | MCP-серверы, allowlist, прокси, TLS |
+| [`docs/sources.md`](docs/sources.md) | источники данных и новостей, как добавить ленту |
+| [`docs/knowledge.md`](docs/knowledge.md) | база знаний: формат тем, отбор контекста |
+| [`docs/reports.md`](docs/reports.md) | шаблон отчёта, секции, карточка бумаги, секторы |
+| [`docs/state.md`](docs/state.md) | SQLite, TTL сессий и отчётов |
+| [`docs/approvals.md`](docs/approvals.md) | правила подтверждений |
+| [`docs/llm-providers.md`](docs/llm-providers.md) | провайдеры моделей |
+| [`docs/observability.md`](docs/observability.md) | логи, маскирование, трассировка |
+
+Спецификации и завершённые изменения — в [`openspec/`](openspec/).
 

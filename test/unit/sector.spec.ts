@@ -52,7 +52,11 @@ describe('определение сектора бумаги', () => {
 
   it('переводит enum в русское название и сохраняет неизвестные значения', () => {
     expect(sectorLabel('SECTOR_FINANCIAL')).toBe('финансы');
-    expect(sectorLabel('SECTOR_IT')).toBe('информационные технологии');
+    expect(sectorLabel('SECTOR_ENERGY')).toBe('нефть и газ');
+    // Коммунальные услуги и электроэнергетика — разные секторы: путать нельзя.
+    expect(sectorLabel('SECTOR_UTILITIES')).toBe('электроэнергетика');
+    expect(sectorLabel('green_energy')).toBe('зелёная энергетика');
+    expect(sectorLabel('SECTOR_IT')).toBe('технологии');
     expect(sectorLabel('SECTOR_NEW')).toBe('SECTOR_NEW');
     expect(sectorLabel(undefined)).toBe(UNKNOWN_SECTOR);
     expect(sectorLabel('SECTOR_UNSPECIFIED')).toBe(UNKNOWN_SECTOR);

@@ -20,7 +20,9 @@ sections:
     provider: macro.context
     render: text
     interpret: true
-  # По каждой бумаге: периоды, аналитики, дивиденды, её собственные новости.
+    # Тема цикла обязательна: без неё модель трактует ставку без контекста фаз.
+    knowledge: [cycles]
+  # По каждой бумаге: график, периоды, аналитики, дивиденды, её собственные новости.
   - id: securities
     title: Разбор по бумагам
     provider: securities.detail
@@ -30,12 +32,21 @@ sections:
     provider: securities.opinions
     render: text
     interpret: true
+    # Оценка опирается на отчётность и мультипликаторы — обе темы обязательны.
+    knowledge: [reporting, multiples]
   - id: structure
     title: Структура портфеля
     provider: portfolio.structure
     render: distribution
     # Разрезы портфеля нужны и по счёту, но в разборе одной бумаги это шум.
     scopes: [portfolio, account]
+  # Внешнеэкономический профиль: экспортёры, внутренний рынок, импортёры.
+  - id: exposure
+    title: Экспортёры, импортёры и внутренний рынок
+    provider: portfolio.exposure
+    render: text
+    scopes: [portfolio, account]
+    knowledge: [trade-balance]
   - id: concentration
     title: Концентрация
     provider: portfolio.concentration
@@ -46,6 +57,8 @@ sections:
     provider: tax.context
     render: text
     scopes: [portfolio, account]
+    # Налоги и издержки: доходность считается после них.
+    knowledge: [taxes]
   - id: gaps
     title: Пробелы в портфеле
     provider: portfolio.gaps
@@ -57,3 +70,5 @@ sections:
     provider: facts.brief
     render: text
     interpret: true
+    # Стратегия — главный вывод раздела: тема обязательна, а не по весу.
+    knowledge: [strategies]

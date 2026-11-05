@@ -9,6 +9,8 @@ export interface Holding {
   ticker: string;
   name: string;
   className: string;
+  /** Код режима торгов: по нему определяется категория облигации. */
+  classCode?: string;
   currency: string;
   quantity: number;
   price?: Money;
@@ -18,7 +20,7 @@ export interface Holding {
 const CLASS_KINDS: [RegExp, string][] = [
   [/^TQBR$/, 'акции'],
   [/^TQTF$|^TQIF$|^TQTD$|^TQTE$/, 'фонды'],
-  [/^TQCB$|^TQOB$/, 'облигации'],
+  [/^TQCB$|^TQOB$|^TQIR$|^TQMO$|^TQTC$|^TQBD$|^TQOD$|^PSAU$|^PTOB$/, 'облигации'],
   [/^SPBFUT$/, 'фьючерсы'],
 ];
 
@@ -98,6 +100,7 @@ export const holdingsOf = (ctx: FactContext): Holding[] => {
         ticker: position.instrument.ticker,
         name: position.instrument.name,
         className: instrumentKind(position.instrument.classCode),
+        classCode: position.instrument.classCode,
         currency: price?.currency ?? currency,
         quantity,
         price,
@@ -118,6 +121,54 @@ export const holdingsOf = (ctx: FactContext): Holding[] => {
 
 export const totalValue = (holdings: Holding[]): number =>
   holdings.reduce((sum, holding) => sum + (holding.value?.amount ?? 0), 0);
+
+/** Деньги в ответе брокера: `{value}` или `{units, nano}`. */
+const moneyAmount = (raw: unknown): number | undefined => {
+  const record = raw as { value?: string; units?: string; nano?: number } | undefined;
+  if (!record) {
+    return undefined;
+  }
+  if (typeof record.value === 'string' && record.value.trim() !== '') {
+    const parsed = Number(record.value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  const fromParts = Number(record.units ?? 0) + Number(record.nano ?? 0) / 1_000_000_000;
+  return Number.isFinite(fromParts) ? fromParts : undefined;
+};
+
+/** Доходность портфеля: абсолютная прибыль, проценты за всё время и за день. */
+export interface PortfolioYield {
+  amount?: number;
+  /** Доходность к вложенному: прибыль / (стоимость − прибыль). */
+  pct?: number;
+  dailyPct?: number;
+  currency: string;
+}
+
+export const portfolioYieldOf = (ctx: FactContext): PortfolioYield | undefined => {
+  for (const { text } of resultsInGroup(ctx.plan, ctx.collected, 'portfolio')) {
+    const root = asJson(text) as {
+      expectedYield?: unknown;
+      dailyYieldRelative?: { value?: string };
+      totalAmountPortfolio?: { currency?: string };
+      totalValue?: { currency?: string };
+    };
+    const amount = moneyAmount(root?.expectedYield);
+    const total = moneyAmount(root?.totalAmountPortfolio ?? root?.totalValue);
+    const dailyPct = Number(root?.dailyYieldRelative?.value);
+    if (amount === undefined && !Number.isFinite(dailyPct)) {
+      continue;
+    }
+    const invested = total !== undefined && amount !== undefined ? total - amount : undefined;
+    return {
+      amount,
+      pct: amount !== undefined && invested !== undefined && invested > 0 ? (amount / invested) * 100 : undefined,
+      dailyPct: Number.isFinite(dailyPct) ? dailyPct : undefined,
+      currency: (root?.totalAmountPortfolio?.currency ?? root?.totalValue?.currency ?? 'rub').toUpperCase(),
+    };
+  }
+  return undefined;
+};
 
 /** Доли по разрезу: значение → сумма и доля. */
 export const distribute = <T>(

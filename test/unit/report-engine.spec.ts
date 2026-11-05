@@ -120,6 +120,7 @@ topics:
       'securities',
       'opinions',
       'structure',
+      'exposure',
       'concentration',
       'tax',
       'gaps',
@@ -171,7 +172,7 @@ describe('сборка отчёта движком', () => {
 
     expect(report.reportId).toBe('report-1');
     expect(report.templateVersion).toBe(2);
-    expect(report.sections).toHaveLength(9);
+    expect(report.sections).toHaveLength(10);
     expect(table?.markdown).toContain('SBER');
     // 100 × 300 + 10 × 900 = 39 000
     expect(table?.markdown).toContain('39 000,00');
@@ -439,6 +440,7 @@ describe('область разбора в отчёте', () => {
       'securities',
       'opinions',
       'structure',
+      'exposure',
       'concentration',
       'tax',
       'gaps',

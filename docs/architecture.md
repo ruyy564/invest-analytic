@@ -47,6 +47,7 @@
 | `collection` | план сбора и исполнение (группы, приоритеты) | `buildCollectionPlan`, `executePlan` | как отображается отчёт |
 | `news` | новостные ленты, фильтры, алиасы, реестр | `NewsRegistry`, `NewsSourceAdapter` | про отчёт и граф |
 | `key-rate` | ключевая ставка ЦБ | `KeyRateSource`, `buildKeyRateSource` | про новости и граф |
+| `commodities` | учётные цены металлов ЦБ (сырьевой фактор) | `CommoditySource`, `metalForTicker` | про отчёт, новости и граф |
 | `mcp` | транспорт MCP: реестр, клиент, прокси, адаптер, схемы, бюджет | `McpRegistryService`, `MCP_TOOLS` | про отчёт и узлы |
 | `tools/<tool>` | сами тулы и их подключение | `ToolsModule`, `KNOWLEDGE_TOOL` | про отчёт и граф |
 | `parsing` | разбор ответов MCP и YAML | `parseYaml`, mappers | про домен |
@@ -101,17 +102,21 @@ src/
     engine.ts                 сборка фактов по секциям
     engine.types.ts           контракты движка (факты, провайдеры, результат)
     section-sectors.ts        секторы для базы знаний по секциям
+    sparkline.ts              спарклайн цены для карточки бумаги и таблицы
+    company-profiles.ts       драйверы секторов и профили «экспортёр / внутренний рынок»
     compose.ts                итоговый markdown
     portfolio-report.ts       рендер сводки по счетам и дисклеймеры
     format.ts, position-format.ts  форматтеры чисел, денег и строк позиций
-    providers/portfolio/      по файлу на секцию: table, structure, concentration, gaps
+    providers/portfolio/      по файлу на секцию: table, structure, exposure, concentration, gaps
       holdings.ts, sectors.ts  общие расчёты позиций и секторов
+    providers/securities/     detail, opinions, bond-facts (категория и купон облигации)
   collection/                 план и исполнение сбора
   news/                       новости: реестр, фильтры, алиасы, источники
     news.types.ts, news.registry.ts, news.factory.ts, news.filters.ts, news.aliases.ts
-    sources/{defaults,feed,smartlab-tag,tinkoff}.ts
+    sources/{defaults,feed,smartlab-tag,tinkoff,rbc-quote,tbank-research}.ts
   key-rate/                   ключевая ставка ЦБ: типы, источник, разбор, кэш, фабрика
-  parsing/                    парсинг: mappers/, yaml.ts, feed.ts (RSS/Atom/JSON)
+  commodities/                цены металлов ЦБ: типы, XML-разбор, карта «тикер → металл», фабрика
+  parsing/                    парсинг: mappers/, yaml.ts, feed.ts (RSS/Atom/JSON), html.ts (SSR-JSON)
   config/                     схема env и типизированный конфиг
     env.schema.ts             публичный API схемы (фасад)
     app-config.types.ts       типы AppConfig (секции конфигурации)
@@ -119,7 +124,7 @@ src/
   mcp/                        инфраструктура MCP: реестр, клиент, прокси, адаптер, схемы, бюджет
     local-tools.ts            сборка локальных тулов из их папок
     proxy-upstream.ts         соединение с MCP-сервером, TLS и корневые CA
-  tools/<tool>/               сами тулы: key-rate, knowledge, news-digest, portfolio-snapshot, price-dynamics, tax-watch
+  tools/<tool>/               сами тулы: commodity, key-rate, knowledge, news-digest, portfolio-snapshot, price-dynamics, tax-watch
     <tool>.tool.ts            обёртка: схема, описание, вызов сервиса (15–60 строк)
     <tool>.service.ts         сбор, расчёт и форматирование
   accounts/                   счёт по умолчанию
@@ -130,7 +135,7 @@ src/
 
 | Папка | Что это | Почему не код |
 |---|---|---|
-| `data/` | темы знаний (`knowledge/*.yaml`), словари, сиды | данные, правятся без сборки |
+| `data/` | темы знаний (`knowledge/*.yaml`), словари, профили компаний (`company-profiles.yaml`), сиды | данные, правятся без сборки |
 | `reports/` | шаблон отчёта и промпт интерпретации (`.yaml`, `.md`) | контент, меняется без компиляции |
 | `scripts/` | разовые утилиты (`fetch-mcp-ca`, `clean-temp`, пробы) | не входит в рантайм |
 | `test/` | unit/e2e и фикстуры | проверки, не продукт |
@@ -165,6 +170,10 @@ src/
 | Новости: реестр и фильтры | `src/news/{news.registry,news.filters}.ts` |
 | Новости: ленты | `src/news/sources/*` |
 | Ключевая ставка | `src/key-rate/key-rate.cbr.ts` |
+| Профили секторов и компаний | `src/report/company-profiles.ts` + `data/company-profiles.yaml` |
+| Облигации: категория и купон | `src/report/providers/securities/bond-facts.ts` |
+| График цены | `src/report/sparkline.ts` |
+| Внешнеэкономический профиль портфеля | `src/report/providers/portfolio/exposure.provider.ts` |
 | MCP: реестр и discovery | `src/mcp/mcp-registry.service.ts` |
 | MCP: подключение и прокси | `src/mcp/{mcp-client.factory,mcp-proxy.service}.ts` |
 | Парсинг ответов MCP | `src/parsing/mappers/*` |
@@ -175,6 +184,7 @@ src/
 | Схема окружения по секциям | `src/config/env/{constants,helpers,scalar,mcp}.ts` |
 | Локальные тулы MCP | `src/mcp/local-tools.ts` |
 | Парсинг лент | `src/parsing/feed.ts` |
+| Парсинг HTML-страниц (SSR-JSON) | `src/parsing/html.ts` |
 | Шаблон отчёта | `reports/portfolio-review.yaml` |
 | Темы знаний | `data/knowledge/*.yaml` |
 | Правила подтверждений | `src/agent/approvals/approval-rules.ts` |

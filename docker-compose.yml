@@ -13,6 +13,8 @@ services:
       - '3000:3000'
     volumes:
       - ./data:/app/data
+      # Состояние прогонов и отчётов: без тома теряется при пересоздании контейнера.
+      - ./.state:/app/.state
       - ./certs:/app/certs:ro
     healthcheck:
       test:

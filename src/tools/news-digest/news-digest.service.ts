@@ -113,7 +113,7 @@ export const NEWS_FEED_PERIODS = [
 ] as const;
 
 /** Сколько публикаций показывать в одном периоде, если лимит не задан. */
-export const NEWS_FEED_MAX_PER_PERIOD = 5;
+export const NEWS_FEED_MAX_PER_PERIOD = 8;
 
 /**
  * Сводка инвестиционных новостей без привязки к портфелю: общая повестка всех
@@ -138,7 +138,9 @@ export const collectNewsFeed = async (
   // Тикеров нет: это общая повестка, а не новости конкретных бумаг.
   const { items, coverage } = await registry.newsDigest({
     pages: params.pages,
-    maxItems: Math.max(params.maxItems, maxPerPeriod * periods.length * 3),
+    // Пул должен быть заметно больше выдачи: иначе в окна попадают только
+    // самые свежие публикации двух-трёх лент, а деловые ленты не видны вовсе.
+    maxItems: Math.max(params.maxItems, maxPerPeriod * periods.length * 8),
     sinceDays: longest,
   });
 
@@ -191,15 +193,17 @@ export const collectNewsFeed = async (
 /** Ответ пользователю: периоды с датами и источниками, покрытие и время данных. */
 export const formatNewsFeed = (result: NewsFeedResult): string => {
   const lines: string[] = [`Новости инвестиционного рынка (данные на ${result.asOf})`, ''];
+  const filled = result.periods.filter((period) => period.items.length > 0);
 
-  for (const period of result.periods) {
+  // Пустые окна не занимают экран: если новостей нет вовсе — одна строка.
+  if (filled.length === 0) {
+    lines.push('За выбранный период инвестиционных новостей нет.', '');
+  }
+
+  for (const period of filled) {
     lines.push(period.title);
-    if (period.items.length === 0) {
-      lines.push(`• новостей нет`);
-    } else {
-      for (const entry of period.items) {
-        lines.push(`• ${entry.publishedAt.slice(0, 10)} [${entry.source}] ${entry.title}`);
-      }
+    for (const entry of period.items) {
+      lines.push(`• ${entry.publishedAt.slice(0, 10)} [${entry.source}] ${entry.title}`);
     }
     lines.push('');
   }
