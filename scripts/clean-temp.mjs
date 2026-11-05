@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 // Удаляет временные артефакты прогонов и сборки: логи, кеш tsc, дампы, профили браузера.
 // Использование:
 //   node scripts/clean-temp.mjs           — показать, что будет удалено
@@ -24,6 +24,8 @@ const TEMP_FILE_PATTERNS = [
   /^tool-dump\.jsonl$/i,
   /^report\.md$/i,
   /^coverage\.json$/i,
+  // Временные выгрузки вида tmp-*.txt / tmp.json
+  /^tmp[-_.]/i,
 ];
 
 /** Временные каталоги в корне проекта. */
