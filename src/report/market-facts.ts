@@ -1,5 +1,5 @@
-import { formatNumber } from '../agent/report/portfolio-report.js';
-import { mapCandles, type PricePoint } from '../tools/price-dynamics.js';
+﻿import { formatNumber } from '../agent/report/portfolio-report.js';
+import { mapCandles, type PricePoint } from '../tools/price-dynamics/price-dynamics.tool.js';
 import type { ReportPeriod } from './template.js';
 
 /**

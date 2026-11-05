@@ -1,6 +1,6 @@
 ﻿import { AIMessage } from '@langchain/core/messages';
-import type { KnowledgeProvider } from '../../knowledge/index.js';
-import type { AgentStateType } from '../graph/state.js';
+import type { KnowledgeProvider } from '../../../knowledge/index.js';
+import type { AgentStateType } from '../../graph/state.js';
 
 export interface KnowledgeDeps {
   knowledge: KnowledgeProvider;

@@ -10,7 +10,7 @@
   UNAVAILABLE,
 } from '../../src/agent/report/portfolio-report.js';
 import { buildPortfolioReportPrompt } from '../../src/agent/nodes/agent/portfolio-report.prompt.js';
-import type { Portfolio } from '../../src/tools/mappers/portfolio.mapper.js';
+import type { Portfolio } from '../../src/parsing/mappers/portfolio.mapper.js';
 
 const PORTFOLIO: Portfolio = {
   accountId: 'acc-1',

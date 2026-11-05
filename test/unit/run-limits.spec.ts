@@ -1,9 +1,9 @@
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AgentRunnerService } from '../../src/agent/agent-runner.service.js';
 import type { ApprovalFlowService } from '../../src/agent/approval-flow.service.js';
 import type { ApprovalPolicyService } from '../../src/agent/approvals/approval-policy.service.js';
 import type { AppConfigService } from '../../src/config/app-config.service.js';
-import type { McpRegistryService } from '../../src/tools/mcp-registry.service.js';
+import type { McpRegistryService } from '../../src/mcp/mcp-registry.service.js';
 
 const configStub = (deadlineMs: number): AppConfigService =>
   ({ value: { run: { deadlineMs } } }) as unknown as AppConfigService;

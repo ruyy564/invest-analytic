@@ -1,5 +1,5 @@
 ﻿import { HumanMessage } from '@langchain/core/messages';
-import { createClassifyNode } from '../../src/agent/nodes/classify.node.js';
+import { createClassifyNode } from '../../src/agent/nodes/classify/index.js';
 import { OFF_TOPIC_PATTERN } from '../../src/agent/nodes/classify/prompt.js';
 import type { AppConfigService } from '../../src/config/app-config.service.js';
 import {

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+﻿import { randomUUID } from 'node:crypto';
 import { jest } from '@jest/globals';
 import type { INestApplication } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
@@ -8,7 +8,7 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module.js';
 import { ApprovalFlowService } from '../../src/agent/approval-flow.service.js';
 import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../../src/llm/llm.module.js';
-import { MCP_CLIENT_FACTORY } from '../../src/tools/mcp-registry.service.js';
+import { MCP_CLIENT_FACTORY } from '../../src/mcp/mcp-registry.service.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 import { e2eToolCatalog, E2E_ALLOWED_TOOLS } from '../fixtures/e2e-catalog.js';
 import { ACCOUNTS_FIXTURE, PORTFOLIO_FIXTURE } from '../fixtures/mcp-test-server.js';

@@ -1,4 +1,4 @@
-import { McpInvalidResponseError } from '../errors.js';
+﻿import { McpInvalidResponseError } from '../../mcp/errors.js';
 import { normalizeCurrency, parseDecimal } from './money.js';
 import type { PortfolioPosition } from './portfolio.mapper.js';
 

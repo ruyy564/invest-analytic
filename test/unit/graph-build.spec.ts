@@ -1,12 +1,12 @@
 ﻿import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { MemorySaver } from '@langchain/langgraph';
 import { ApprovalFlowService } from '../../src/agent/approval-flow.service.js';
-import { withToolResults } from '../../src/agent/nodes/agent.node.js';
+import { withToolResults } from '../../src/agent/nodes/agent/index.js';
 import { ApprovalPolicyService } from '../../src/agent/approvals/approval-policy.service.js';
 import { buildAgentGraph } from '../../src/agent/graph/build-graph.js';
 import { OFF_TOPIC_ANSWER } from '../../src/agent/nodes/off-topic/prompt.js';
 import { AppConfigService } from '../../src/config/app-config.service.js';
-import type { McpRegistryService } from '../../src/tools/mcp-registry.service.js';
+import type { McpRegistryService } from '../../src/mcp/mcp-registry.service.js';
 import { KnowledgeRepository, KnowledgeService } from '../../src/knowledge/index.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';

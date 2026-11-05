@@ -1,9 +1,9 @@
-import { AppConfigService } from '../../src/config/app-config.service.js';
+﻿import { AppConfigService } from '../../src/config/app-config.service.js';
 import type { McpServerConfig } from '../../src/config/env.schema.js';
-import { HealthController } from '../../src/api/health.controller.js';
-import { MultiServerMcpFactory } from '../../src/tools/mcp-client.factory.js';
-import { ALL_ACCOUNTS_TOOL } from '../../src/tools/portfolio-snapshot.js';
-import { McpRegistryService } from '../../src/tools/mcp-registry.service.js';
+import { HealthController } from '../../src/api/controllers/health.controller.js';
+import { MultiServerMcpFactory } from '../../src/mcp/mcp-client.factory.js';
+import { ALL_ACCOUNTS_TOOL } from '../../src/tools/portfolio-snapshot/portfolio-snapshot.tool.js';
+import { McpRegistryService } from '../../src/mcp/mcp-registry.service.js';
 import { startTestMcpServer, type TestMcpServer } from '../fixtures/mcp-test-server.js';
 
 describe('интеграция с MCP-сервером', () => {

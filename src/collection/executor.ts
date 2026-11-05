@@ -1,6 +1,6 @@
-import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { withTimeout } from '../tools/mcp-tool.adapter.js';
-import type { ToolBudget } from '../tools/tool-budget.js';
+﻿import type { DynamicStructuredTool } from '@langchain/core/tools';
+import { withTimeout } from '../mcp/mcp-tool.adapter.js';
+import type { ToolBudget } from '../mcp/tool-budget.js';
 import { planKey, type CollectionPlan, type PlanEntry } from './plan.js';
 import type { CoverageEntry } from '../sources/registry.js';
 

@@ -1,6 +1,6 @@
-import type { AppConfigService } from '../config/app-config.service.js';
-import type { McpRegistryService } from './mcp-registry.service.js';
-import { withTimeout } from './mcp-tool.adapter.js';
+﻿import type { AppConfigService } from '../config/app-config.service.js';
+import type { McpRegistryService } from '../mcp/mcp-registry.service.js';
+import { withTimeout } from '../mcp/mcp-tool.adapter.js';
 
 const ACCOUNT_LOOKUP_TIMEOUT_MS = 10_000;
 

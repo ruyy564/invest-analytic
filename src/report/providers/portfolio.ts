@@ -1,8 +1,8 @@
-import { formatMoney, formatNumber, UNAVAILABLE } from '../../agent/report/portfolio-report.js';
+﻿import { formatMoney, formatNumber, UNAVAILABLE } from '../../agent/report/portfolio-report.js';
 import { resultsInGroup } from '../../collection/executor.js';
-import { mapMarketValues, priceOf } from '../../tools/mappers/market-values.mapper.js';
-import type { Money } from '../../tools/mappers/money.js';
-import { mapPositions } from '../../tools/mappers/positions.mapper.js';
+import { mapMarketValues, priceOf } from '../../parsing/mappers/market-values.mapper.js';
+import type { Money } from '../../parsing/mappers/money.js';
+import { mapPositions } from '../../parsing/mappers/positions.mapper.js';
 import type { FactContext, FactProvider, SectionFacts } from '../engine.js';
 import { formatChangePct, periodChanges, seriesByTicker } from '../market-facts.js';
 import { formatPercent, renderDistribution, renderKpi, renderTable } from '../renderers.js';

@@ -1,16 +1,16 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+﻿import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SourceRegistry } from '../../src/sources/registry.js';
 import type { NewsSourceAdapter, SourceItem } from '../../src/sources/types.js';
-import { loadTaxKeywords } from '../../src/tools/thematic/key-rate.js';
+import { loadTaxKeywords } from '../../src/tools/key-rate/key-rate.tool.js';
 import {
   collectTaxFacts,
   formatTaxFacts,
   matchesKeywords,
   sumTaxOperations,
   DEFAULT_TAX_KEYWORDS,
-} from '../../src/tools/thematic/tax-watch.js';
+} from '../../src/tools/tax-watch/tax-watch.tool.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
 const item = (overrides: Partial<SourceItem> = {}): SourceItem => ({

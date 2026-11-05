@@ -1,5 +1,5 @@
-import type { Money } from '../../tools/mappers/money.js';
-import type { Portfolio, PortfolioPosition } from '../../tools/mappers/portfolio.mapper.js';
+﻿import type { Money } from '../../parsing/mappers/money.js';
+import type { Portfolio, PortfolioPosition } from '../../parsing/mappers/portfolio.mapper.js';
 
 export const UNAVAILABLE = 'недоступно';
 export const DISCLAIMER =

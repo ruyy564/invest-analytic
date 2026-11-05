@@ -1,7 +1,7 @@
-import { Controller, Get, Res } from '@nestjs/common';
+﻿import { Controller, Get, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { AppConfigService } from '../config/app-config.service.js';
-import { McpRegistryService } from '../tools/mcp-registry.service.js';
+import { AppConfigService } from '../../config/app-config.service.js';
+import { McpRegistryService } from '../../mcp/mcp-registry.service.js';
 
 interface ComponentStatus {
   status: 'up' | 'down';

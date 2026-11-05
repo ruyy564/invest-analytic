@@ -1,9 +1,9 @@
-import {
+﻿import {
   formatDynamics,
   mapCandles,
   pickInstrument,
   summarize,
-} from '../../src/tools/price-dynamics.js';
+} from '../../src/tools/price-dynamics/price-dynamics.tool.js';
 
 const CANDLES = JSON.stringify({
   candles: [

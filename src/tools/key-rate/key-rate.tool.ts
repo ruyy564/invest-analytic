@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+﻿import { readFileSync } from 'node:fs';
 import { formatNumber } from '../../agent/report/portfolio-report.js';
 import type { SourceCoverageEntry, SourceRegistry } from '../../sources/registry.js';
 import type { KeyRateSnapshot } from '../../sources/types.js';
-import { DEFAULT_TAX_KEYWORDS } from './tax-watch.js';
+import { DEFAULT_TAX_KEYWORDS } from '../tax-watch/tax-watch.tool.js';
 
 export const KEY_RATE_TOOL = 'macro__key_rate';
 

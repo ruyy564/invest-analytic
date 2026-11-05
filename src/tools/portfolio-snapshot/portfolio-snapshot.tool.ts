@@ -1,13 +1,13 @@
-import type { DynamicStructuredTool } from '@langchain/core/tools';
+﻿import type { DynamicStructuredTool } from '@langchain/core/tools';
 import {
   formatAllAccountsReport,
   type AccountPortfolio,
-} from '../agent/report/portfolio-report.js';
-import { mapMarketValues, priceOf } from './mappers/market-values.mapper.js';
-import type { Money } from './mappers/money.js';
-import { mapPortfolio } from './mappers/portfolio.mapper.js';
-import { mapPositions } from './mappers/positions.mapper.js';
-import { withTimeout } from './mcp-tool.adapter.js';
+} from '../../agent/report/portfolio-report.js';
+import { mapMarketValues, priceOf } from '../../parsing/mappers/market-values.mapper.js';
+import type { Money } from '../../parsing/mappers/money.js';
+import { mapPortfolio } from '../../parsing/mappers/portfolio.mapper.js';
+import { mapPositions } from '../../parsing/mappers/positions.mapper.js';
+import { withTimeout } from '../../mcp/mcp-tool.adapter.js';
 
 /** Как называть инструмент в allowlist, правилах подтверждений и логах. */
 export const ALL_ACCOUNTS_TOOL = 'portfolio_all_accounts';

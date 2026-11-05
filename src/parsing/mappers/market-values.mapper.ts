@@ -1,4 +1,4 @@
-import { McpInvalidResponseError } from '../errors.js';
+﻿import { McpInvalidResponseError } from '../../mcp/errors.js';
 import { normalizeCurrency, parseMoney, type Money, type MoneySource } from './money.js';
 
 type Raw = Record<string, unknown>;

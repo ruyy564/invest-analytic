@@ -1,8 +1,8 @@
 ﻿import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
-import { createAgentNode } from '../../src/agent/nodes/agent.node.js';
-import { createHelpNode } from '../../src/agent/nodes/help.node.js';
+import { createAgentNode } from '../../src/agent/nodes/agent/index.js';
+import { createHelpNode } from '../../src/agent/nodes/help/index.js';
 import { buildAgentSystemPrompt } from '../../src/agent/nodes/agent/prompt.js';
-import { isApprovedDecision } from '../../src/agent/nodes/approve.node.js';
+import { isApprovedDecision } from '../../src/agent/nodes/approve/index.js';
 import { KnowledgeRepository, KnowledgeService } from '../../src/knowledge/index.js';
 import type { AppConfigService } from '../../src/config/app-config.service.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';

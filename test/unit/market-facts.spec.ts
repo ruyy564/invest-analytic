@@ -1,10 +1,10 @@
-import {
+﻿import {
   formatChangePct,
   periodChanges,
   seriesByTicker,
   trendWord,
 } from '../../src/report/market-facts.js';
-import { formatNewsDigest } from '../../src/tools/thematic/news-digest.js';
+import { formatNewsDigest } from '../../src/tools/news-digest/news-digest.tool.js';
 import type { SourceItem } from '../../src/sources/types.js';
 
 const candles = (points: [string, number][]): string =>

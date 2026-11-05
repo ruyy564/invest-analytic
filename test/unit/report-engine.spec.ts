@@ -4,7 +4,7 @@ import { buildCollectionPlan, planKey, ANALYTICS_MAX_INSTRUMENTS, CANDLES_MAX_IN
 import type { CollectionResult } from '../../src/collection/executor.js';
 import { buildReport, composeMarkdown, missingProviders, type FactProvider } from '../../src/report/engine.js';
 import { createProviderMap } from '../../src/report/providers/index.js';
-import { parseYaml } from '../../src/report/yaml.js';
+import { parseYaml } from '../../src/parsing/yaml.js';
 import { loadReportTemplate, parseReportTemplate, templateProviders } from '../../src/report/template.js';
 import { KnowledgeRepository, KnowledgeService } from '../../src/knowledge/index.js';
 import type { AppConfigService } from '../../src/config/app-config.service.js';

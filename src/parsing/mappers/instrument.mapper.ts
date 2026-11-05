@@ -1,4 +1,4 @@
-import { McpInvalidResponseError } from '../errors.js';
+﻿import { McpInvalidResponseError } from '../../mcp/errors.js';
 
 export interface InstrumentRef {
   uid: string;

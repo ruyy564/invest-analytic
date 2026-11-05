@@ -1,23 +1,23 @@
 ﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { Logger } from '@nestjs/common';
 import { SystemMessage } from '@langchain/core/messages';
-import { PORTFOLIO_SCOPE_PROMPT } from './off-topic/prompt.js';
-import type { AgentStateType } from '../graph/state.js';
-import { withTimeout } from '../../tools/mcp-tool.adapter.js';
-import { loadTickerAliases } from '../../sources/aliases.js';
-import { detectScope } from '../scope.js';
-import { CAPABILITIES_PATTERN } from './help/capabilities.js';
+import { PORTFOLIO_SCOPE_PROMPT } from '../off-topic/prompt.js';
+import type { AgentStateType } from '../../graph/state.js';
+import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
+import { loadTickerAliases } from '../../../sources/aliases.js';
+import { detectScope } from '../../scope.js';
+import { CAPABILITIES_PATTERN } from '../help/capabilities.js';
 import {
   KNOWLEDGE_QUESTION_PATTERN,
   type KnowledgeProvider,
-} from '../../knowledge/index.js';
+} from '../../../knowledge/index.js';
 import {
   CLASSIFIER_FALLBACK_PROMPT,
   CLASSIFIER_SYSTEM_PROMPT,
   heuristicIntent,
   heuristicNewsIntent,
   parseIntentText,
-} from './classify/prompt.js';
+} from './prompt.js';
 
 /** Предел ожидания классификатора: одно слово, дольше ждать бессмысленно. */
 export const CLASSIFY_TIMEOUT_MS = 8_000;

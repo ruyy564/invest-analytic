@@ -1,11 +1,11 @@
-import { createFeedSource, parseFeed, stripMarkup } from '../../src/sources/feed.js';
+﻿import { createFeedSource, parseFeed, stripMarkup } from '../../src/sources/feed.js';
 import { FEED_DEFAULTS, feedUrl } from '../../src/sources/defaults.js';
 import { createSmartLabTagSource } from '../../src/sources/smartlab-tag.js';
 import { isDigestTitle } from '../../src/sources/noise.js';
 import { dedupeKey, mergeNews, SourceRegistry } from '../../src/sources/registry.js';
 import type { NewsSourceAdapter, SourceItem } from '../../src/sources/types.js';
 import { mapNews } from '../../src/sources/tinkoff.js';
-import { collectNewsDigest, formatNewsDigest } from '../../src/tools/thematic/news-digest.js';
+import { collectNewsDigest, formatNewsDigest } from '../../src/tools/news-digest/news-digest.tool.js';
 
 const RSS = `<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel>
 <item><title>Сбербанк отчитался за квартал</title><link>https://a/1</link>

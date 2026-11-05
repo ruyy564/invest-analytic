@@ -1,7 +1,7 @@
 ﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { AppConfigService } from '../../../config/app-config.service.js';
 import type { KnowledgeService } from '../../../knowledge/index.js';
-import type { McpRegistryService } from '../../../tools/mcp-registry.service.js';
+import type { McpRegistryService } from '../../../mcp/mcp-registry.service.js';
 import { loadReportTemplate, type ReportTemplate } from '../../../report/template.js';
 
 export interface ReviewDeps {

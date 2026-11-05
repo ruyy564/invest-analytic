@@ -1,9 +1,9 @@
-import { AIMessage } from '@langchain/core/messages';
+﻿import { AIMessage } from '@langchain/core/messages';
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
-import type { AppConfigService } from '../../config/app-config.service.js';
-import type { McpRegistryService } from '../../tools/mcp-registry.service.js';
-import { collectNewsFeed, formatNewsFeed } from '../../tools/thematic/news-digest.js';
-import type { AgentStateType } from '../graph/state.js';
+import type { AppConfigService } from '../../../config/app-config.service.js';
+import type { McpRegistryService } from '../../../mcp/mcp-registry.service.js';
+import { collectNewsFeed, formatNewsFeed } from '../../../tools/news-digest/news-digest.tool.js';
+import type { AgentStateType } from '../../graph/state.js';
 
 export interface NewsDeps {
   config: AppConfigService;

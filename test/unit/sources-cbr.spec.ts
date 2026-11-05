@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+﻿import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -11,7 +11,7 @@ import {
 } from '../../src/sources/cbr.js';
 import { KeyRateCache } from '../../src/sources/key-rate-cache.js';
 import { SourceRegistry } from '../../src/sources/registry.js';
-import { collectKeyRate, formatKeyRate } from '../../src/tools/thematic/key-rate.js';
+import { collectKeyRate, formatKeyRate } from '../../src/tools/key-rate/key-rate.tool.js';
 
 const SOAP_XML = `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
 <soap:Body><KeyRateXMLResponse><KeyRateXMLResult>

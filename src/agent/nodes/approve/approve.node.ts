@@ -1,12 +1,12 @@
-import { AIMessage, ToolMessage } from '@langchain/core/messages';
+﻿import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import { Command, END, interrupt, type LangGraphRunnableConfig } from '@langchain/langgraph';
 import type {
   ApprovalFlowService,
   ApproveDecision,
   ApprovePayload,
-} from '../approval-flow.service.js';
-import type { ApprovalPolicyService } from '../approvals/approval-policy.service.js';
-import type { AgentStateType } from '../graph/state.js';
+} from '../../approval-flow.service.js';
+import type { ApprovalPolicyService } from '../../approvals/approval-policy.service.js';
+import type { AgentStateType } from '../../graph/state.js';
 
 export interface ApproveNodeDeps {
   policy: ApprovalPolicyService;

@@ -1,5 +1,5 @@
-import { DynamicStructuredTool } from '@langchain/core/tools';
-import { toZodV3 } from '../tool-schema.js';
+﻿import { DynamicStructuredTool } from '@langchain/core/tools';
+import { toZodV3 } from '../../mcp/tool-schema.js';
 import type { KnowledgeProvider } from '../../knowledge/index.js';
 
 /**

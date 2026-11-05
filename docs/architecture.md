@@ -71,28 +71,48 @@
 это два файла.
 
 ```
-src/knowledge/                    feature-модуль Nest
-  knowledge.module.ts             @Module: providers + exports (только сервис)
-  knowledge.service.ts            бизнес-логика: отбор, ответ, блок для промпта
-  knowledge.repository.ts         единственное место с файлами и кэшем
-  knowledge.types.ts              типы, zod-схемы, контракт для потребителей
-  knowledge.select.ts             чистые правила отбора
-  knowledge.format.ts             представления: промпт и ответ
-  knowledge.constants.ts          лимиты и общая преамбула
+src/
+  main.ts                     точка входа: bootstrap Nest, порт, shutdown hooks
+  app.module.ts               корневой модуль: собирает feature-модули
 
-src/tools/knowledge/
-  knowledge.tool.ts               тонкая обёртка: схема + вызов сервиса (≈30 строк)
+  api/                        HTTP-слой (только транспорт)
+    api.module.ts             контроллеры + глобальный фильтр ошибок
+    controllers/              agent, health, reports
+    dto/, filters/
 
-src/agent/nodes/
-  knowledge/index.ts              фабрика узла (≈30 строк, без логики)
-  classify/{index.ts,prompt.ts}   узел и его промпт — рядом
-  agent/{index.ts,prompt.ts,portfolio-report.prompt.ts}
-  help/{index.ts,capabilities.ts}
-  off-topic/{index.ts,prompt.ts}
-  review/                         ветка разбора: по файлу на узел
-    deps.ts, instruments.ts, plan.node.ts, collect.node.ts,
-    report.node.ts, interpretation.ts, index.ts
+  agent/                      оркестрация диалога
+    agent.module.ts           модуль графа
+    agent-runner.service.ts   прогон: run / approve / отчёт
+    agent-runtime.ts, agent.server.ts  сборка графа вне Nest (Studio)
+    approvals/                правила подтверждений
+    graph/                    state, routers, build-graph
+    nodes/<node>/             узел + его промпт + index.ts (точка входа фичи)
+      classify/{classify.node.ts,prompt.ts,index.ts}
+      agent/{agent.node.ts,prompt.ts,portfolio-report.prompt.ts,index.ts}
+      approve/, off-topic/, help/, knowledge/, news/
+      review/{plan.node.ts,collect.node.ts,report.node.ts,deps.ts,instruments.ts,interpretation.ts,index.ts}
+
+  knowledge/                  знания: сервис, репозиторий, отбор, формат, схема
+  report/                     шаблон, движок фактов, провайдеры, рендер
+  collection/                 план и исполнение сбора
+  sources/                    адаптеры источников (ЦБ, ленты, налоги)
+  parsing/                    парсинг ответов: mappers/, yaml.ts
+  mcp/                        инфраструктура MCP: реестр, клиент, прокси, адаптер, схемы, бюджет
+  tools/<tool>/               сами тулы: key-rate, knowledge, news-digest, portfolio-snapshot, price-dynamics, tax-watch
+  accounts/                   счёт по умолчанию
+  llm/, state/, observability/, config/
 ```
+
+Почему часть папок вне `src`:
+
+| Папка | Что это | Почему не код |
+|---|---|---|
+| `data/` | темы знаний (`knowledge/*.yaml`), словари, сиды | данные, правятся без сборки |
+| `reports/` | шаблон отчёта и промпт интерпретации (`.yaml`, `.md`) | контент, меняется без компиляции |
+| `scripts/` | разовые утилиты (`fetch-mcp-ca`, `clean-temp`, пробы) | не входит в рантайм |
+| `test/` | unit/e2e и фикстуры | проверки, не продукт |
+| `docs/`, `openspec/` | документация и артефакты процесса | не исполняются |
+
 
 Правила раскладки:
 
@@ -104,6 +124,30 @@ src/agent/nodes/
 - **Репозиторий — единственное место с диском/сетью** для своей области; кэш живёт там.
 - **`index.ts` модуля** экспортирует только публичный API: сервис, контракт, типы.
 - **Общие помощники** — в файл рядом (`deps.ts`, `instruments.ts`), а не в «утилиты» на весь проект.
+
+### Где что искать
+
+| Вопрос | Файл |
+|---|---|
+| Точка входа приложения | `src/main.ts` → `src/app.module.ts` |
+| HTTP-контроллер | `src/api/controllers/<name>.controller.ts` |
+| Маршруты графа | `src/agent/graph/{build-graph,routers}.ts` |
+| Состояние прогона | `src/agent/graph/state.ts` |
+| Логика узла | `src/agent/nodes/<node>/<node>.node.ts` |
+| Промпт узла | `src/agent/nodes/<node>/prompt.ts` |
+| Логика знаний | `src/knowledge/knowledge.service.ts` |
+| Чтение файлов знаний | `src/knowledge/knowledge.repository.ts` |
+| Сам тул | `src/tools/<tool>/<tool>.tool.ts` |
+| Подключение тулов | `src/tools/tools.module.ts` |
+| MCP: реестр и discovery | `src/mcp/mcp-registry.service.ts` |
+| MCP: подключение и прокси | `src/mcp/{mcp-client.factory,mcp-proxy.service}.ts` |
+| Парсинг ответов MCP | `src/parsing/mappers/*` |
+| Парсинг YAML | `src/parsing/yaml.ts` |
+| Расчёты отчёта | `src/report/{engine.ts,providers/*}` |
+| Шаблон отчёта | `reports/portfolio-review.yaml` |
+| Темы знаний | `data/knowledge/*.yaml` |
+| Правила подтверждений | `src/agent/approvals/approval-rules.ts` |
+
 
 
 ## 5. Контракты расширения

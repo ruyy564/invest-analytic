@@ -5,9 +5,9 @@ import { Command, type BaseCheckpointSaver } from '@langchain/langgraph';
 import { AppConfigService } from '../config/app-config.service.js';
 import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../llm/llm.module.js';
 import { CHECKPOINTER } from '../state/state.module.js';
-import { McpRegistryService } from '../tools/mcp-registry.service.js';
-import { resolveDefaultAccount } from '../tools/resolve-account.js';
-import { withTimeout } from '../tools/mcp-tool.adapter.js';
+import { McpRegistryService } from '../mcp/mcp-registry.service.js';
+import { resolveDefaultAccount } from '../accounts/resolve-account.js';
+import { withTimeout } from '../mcp/mcp-tool.adapter.js';
 import {
   ApprovalFlowService,
   type ApproveDecision,

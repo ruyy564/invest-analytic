@@ -1,4 +1,4 @@
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { ConfigError } from '../config/config.error.js';
 import { ApprovalFlowService } from './approval-flow.service.js';
@@ -7,10 +7,10 @@ import { buildAgentGraph } from './graph/build-graph.js';
 import { AppConfigService } from '../config/app-config.service.js';
 import { loadConfiguration, type AppConfig } from '../config/configuration.js';
 import { LlmRegistry } from '../llm/llm-registry.js';
-import { MultiServerMcpFactory } from '../tools/mcp-client.factory.js';
-import { McpProxyService } from '../tools/mcp-proxy.service.js';
-import { McpRegistryService } from '../tools/mcp-registry.service.js';
-import { resolveDefaultAccount } from '../tools/resolve-account.js';
+import { MultiServerMcpFactory } from '../mcp/mcp-client.factory.js';
+import { McpProxyService } from '../mcp/mcp-proxy.service.js';
+import { McpRegistryService } from '../mcp/mcp-registry.service.js';
+import { resolveDefaultAccount } from '../accounts/resolve-account.js';
 import { KnowledgeRepository, KnowledgeService } from '../knowledge/index.js';
 import { createKnowledgeTool } from '../tools/knowledge/knowledge.tool.js';
 

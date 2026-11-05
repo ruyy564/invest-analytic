@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+﻿import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getCACertificates } from 'node:tls';
@@ -7,7 +7,7 @@ import {
   postToUpstream,
   releaseExtraCa,
   trustExtraCa,
-} from '../../src/tools/mcp-proxy.service.js';
+} from '../../src/mcp/mcp-proxy.service.js';
 
 describe('TLS до MCP-сервера', () => {
   const original = getCACertificates('default') as string[];

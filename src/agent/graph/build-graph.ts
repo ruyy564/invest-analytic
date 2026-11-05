@@ -4,13 +4,13 @@ import { END, START, StateGraph, type BaseCheckpointSaver } from '@langchain/lan
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import type { ApprovalFlowService } from '../approval-flow.service.js';
 import type { ApprovalPolicyService } from '../approvals/approval-policy.service.js';
-import { createAgentNode } from '../nodes/agent.node.js';
-import { createApproveNode } from '../nodes/approve.node.js';
-import { createClassifyNode } from '../nodes/classify.node.js';
-import { offTopicNode } from '../nodes/off-topic.node.js';
-import { createNewsNode } from '../nodes/news.node.js';
-import { createHelpNode } from '../nodes/help.node.js';
-import { createKnowledgeNode } from '../nodes/knowledge.node.js';
+import { createAgentNode } from '../nodes/agent/index.js';
+import { createApproveNode } from '../nodes/approve/index.js';
+import { createClassifyNode } from '../nodes/classify/index.js';
+import { offTopicNode } from '../nodes/off-topic/index.js';
+import { createNewsNode } from '../nodes/news/index.js';
+import { createHelpNode } from '../nodes/help/index.js';
+import { createKnowledgeNode } from '../nodes/knowledge/index.js';
 import {
   createCollectNode,
   createPlanNode,

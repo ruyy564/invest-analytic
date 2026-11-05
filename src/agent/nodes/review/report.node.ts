@@ -1,5 +1,5 @@
 ﻿import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { withTimeout } from '../../../tools/mcp-tool.adapter.js';
+import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
 import { buildReport, composeMarkdown, type ReportBuildResult } from '../../../report/engine.js';
 import { createProviderMap } from '../../../report/providers/index.js';
 import type { PlanEntry } from '../../../collection/plan.js';

@@ -1,12 +1,12 @@
-import { Body, Controller, Post, Res } from '@nestjs/common';
+﻿import { Body, Controller, Post, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { AgentRunnerService, type RunResult } from '../agent/agent-runner.service.js';
+import { AgentRunnerService, type RunResult } from '../../agent/agent-runner.service.js';
 import {
   approveRequestSchema,
   chatRequestSchema,
   parseOrThrow,
-} from './dto/agent.dto.js';
+} from '../dto/agent.dto.js';
 
 export interface ChatResponse extends RunResult {
   requestId: string;

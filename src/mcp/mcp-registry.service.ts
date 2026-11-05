@@ -7,15 +7,15 @@ import { isForbiddenTool } from '../config/env.schema.js';
 import { missingAllowedTools, selectAllowedTools, withTimeout, wrapTool } from './mcp-tool.adapter.js';
 import { buildSourceRegistry } from '../sources/factory.js';
 import type { SourceRegistry } from '../sources/registry.js';
-import { ALL_ACCOUNTS_TOOL, collectAllAccounts, openAccounts } from './portfolio-snapshot.js';
-import { collectDynamics, PRICE_DYNAMICS_TOOL } from './price-dynamics.js';
-import { collectKeyRate, formatKeyRate, KEY_RATE_TOOL, loadTaxKeywords } from './thematic/key-rate.js';
+import { ALL_ACCOUNTS_TOOL, collectAllAccounts, openAccounts } from '../tools/portfolio-snapshot/portfolio-snapshot.tool.js';
+import { collectDynamics, PRICE_DYNAMICS_TOOL } from '../tools/price-dynamics/price-dynamics.tool.js';
+import { collectKeyRate, formatKeyRate, KEY_RATE_TOOL, loadTaxKeywords } from '../tools/key-rate/key-rate.tool.js';
 import {
   collectNewsDigest,
   formatNewsDigest,
   NEWS_DIGEST_TOOL,
-} from './thematic/news-digest.js';
-import { collectTaxFacts, formatTaxFacts, TAX_WATCH_TOOL } from './thematic/tax-watch.js';
+} from '../tools/news-digest/news-digest.tool.js';
+import { collectTaxFacts, formatTaxFacts, TAX_WATCH_TOOL } from '../tools/tax-watch/tax-watch.tool.js';
 import { toZodV3 } from './tool-schema.js';
 import { ToolBudget } from './tool-budget.js';
 

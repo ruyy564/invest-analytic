@@ -214,19 +214,25 @@ MCP_NEWS_ALLOWED_TOOLS=search_news,get_article
 
 ```
 src/
-  config/    env-схема и типизированный доступ к конфигурации
-  api/       HTTP-контроллеры (чат, подтверждение, health)
-  agent/     граф LangGraph, узлы, промпты, правила подтверждений,
-             agent.server.ts — точка входа для LangSmith Studio (вне Nest)
-  llm/       реестр LLM-провайдеров
-  tools/     реестр MCP-серверов, адаптер инструментов, мапперы
-  state/     чекпоинтер и глобальное хранилище
-  observability/  трассировка LangSmith и логи
+  main.ts        точка входа (bootstrap Nest)
+  app.module.ts  корневой модуль
+  api/           контроллеры, DTO, фильтр ошибок
+  agent/         граф, узлы (nodes/<node>/), подтверждения, раннер
+  knowledge/     база знаний: сервис, репозиторий, отбор, формат
+  report/        шаблон, движок фактов, провайдеры, рендер
+  collection/    план и исполнение сбора
+  sources/       адаптеры источников (ЦБ, ленты)
+  parsing/       парсинг ответов MCP и YAML
+  mcp/           инфраструктура MCP: реестр, клиент, прокси, адаптер
+  tools/<tool>/  сами тулы
+  llm/, state/, observability/, config/, accounts/
 test/unit, test/e2e, test/fixtures
-.agents/
-  agents/    инструкции агентов (openspec.agent.md)
-  skills/    скиллы: openspec-* и openspec-checkpoint (коммит + очистка этапа)
+data/            данные: темы знаний, словари, сиды
+reports/         шаблон отчёта и промпт интерпретации
+.agents/         инструкции агентов и скиллы (openspec-checkpoint и др.)
 ```
+
+Подробная карта «где что искать» и контракты расширения — в [`docs/architecture.md`](docs/architecture.md).
 
 ### Гигиена рабочего дерева
 
