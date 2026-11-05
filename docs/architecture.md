@@ -117,7 +117,8 @@ src/
     app-config.types.ts       типы AppConfig (секции конфигурации)
     env/{constants,helpers,scalar,mcp}.ts  секции схемы и разбор MCP-серверов
   mcp/                        инфраструктура MCP: реестр, клиент, прокси, адаптер, схемы, бюджет
-    local-tools.ts            локальные тулы (счета, динамика, новости, налоги, ставка)
+    local-tools.ts            сборка локальных тулов из их папок
+    proxy-upstream.ts         соединение с MCP-сервером, TLS и корневые CA
   tools/<tool>/               сами тулы: key-rate, knowledge, news-digest, portfolio-snapshot, price-dynamics, tax-watch
     <tool>.tool.ts            обёртка: схема, описание, вызов сервиса (15–60 строк)
     <tool>.service.ts         сбор, расчёт и форматирование
