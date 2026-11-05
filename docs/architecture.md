@@ -99,6 +99,8 @@ src/
   knowledge/                  знания: сервис, репозиторий, отбор, формат, схема
   report/                     отчёт: шаблон, движок, провайдеры, рендер, compose
     engine.ts                 сборка фактов по секциям
+    engine.types.ts           контракты движка (факты, провайдеры, результат)
+    section-sectors.ts        секторы для базы знаний по секциям
     compose.ts                итоговый markdown
     portfolio-report.ts       рендер сводки по счетам и дисклеймеры
     providers/portfolio/      по файлу на секцию: table, structure, concentration, gaps
