@@ -20,6 +20,7 @@ import { KnowledgeService } from '../knowledge/index.js';
 import type { AgentStateType } from './graph/state.js';
 import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../observability/run-collector.js';
 import { ReportStoreService } from '../state/report-store.service.js';
+import { newsReportOf, reportOf } from './runner/report-builder.js';
 import {
   extractInterrupt,
   hasBudgetError,
@@ -27,8 +28,6 @@ import {
 } from './runner/runner.helpers.js';
 import {
   RUN_RECURSION_LIMIT,
-  type NewsReport,
-  type RunReport,
   type RunResult,
 } from './runner/runner.types.js';
 
@@ -241,57 +240,11 @@ export class AgentRunnerService {
       scopeTarget: values?.scopeTarget,
       scopeLabel: values?.scopeLabel,
       partial: (values?.partial ?? false) || hasBudgetError(values?.messages),
-      report: this.newsReportOf(values) ?? this.reportOf(values, lastAnswer(values?.messages)),
+      report: newsReportOf(values) ?? reportOf(values, lastAnswer(values?.messages), { reports: this.reports, userId: this.config.value.app.userId }),
     };
   }
 
   /** Метаданные новостной сводки: вид ответа, время данных и покрытие источников. */
-  private newsReportOf(values: AgentStateType | undefined): NewsReport | undefined {
-    if (values?.reportType !== 'market_news') {
-      return undefined;
-    }
-    return {
-      type: 'market_news',
-      asOf: values.dataAsOf ?? new Date().toISOString(),
-      coverage: (values.collection?.coverage ?? []).map(({ source, status, reason }) => ({
-        source,
-        status,
-        reason,
-      })),
-    };
-  }
-
-  /** Метаданные отчёта; сохранение — чтобы работала выгрузка по `reportId`. */
-  private reportOf(
-    values: AgentStateType | undefined,
-    answer: string | undefined,
-  ): RunReport | undefined {
-    const reportId = values?.reportId;
-    if (!reportId) {
-      return undefined;
-    }
-    const coverage = (values?.collection?.coverage ?? []).map(({ source, status, reason }) => ({
-      source,
-      status,
-      reason,
-    }));
-    const asOf = values?.dataAsOf ?? new Date().toISOString();
-    const type = values?.reportType ?? 'deep_review';
-    const report: RunReport = { reportId, type, asOf, coverage };
-
-    if (answer) {
-      this.reports.save({
-        reportId,
-        userId: this.config.value.app.userId,
-        createdAt: new Date().toISOString(),
-        templateVersion: values?.reportTemplateVersion ?? 0,
-        markdown: answer,
-        json: JSON.stringify({ report, answer }),
-      });
-    }
-    return report;
-  }
-
   private async partialResult(
     config: ReturnType<AgentRunnerService['configFor']>,
     _sessionId: string,

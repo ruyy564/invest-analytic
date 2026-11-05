@@ -86,7 +86,7 @@ src/
   agent/                      оркестрация диалога
     agent.module.ts           модуль графа
     agent-runner.service.ts   прогон: run / approve / отчёт
-    runner/{runner.types,runner.helpers}.ts  типы результата и хелперы состояния
+    runner/{runner.types,runner.helpers,report-builder}.ts  типы, состояние, отчёт прогона
     agent-runtime.ts, agent.server.ts  сборка графа вне Nest (Studio)
     approvals/                правила подтверждений
     graph/                    state, routers, build-graph
@@ -110,7 +110,7 @@ src/
   news/                       новости: реестр, фильтры, алиасы, источники
     news.types.ts, news.registry.ts, news.factory.ts, news.filters.ts, news.aliases.ts
     sources/{defaults,feed,smartlab-tag,tinkoff}.ts
-  key-rate/                   ключевая ставка ЦБ: типы, источник, кэш, фабрика
+  key-rate/                   ключевая ставка ЦБ: типы, источник, разбор, кэш, фабрика
   parsing/                    парсинг: mappers/, yaml.ts, feed.ts (RSS/Atom/JSON)
   config/                     схема env и типизированный конфиг
     env.schema.ts             публичный API схемы (фасад)
