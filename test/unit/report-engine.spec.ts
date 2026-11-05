@@ -121,6 +121,7 @@ topics:
       'securities',
       'opinions',
       'knowledge',
+      'conclusion',
       'structure',
       'exposure',
       'concentration',
@@ -131,6 +132,7 @@ topics:
     expect(template.sections.filter((section) => section.interpret).map((section) => section.id)).toEqual([
       'macro',
       'opinions',
+      'conclusion',
       'verdict',
     ]);
   });
@@ -418,6 +420,7 @@ describe('область разбора в отчёте', () => {
       'macro',
       'securities',
       'opinions',
+      'conclusion',
     ]);
     // Провайдеры тоже считаются по области: налоги в разбор бумаги не идут.
     expect(templateProviders(loadReportTemplate(templatePath), 'instrument')).not.toContain(

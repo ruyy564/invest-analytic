@@ -31,7 +31,7 @@ export const createKnowledgeSectionProvider = (
     const topics = knowledge.select({
       section: ctx.scope === 'instrument' ? 'securities' : 'verdict',
       sectors: sectorNames,
-      required: ctx.scope === 'instrument' ? ['reporting', 'multiples'] : undefined,
+      required: ctx.scope === 'instrument' ? ['reporting', 'multiples', 'sector-dependencies'] : undefined,
       limit: 3,
     });
     if (topics.length === 0) {

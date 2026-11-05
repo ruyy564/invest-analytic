@@ -90,7 +90,7 @@ describe('справочный блок отчёта', () => {
     );
 
     expect(recorded[0]?.section).toBe('securities');
-    expect(recorded[0]?.required).toEqual(['reporting', 'multiples']);
+    expect(recorded[0]?.required).toEqual(['reporting', 'multiples', 'sector-dependencies']);
     expect(recorded[0]?.sectors).toEqual(['материалы']);
   });
 

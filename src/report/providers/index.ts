@@ -17,6 +17,7 @@ import {
 import { briefProvider } from './verdict.js';
 import { createKnowledgeSectionProvider } from './knowledge.provider.js';
 import { marketNewsProvider } from './market-news.provider.js';
+import { createConclusionProvider } from './securities/conclusion.provider.js';
 
 /** Настройки реестра: профили компаний и база знаний для справочного блока. */
 export interface ProviderMapOptions {
@@ -38,6 +39,8 @@ export const createProviderMap = (
       gapsProvider,
       createExposureProvider(profiles),
       createSecuritiesProvider(profiles),
+      // Вывод по бумаге: брифинг со всеми фактами о ней и её секторе.
+      createConclusionProvider(profiles),
       opinionsProvider,
       macroProvider,
       // Фон рынка: общая сводка новостей, собранная веткой новостей.

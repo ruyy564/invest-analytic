@@ -49,6 +49,15 @@ sections:
     provider: knowledge.context
     render: text
     optional: true
+  # Вывод по бумаге: разбор «за и против» на основе всех собранных фактов.
+  - id: conclusion
+    title: Вывод по бумаге
+    provider: securities.conclusion
+    render: text
+    interpret: true
+    scopes: [instrument]
+    optional: true
+    knowledge: [reporting, multiples, strategies, sector-dependencies]
   - id: structure
     title: Структура портфеля
     provider: portfolio.structure
