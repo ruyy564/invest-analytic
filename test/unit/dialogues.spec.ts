@@ -244,7 +244,7 @@ describe('корзина диалогов: эталонный ответ', () =>
           : portfolioContext();
       const report = buildReport({
         template: loadReportTemplate(TEMPLATE_PATH),
-        providers: createProviderMap({ profiles: PROFILES, knowledge }),
+        providers: createProviderMap({ profiles: PROFILES }),
         plan: context.plan,
         collected: context.collected,
         scope: context.scope,

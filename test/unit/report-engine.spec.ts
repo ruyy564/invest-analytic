@@ -120,7 +120,6 @@ topics:
       'marketnews',
       'securities',
       'opinions',
-      'knowledge',
       'conclusion',
       'structure',
       'exposure',
@@ -575,49 +574,4 @@ describe('справочный контекст разбора', () => {
   });
 });
 
-describe('справочный блок в отчёте', () => {
-  const knowledgeDir = join(import.meta.dirname, '..', '..', 'data', 'knowledge');
-
-  it('появляется отдельной секцией, когда база знаний подключена', () => {
-    const built = plan();
-    const knowledge = new KnowledgeService(
-      new KnowledgeRepository({
-        value: {
-          run: {
-            knowledgeEnabled: true,
-            knowledgeDir,
-            knowledgeFile: undefined,
-            knowledgeMaxChars: 1_800,
-          },
-        },
-      } as unknown as AppConfigService),
-    );
-    const report = buildReport({
-      template: loadReportTemplate(templatePath),
-      providers: createProviderMap({ knowledge }),
-      plan: built,
-      collected: collection(built),
-      reportId: 'report-knowledge',
-    });
-
-    const section = report.sections.find((item) => item.id === 'knowledge');
-    expect(section?.markdown).toContain('принципы трактовки, а не данные рынка');
-    expect(section?.markdown).toContain('**');
-  });
-
-  it('без базы знаний секции нет', () => {
-    const built = plan();
-    const report = buildReport({
-      template: loadReportTemplate(templatePath),
-      providers: createProviderMap(),
-      plan: built,
-      collected: collection(built),
-      reportId: 'report-no-knowledge',
-    });
-
-    // Необязательная секция пропускается без «Данных нет» и без ошибки провайдера.
-    expect(report.sections.some((item) => item.id === 'knowledge')).toBe(false);
-    expect(report.coverage.some((entry) => entry.source === 'knowledge.context')).toBe(false);
-  });
-});
 

@@ -97,7 +97,9 @@ export const createRbcQuoteSource = (options: RbcQuoteOptions = {}): NewsSourceA
           if (matchers.length === 0) {
             return true;
           }
-          const haystack = `${item.title} ${item.summary ?? ''} ${item.tags.join(' ')}`.toLowerCase();
+          // Привязка от источника (теги) или упоминание в заголовке: аннотацию
+          // не смотрим, иначе проходят обзоры «акции нефтяных компаний».
+          const haystack = `${item.title} ${item.tags.join(' ')}`.toLowerCase();
           return matchers.some((matcher) => haystack.includes(matcher));
         })
         .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))

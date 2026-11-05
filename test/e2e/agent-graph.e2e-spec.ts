@@ -271,7 +271,7 @@ describe('граф агента с подтверждением', () => {
     expect(result.answer).toContain('Разбор бумаги SBER');
     expect(result.answer).toContain('цена за 1 шт.');
     expect(result.answer).toContain('финансы');
-    expect(result.answer).toContain('Справочный контекст');
+    expect(result.answer).toContain('Вывод по бумаге');
     // Ответ не должен быть одной строкой динамики за период.
     expect(result.answer).not.toContain('Динамика SBER за');
   });

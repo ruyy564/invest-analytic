@@ -68,7 +68,6 @@ sections:
 | `securities` | по каждой бумаге: цена за штуку, динамика за 1/7/30/180 дней, спарклайн, прогноз, дивиденды, её новости (тема `reporting`) | `securities.detail` |
 | `opinions` | оценка каждой бумаги и её сектора (тема `multiples`) | `securities.opinions` (модель) |
 | `conclusion` | вывод по бумаге: разбор «за и против», риски, что проверить, сценарии (темы `reporting`, `multiples`, `strategies`, `sector-dependencies`); только разбор бумаги | `securities.conclusion` (модель) |
-| `knowledge` | справочный контекст: темы базы знаний под секторы портфеля или под бумагу; секция необязательная (`optional: true`) | `knowledge.context` |
 | `structure` | разрезы: класс, сектор, валюта, эмитент | `portfolio.structure` |
 | `exposure` | экспортёры, внутренний рынок, импортёры: доли и чувствительность к курсу и ставке (тема `trade-balance`) | `portfolio.exposure` |
 | `concentration` | крупнейшая позиция, топ-3, уровень концентрации | `portfolio.concentration` |

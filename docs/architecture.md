@@ -174,7 +174,7 @@ src/
 | Облигации: категория и купон | `src/report/providers/securities/bond-facts.ts` |
 | График цены | `src/report/sparkline.ts` |
 | Внешнеэкономический профиль портфеля | `src/report/providers/portfolio/exposure.provider.ts` |
-| Справочный блок отчёта из базы знаний | `src/report/providers/knowledge.provider.ts` |
+| Справочный блок отчёта из базы знаний | `src/knowledge/knowledge.service.ts` (`promptBlock`) |
 | Маршрутизация вопросов «стоит ли покупать» | `src/agent/nodes/classify/prompt.ts` (`DECISION_PATTERN`) |
 | Корзина диалогов и эталонные ответы | `test/fixtures/dialogues.json`, `docs/dialogues.md` |
 | MCP: реестр и discovery | `src/mcp/mcp-registry.service.ts` |

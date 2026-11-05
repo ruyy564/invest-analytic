@@ -27,6 +27,9 @@ const PERIOD_MS = (days: number): number => days * 24 * 60 * 60 * 1000;
  * Сводка новостей по бумагам портфеля и по общей ленте: один сбор, затем
  * раскладка по периодам по времени публикации. Названия компаний нужны,
  * чтобы ленты (РБК, «Интерфакс») фильтровали заголовки по бумаге.
+ *
+ * Для общей ленты действуют те же фильтры, что и у сводки рынка: без них в
+ * «фон рынка» попадают происшествия, политика и светская хроника.
  */
 export const collectNewsDigest = async (
   registry: NewsRegistry,
@@ -43,10 +46,20 @@ export const collectNewsDigest = async (
     sinceDays: 180,
   });
 
+  // Новости по бумаге уже отфильтрованы по тикеру/названию; общая лента —
+  // только инвестиционная повестка (рынок, бумаги, ставка, эмитент…).
+  const relevant =
+    matchers.length > 0
+      ? items.filter((item) => !isDigestTitle(item.title))
+      : items
+          .filter((item) => !isDigestTitle(item.title))
+          .filter((item) => !isOffTopicTitle(item.title, item.summary))
+          .filter((item) => hasInvestmentMarker(item.title, item.summary));
+
   const periods = NEWS_PERIODS.map((period) => ({
     id: period.id,
     title: period.title,
-    items: items
+    items: relevant
       .filter((item) => now.getTime() - Date.parse(item.publishedAt) <= PERIOD_MS(period.days))
       .slice(0, params.maxItems),
   }));

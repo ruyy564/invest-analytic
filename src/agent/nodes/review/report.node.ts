@@ -9,6 +9,34 @@ import { templateOf, type ReviewDeps } from './deps.js';
 import { collectionFromState } from './collect.node.js';
 import { cleanSection, INTERPRETATION_TIMEOUT_MS, loadInterpretationPrompt } from './interpretation.js';
 
+/**
+ * Отказ модели вместо раздела: провайдеры (GigaChat) иногда отвечают
+ * «я не обладаю мнением» или «разговоры на эту тему ограничены». Такой текст
+ * в отчёт не идёт — вместо него подставляем факты брифинга.
+ */
+const REFUSAL =
+  /не обладает собственным мнением|как и любая языковая модель|разговоры на некоторые темы временно ограничены|не могу (дать|предоставить|комментировать)|не являюсь инвестиционным советником/i;
+
+/** Факты брифинга как текст раздела: строки «поле: значение» через «•». */
+export const factsFallback = (brief: string): string =>
+  ['• ' + brief.split(' | ').join('\n• '), '', 'Трактовка модели недоступна: выше — факты брифинга.'].join('\n');
+
+/**
+ * Текст раздела из ответа модели: отказ («я не обладаю мнением») заменяется
+ * фактами брифинга, пустой ответ — `undefined`.
+ */
+export const interpretSection = (text: string, brief: string, id: string): string | undefined => {
+  const cleaned = cleanSection(text, id);
+  if (cleaned.length === 0) {
+    return undefined;
+  }
+  return REFUSAL.test(cleaned) ? factsFallback(brief) : cleaned;
+};
+
+/** Модель отказалась писать раздел (для честного лога в узле отчёта). */
+export const isRefusalFallback = (section: string): boolean =>
+  section.endsWith('Трактовка модели недоступна: выше — факты брифинга.');
+
 export const createReportNode =
   (deps: ReviewDeps) =>
   async (state: AgentStateType): Promise<Partial<AgentStateType>> => {
@@ -20,8 +48,6 @@ export const createReportNode =
       providers: createProviderMap({
         // Драйверы секторов и профили «экспортёр / внутренний рынок» — данные из файла.
         profiles: loadCompanyProfiles(deps.config.value.sources.companyProfilesFile),
-        // База знаний: темы показываются отдельной секцией «Справочный контекст».
-        knowledge: deps.knowledge.isEmpty ? undefined : deps.knowledge,
       }),
       plan: {
         entries: state.readingPlan as PlanEntry[],
@@ -61,9 +87,12 @@ export const createReportNode =
               () => new Error('llm timeout'),
             );
             const text = typeof response.content === 'string' ? response.content : '';
-            const cleaned = cleanSection(text, request.id);
-            if (cleaned.length > 0) {
-              interpretation[request.id] = cleaned;
+            const section = interpretSection(text, request.brief, request.id);
+            if (section) {
+              if (isRefusalFallback(section)) {
+                console.warn(`[report] раздел ${request.id}: модель отказалась, факты вместо текста`);
+              }
+              interpretation[request.id] = section;
               break;
             }
             console.warn(`[report] раздел ${request.id}: пустой ответ модели`);

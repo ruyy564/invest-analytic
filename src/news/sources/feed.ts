@@ -166,7 +166,10 @@ export const createFeedSource = (options: FeedSourceOptions): NewsSourceAdapter 
         if (matchers.length === 0) {
           return true;
         }
-        const haystack = `${item.title} ${item.summary ?? ''}`.toLowerCase();
+        // Проверяем заголовок, а не аннотацию: обзор «народного портфеля» или
+        // «акции нефтяных компаний» упоминает бумагу в тексте, но новостью по
+        // ней не является.
+        const haystack = item.title.toLowerCase();
         return matchers.some((matcher) => haystack.includes(matcher));
       };
 

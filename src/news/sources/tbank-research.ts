@@ -97,7 +97,8 @@ export const createTbankResearchSource = (
           if (matchers.length === 0) {
             return true;
           }
-          const haystack = `${item.title} ${item.summary ?? ''} ${item.tags.join(' ')}`.toLowerCase();
+          // Привязка от источника (тикеры идеи) или упоминание в заголовке.
+          const haystack = `${item.title} ${item.tags.join(' ')}`.toLowerCase();
           return matchers.some((matcher) => haystack.includes(matcher));
         })
         .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))

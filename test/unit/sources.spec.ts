@@ -150,8 +150,8 @@ describe('сводка новостей по периодам', () => {
       id: 'interfax',
       topics: ['news'],
       fetchNews: async () => [
-        item({ title: 'сегодня', publishedAt: '2026-11-04T09:00:00Z', url: 'https://n/1' }),
-        item({ title: 'месяц назад', publishedAt: '2026-10-10T09:00:00Z', url: 'https://n/2' }),
+        item({ title: 'Акции выросли сегодня', publishedAt: '2026-11-04T09:00:00Z', url: 'https://n/1' }),
+        item({ title: 'Акции выросли месяц назад', publishedAt: '2026-10-10T09:00:00Z', url: 'https://n/2' }),
       ],
     };
 
@@ -167,12 +167,37 @@ describe('сводка новостей по периодам', () => {
       'month',
       'half_year',
     ]);
-    expect(result.periods[0].items.map((entry) => entry.title)).toEqual(['сегодня']);
+    expect(result.periods[0].items.map((entry) => entry.title)).toEqual(['Акции выросли сегодня']);
     expect(result.periods[2].items.map((entry) => entry.title)).toEqual([
-      'сегодня',
-      'месяц назад',
+      'Акции выросли сегодня',
+      'Акции выросли месяц назад',
     ]);
     expect(formatNewsDigest(result)).toContain('Новости свежие:');
+  });
+
+  it('общая лента отбрасывает неинвестиционный мусор', async () => {
+    const source: NewsSourceAdapter = {
+      id: 'tass',
+      topics: ['news'],
+      supportsMatcherQuery: true,
+      fetchNews: async () => [
+        item({ title: 'В АдГ заявили, что визиты Зеленского дорого обходятся немцам', source: 'tass' }),
+        item({ title: 'В МЧС назвали причину трагедии с гибелью альпинистов', source: 'tass' }),
+        item({ title: 'Более 570 тыс. человек участвовали в акциях всеобщей забастовки', source: 'tass' }),
+        item({ title: 'Мировой суд Москвы взыскал с агентства более 80 тыс. рублей', source: 'tass' }),
+        item({ title: 'Индекс Мосбиржи вырос на 1,2 %', source: 'tass' }),
+      ],
+    };
+
+    const result = await collectNewsDigest(new NewsRegistry([source]), {
+      pages: 1,
+      maxItems: 5,
+      now: new Date('2026-11-04T12:00:00Z'),
+    });
+
+    expect(result.periods[0].items.map((entry) => entry.title)).toEqual([
+      'Индекс Мосбиржи вырос на 1,2 %',
+    ]);
   });
 });
 
