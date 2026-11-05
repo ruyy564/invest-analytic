@@ -221,7 +221,24 @@ src/
   state/     чекпоинтер и глобальное хранилище
   observability/  трассировка LangSmith и логи
 test/unit, test/e2e, test/fixtures
+.agents/
+  agents/    инструкции агентов (openspec.agent.md)
+  skills/    скиллы: openspec-* и openspec-checkpoint (коммит + очистка этапа)
 ```
+
+### Гигиена рабочего дерева
+
+Временные артефакты прогонов, сборки и тестов убираются одной командой:
+
+```bash
+node scripts/clean-temp.mjs        # показать, что будет удалено
+node scripts/clean-temp.mjs --yes  # удалить
+```
+
+Скрипт трогает только закрытый список (логи, `*.tsbuildinfo`, `tmp/`, `coverage/`,
+`.browser-profile/`, `.langgraph_api/` и подобное) и никогда не удаляет код, `data/`,
+`certs/`, `dist/` и `node_modules/`. После каждого этапа OpenSpec это делает скилл
+`openspec-checkpoint`: чистит дерево, проверяет этап и коммитит его с сообщением по шаблону.
 
 ## Трейсы и Studio (LangSmith)
 

@@ -72,3 +72,6 @@ When the user wants to propose a new change:
 - Run `openspec validate` after creating or modifying artifacts
 - Check `openspec status` before starting work to understand the current state
 - When archiving, ensure all tasks are completed and validated first
+- **After each stage** (proposal, specs, design, tasks, each apply task group, archive)
+  run the `openspec-checkpoint` skill: it removes temporary files, validates the stage and
+  commits it. Do not stack several stages in one commit.
