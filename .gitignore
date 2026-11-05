@@ -1,14 +1,12 @@
 node_modules/
 dist/
 coverage/
-data/*
-# Данные источников версионируются: это файлы-справочники, а не состояние прогонов.
-!data/key-rate-seed.json
-!data/tax-keywords.yaml
-!data/ticker-aliases.yaml
-# Темы базы знаний — данные, а не состояние прогонов.
-!data/knowledge/
-!data/knowledge/*.yaml
+# Состояние прогонов и кэш — не версионируются.
+# Данные-справочники (data/*.yaml, data/knowledge/**, data/key-rate-seed.json)
+# версионируются: это файлы данных, а не состояние.
+data/state.sqlite
+data/state.sqlite-shm
+data/state.sqlite-wal
 .env
 .env.local
 *.log
