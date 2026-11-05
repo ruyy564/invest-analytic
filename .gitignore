@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 coverage/
 # Состояние прогонов и кэш — не версионируются: база чекпоинтов, её wal/shm.
@@ -23,3 +23,5 @@ tmp/
 
 # LangGraph API
 .langgraph_api
+# Временные файлы проб MCP
+.probe/
