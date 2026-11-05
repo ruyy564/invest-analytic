@@ -6,7 +6,7 @@ import { isDigestTitle } from '../../src/news/news.filters.js';
 import { dedupeKey, mergeNews, NewsRegistry } from '../../src/news/news.registry.js';
 import type { NewsSourceAdapter, SourceItem } from '../../src/news/news.types.js';
 import { mapNews } from '../../src/news/sources/tinkoff.js';
-import { collectNewsDigest, formatNewsDigest } from '../../src/tools/news-digest/news-digest.tool.js';
+import { collectNewsDigest, formatNewsDigest } from '../../src/tools/news-digest/news-digest.service.js';
 
 const RSS = `<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel>
 <item><title>Сбербанк отчитался за квартал</title><link>https://a/1</link>

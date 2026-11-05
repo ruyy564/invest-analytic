@@ -2,7 +2,7 @@
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 import type { AppConfigService } from '../../../config/app-config.service.js';
 import type { McpRegistryService } from '../../../mcp/mcp-registry.service.js';
-import { collectNewsFeed, formatNewsFeed } from '../../../tools/news-digest/news-digest.tool.js';
+import { collectNewsFeed, formatNewsFeed } from '../../../tools/news-digest/news-digest.service.js';
 import type { AgentStateType } from '../../graph/state.js';
 
 export interface NewsDeps {

@@ -4,7 +4,7 @@
   seriesByTicker,
   trendWord,
 } from '../../src/report/market-facts.js';
-import { formatNewsDigest } from '../../src/tools/news-digest/news-digest.tool.js';
+import { formatNewsDigest } from '../../src/tools/news-digest/news-digest.service.js';
 import type { SourceItem } from '../../src/news/news.types.js';
 
 const candles = (points: [string, number][]): string =>

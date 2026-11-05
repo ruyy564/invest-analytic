@@ -3,7 +3,7 @@ import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from '@langch
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import { bindToolsCompat } from '../../../llm/bind-tools.js';
 import { buildAgentSystemPrompt } from './prompt.js';
-import { ALL_ACCOUNTS_TOOL } from '../../../tools/portfolio-snapshot/portfolio-snapshot.tool.js';
+import { ALL_ACCOUNTS_TOOL } from '../../../tools/portfolio-snapshot/portfolio-snapshot.service.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
 

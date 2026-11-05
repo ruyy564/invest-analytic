@@ -3,14 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NewsRegistry } from '../../src/news/news.registry.js';
 import type { NewsSourceAdapter, SourceItem } from '../../src/news/news.types.js';
-import { loadTaxKeywords } from '../../src/tools/key-rate/key-rate.tool.js';
+import { loadTaxKeywords } from '../../src/tools/key-rate/key-rate.service.js';
 import {
   collectTaxFacts,
   formatTaxFacts,
   matchesKeywords,
   sumTaxOperations,
   DEFAULT_TAX_KEYWORDS,
-} from '../../src/tools/tax-watch/tax-watch.tool.js';
+} from '../../src/tools/tax-watch/tax-watch.service.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
 const item = (overrides: Partial<SourceItem> = {}): SourceItem => ({

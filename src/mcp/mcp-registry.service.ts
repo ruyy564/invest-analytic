@@ -9,13 +9,15 @@ import type { NewsRegistry } from '../news/news.registry.js';
 import { buildKeyRateSource } from '../key-rate/key-rate.factory.js';
 import type { KeyRateSource } from '../key-rate/key-rate.types.js';
 import { ToolBudget } from './tool-budget.js';
+import { createThematicTools } from './local-tools.js';
 import {
   ALL_ACCOUNTS_TOOL,
-  PRICE_DYNAMICS_TOOL,
   createAllAccountsTool,
-  createDynamicsTool,
-  createThematicTools,
-} from './local-tools.js';
+} from '../tools/portfolio-snapshot/portfolio-snapshot.tool.js';
+import {
+  PRICE_DYNAMICS_TOOL,
+  createPriceDynamicsTool,
+} from '../tools/price-dynamics/price-dynamics.tool.js';
 
 export const MCP_CLIENT_FACTORY = Symbol('MCP_CLIENT_FACTORY');
 /** Локальный инструмент знаний: тонкая обёртка над `KnowledgeService`. */
@@ -152,8 +154,8 @@ export class McpRegistryService {
       // Тематические имена (см. data-sources) и алиасы старых имён на время миграции.
       createAllAccountsTool(tools, PORTFOLIO_SNAPSHOT_TOOL, this.config.value.run.mcpToolTimeoutMs),
       createAllAccountsTool(tools, ALL_ACCOUNTS_TOOL, this.config.value.run.mcpToolTimeoutMs),
-      createDynamicsTool(tools, MARKET_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
-      createDynamicsTool(tools, PRICE_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
+      createPriceDynamicsTool(tools, MARKET_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
+      createPriceDynamicsTool(tools, PRICE_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
       ...createThematicTools({ newsRegistry: this.newsRegistry, keyRate: this.keyRate, byName, config: { timeoutMs: this.config.value.run.mcpToolTimeoutMs, scanPages: this.config.value.sources.news.scanPages, maxItems: this.config.value.sources.news.maxItems, taxKeywordsFile: this.config.value.sources.taxKeywordsFile } }),
       ...(this.knowledgeTool ? [this.knowledgeTool] : []),
     ];

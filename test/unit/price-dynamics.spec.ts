@@ -3,7 +3,7 @@
   mapCandles,
   pickInstrument,
   summarize,
-} from '../../src/tools/price-dynamics/price-dynamics.tool.js';
+} from '../../src/tools/price-dynamics/price-dynamics.service.js';
 
 const CANDLES = JSON.stringify({
   candles: [

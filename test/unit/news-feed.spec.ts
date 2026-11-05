@@ -1,6 +1,6 @@
 ﻿import { NewsRegistry } from '../../src/news/news.registry.js';
 import type { NewsSourceAdapter, SourceItem } from '../../src/news/news.types.js';
-import { collectNewsFeed, formatNewsFeed } from '../../src/tools/news-digest/news-digest.tool.js';
+import { collectNewsFeed, formatNewsFeed } from '../../src/tools/news-digest/news-digest.service.js';
 import { feedPeriodTitle } from '../../src/agent/nodes/news/index.js';
 
 const NOW = new Date('2026-11-04T12:00:00Z');

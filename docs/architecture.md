@@ -115,6 +115,8 @@ src/
   mcp/                        инфраструктура MCP: реестр, клиент, прокси, адаптер, схемы, бюджет
     local-tools.ts            локальные тулы (счета, динамика, новости, налоги, ставка)
   tools/<tool>/               сами тулы: key-rate, knowledge, news-digest, portfolio-snapshot, price-dynamics, tax-watch
+    <tool>.tool.ts            обёртка: схема, описание, вызов сервиса (15–60 строк)
+    <tool>.service.ts         сбор, расчёт и форматирование
   accounts/                   счёт по умолчанию
   llm/, state/, observability/, config/
 ```

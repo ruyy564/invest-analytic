@@ -5,10 +5,10 @@ import {
   McpRegistryService,
   PORTFOLIO_SNAPSHOT_TOOL,
 } from '../../src/mcp/mcp-registry.service.js';
-import { ALL_ACCOUNTS_TOOL } from '../../src/tools/portfolio-snapshot/portfolio-snapshot.tool.js';
-import { NEWS_DIGEST_TOOL } from '../../src/tools/news-digest/news-digest.tool.js';
+import { ALL_ACCOUNTS_TOOL } from '../../src/tools/portfolio-snapshot/portfolio-snapshot.service.js';
+import { NEWS_DIGEST_TOOL } from '../../src/tools/news-digest/news-digest.service.js';
 import { PRICE_DYNAMICS_TOOL } from '../../src/tools/price-dynamics/price-dynamics.tool.js';
-import { TAX_WATCH_TOOL } from '../../src/tools/tax-watch/tax-watch.tool.js';
+import { TAX_WATCH_TOOL } from '../../src/tools/tax-watch/tax-watch.service.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
 /** Локальные инструменты, которые всегда добавляются к каталогу сервера. */
