@@ -109,6 +109,9 @@ src/
     sources/{defaults,feed,smartlab-tag,tinkoff}.ts
   key-rate/                   ключевая ставка ЦБ: типы, источник, кэш, фабрика
   parsing/                    парсинг: mappers/, yaml.ts, feed.ts (RSS/Atom/JSON)
+  config/                     схема env и типизированный конфиг
+    env.schema.ts             публичный API схемы (фасад)
+    env/{constants,helpers,scalar,mcp}.ts  секции схемы и разбор MCP-серверов
   mcp/                        инфраструктура MCP: реестр, клиент, прокси, адаптер, схемы, бюджет
     local-tools.ts            локальные тулы (счета, динамика, новости, налоги, ставка)
   tools/<tool>/               сами тулы: key-rate, knowledge, news-digest, portfolio-snapshot, price-dynamics, tax-watch
@@ -161,6 +164,8 @@ src/
 | Парсинг YAML | `src/parsing/yaml.ts` |
 | Расчёты отчёта | `src/report/{engine.ts,compose.ts,providers/*}` |
 | Секции портфеля | `src/report/providers/portfolio/{table,structure,concentration,gaps}.provider.ts` |
+| Секции бумаг | `src/report/providers/securities/{detail,opinions}.provider.ts` |
+| Схема окружения по секциям | `src/config/env/{constants,helpers,scalar,mcp}.ts` |
 | Локальные тулы MCP | `src/mcp/local-tools.ts` |
 | Парсинг лент | `src/parsing/feed.ts` |
 | Шаблон отчёта | `reports/portfolio-review.yaml` |

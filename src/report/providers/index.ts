@@ -6,7 +6,7 @@ import {
   tableProvider,
 } from './portfolio/index.js';
 import { macroProvider, taxProvider } from './market.js';
-import { opinionsProvider, securitiesProvider } from './securities.js';
+import { opinionsProvider, securitiesProvider } from './securities/index.js';
 import { briefProvider } from './verdict.js';
 
 /** Реестр поставщиков фактов: имена совпадают с `provider` в шаблоне отчёта. */
