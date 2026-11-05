@@ -1,0 +1,108 @@
+[
+  {
+    "id": "buy-plzl",
+    "question": "стоит ли покупать полюс золото",
+    "resolvedBy": "rule",
+    "intent": "portfolio_review",
+    "scope": "instrument",
+    "target": "PLZL",
+    "answer": {
+      "mustContain": [
+        "Разбор бумаги PLZL",
+        "**PLZL — материалы**",
+        "• цена за 1 шт.:",
+        "• график (90 дней):",
+        "Справочный контекст",
+        "не является индивидуальной инвестиционной рекомендацией"
+      ],
+      "mustNotContain": ["Динамика PLZL за", "Состав портфеля", "% портфеля"]
+    }
+  },
+  {
+    "id": "buy-sber",
+    "question": "Стоит ли брать Сбер?",
+    "resolvedBy": "rule",
+    "intent": "portfolio_review",
+    "scope": "instrument",
+    "target": "SBER",
+    "answer": {
+      "mustContain": [
+        "Разбор бумаги SBER",
+        "**SBER — финансы",
+        "• цена за 1 шт.:",
+        "Справочный контекст"
+      ],
+      "mustNotContain": ["Динамика SBER за", "Состав портфеля"]
+    }
+  },
+  {
+    "id": "sell-sber",
+    "question": "продавать или держать Сбер",
+    "resolvedBy": "rule",
+    "intent": "portfolio_review",
+    "scope": "instrument",
+    "target": "SBER",
+    "answer": {
+      "mustContain": ["Разбор бумаги SBER", "• цена за 1 шт.:"],
+      "mustNotContain": ["Динамика SBER за"]
+    }
+  },
+  {
+    "id": "review-portfolio",
+    "question": "проанализируй мой портфель",
+    "resolvedBy": "rule",
+    "intent": "portfolio_review",
+    "scope": "portfolio",
+    "answer": {
+      "mustContain": ["Разбор портфеля", "Состав портфеля", "Справочный контекст"]
+    }
+  },
+  {
+    "id": "portfolio-data",
+    "question": "что у меня в портфеле?",
+    "resolvedBy": "llm",
+    "scope": "portfolio"
+  },
+  {
+    "id": "dividends-sber",
+    "question": "какие дивиденды у SBER?",
+    "resolvedBy": "llm",
+    "scope": "instrument",
+    "target": "SBER"
+  },
+  {
+    "id": "compare-sber-vtbr",
+    "question": "сравни Сбер и ВТБ",
+    "resolvedBy": "llm",
+    "scope": "instrument",
+    "target": "SBER"
+  },
+  {
+    "id": "market-news",
+    "question": "какие последние новости в мире инвестиций?",
+    "resolvedBy": "rule",
+    "intent": "market_news",
+    "scope": "portfolio"
+  },
+  {
+    "id": "knowledge-duration",
+    "question": "что такое дюрация?",
+    "resolvedBy": "rule",
+    "intent": "knowledge_question",
+    "scope": "portfolio"
+  },
+  {
+    "id": "help",
+    "question": "что ты умеешь?",
+    "resolvedBy": "rule",
+    "intent": "agent_help",
+    "scope": "portfolio"
+  },
+  {
+    "id": "off-topic-weather",
+    "question": "какая погода завтра в Москве?",
+    "resolvedBy": "rule",
+    "intent": "off_topic",
+    "scope": "portfolio"
+  }
+]

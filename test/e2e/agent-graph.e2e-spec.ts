@@ -250,4 +250,29 @@ describe('граф агента с подтверждением', () => {
     expect(stored?.markdown).toContain('## Итог: диверсификация и стратегия');
     expect(stored?.templateVersion).toBe(2);
   });
+
+  it('«стоит ли покупать Сбер» — это разбор бумаги, а не динамика цены', async () => {
+    const { runner, toolCalls } = await createHarness([
+      'Сбер: цена и прогноз ниже; решение — оценка, не рекомендация.',
+    ]);
+
+    const awaiting = await runner.run('стоит ли покупать Сбер?', 's-decision');
+
+    expect(awaiting.status).toBe('awaiting_approval');
+    expect(awaiting.intent).toBe('portfolio_review');
+    expect(awaiting.scope).toBe('instrument');
+    expect(awaiting.scopeTarget).toBe('SBER');
+    // Портфель не читается: подтверждение относится к разбору бумаги.
+    expect(toolCalls()).toBe(0);
+
+    const result = await runner.resume('s-decision', { approved: true });
+
+    expect(result.status).toBe('completed');
+    expect(result.answer).toContain('Разбор бумаги SBER');
+    expect(result.answer).toContain('цена за 1 шт.');
+    expect(result.answer).toContain('финансы');
+    expect(result.answer).toContain('Справочный контекст');
+    // Ответ не должен быть одной строкой динамики за период.
+    expect(result.answer).not.toContain('Динамика SBER за');
+  });
 });

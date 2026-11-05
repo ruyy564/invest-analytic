@@ -87,7 +87,7 @@ export const createClassifyNode = (model: BaseChatModel, knowledge?: KnowledgePr
       return { intent: 'knowledge_question', ...scopeFields };
     }
 
-    const heuristic = heuristicIntent(question);
+    const heuristic = heuristicIntent(question, scoped.scope);
     if (heuristic) {
       return { intent: heuristic.intent, ...scopeFields };
     }

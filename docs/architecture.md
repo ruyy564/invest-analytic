@@ -175,6 +175,8 @@ src/
 | График цены | `src/report/sparkline.ts` |
 | Внешнеэкономический профиль портфеля | `src/report/providers/portfolio/exposure.provider.ts` |
 | Справочный блок отчёта из базы знаний | `src/report/providers/knowledge.provider.ts` |
+| Маршрутизация вопросов «стоит ли покупать» | `src/agent/nodes/classify/prompt.ts` (`DECISION_PATTERN`) |
+| Корзина диалогов и эталонные ответы | `test/fixtures/dialogues.json`, `docs/dialogues.md` |
 | MCP: реестр и discovery | `src/mcp/mcp-registry.service.ts` |
 | MCP: подключение и прокси | `src/mcp/{mcp-client.factory,mcp-proxy.service}.ts` |
 | Парсинг ответов MCP | `src/parsing/mappers/*` |
