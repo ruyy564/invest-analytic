@@ -1,42 +1,18 @@
-﻿import type { Money } from '../parsing/mappers/money.js';
-import type { Portfolio, PortfolioPosition } from '../parsing/mappers/portfolio.mapper.js';
+﻿import type { Portfolio } from '../parsing/mappers/portfolio.mapper.js';
+import {
+  DATA_SOURCE,
+  DISCLAIMER,
+  UNAVAILABLE,
+  formatDataAsOf,
+  formatMoney,
+  formatNumber,
+} from './format.js';
+import {
+  formatPortfolioPosition,
+  formatPosition,
+  isQuantityOnly,
+} from './position-format.js';
 
-export const UNAVAILABLE = 'недоступно';
-export const DISCLAIMER =
-  'Это информационная сводка по данным брокера, а не инвестиционная рекомендация.';
-export const DATA_SOURCE = 'Tinkoff Invest';
-
-/** Число с двумя знаками и пробелами между тысячами, отрицательные — со знаком. */
-export const formatNumber = (value: number): string => {
-  const fixed = Math.abs(value).toFixed(2);
-  const [integer, fraction] = fixed.split('.');
-  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return `${value < 0 ? '-' : ''}${grouped},${fraction}`;
-};
-
-/** Деньги в валюте портфеля; пункты (`pt`) не подписываются как валюта. */
-export const formatMoney = (money: Money | undefined): string => {
-  if (!money) {
-    return UNAVAILABLE;
-  }
-  return money.isPoints
-    ? `${formatNumber(money.amount)} пт`
-    : `${formatNumber(money.amount)} ${money.currency}`;
-};
-
-export const formatPosition = (position: PortfolioPosition): string => {
-  const { instrument, quantity, currentPrice, positionValue } = position;
-  return (
-    `${instrument.ticker} (${instrument.name}): ` +
-    `${formatNumber(quantity.amount)} шт. × ${formatMoney(currentPrice)} = ${formatMoney(positionValue)}`
-  );
-};
-
-export const formatDataAsOf = (value: string, now: Date = new Date()): string => {
-  const parsed = Date.parse(value);
-  const date = Number.isNaN(parsed) ? now : new Date(parsed);
-  return date.toISOString();
-};
 
 export interface ReportOptions {
   dataAsOf: string;
@@ -75,23 +51,6 @@ export const formatPortfolioReport = (
   lines.push(DISCLAIMER);
 
   return lines.join('\n');
-};
-
-/** Позиция без цены и стоимости — так приходит `invest_get_positions`. */
-const isQuantityOnly = (position: PortfolioPosition): boolean =>
-  position.currentPrice === undefined && position.positionValue === undefined;
-
-/**
- * Строка позиции в сводке: количество, а при известной цене — ещё цена и стоимость.
- * «77,00 шт.» без цены — это честное «брокер не дал цену», а не ноль.
- */
-const formatPortfolioPosition = (position: PortfolioPosition): string => {
-  const ticker = position.instrument.ticker;
-  const quantity = `${formatNumber(position.quantity.amount)} шт.`;
-  if (position.currentPrice) {
-    return `${ticker}: ${quantity} × ${formatMoney(position.currentPrice)} = ${formatMoney(position.positionValue)}`;
-  }
-  return `${ticker}: ${quantity}`;
 };
 
 export interface AccountPortfolio {
@@ -205,3 +164,13 @@ export const formatAllAccountsReport = (
 
   return lines.join('\n');
 };
+
+export {
+  DATA_SOURCE,
+  DISCLAIMER,
+  UNAVAILABLE,
+  formatDataAsOf,
+  formatMoney,
+  formatNumber,
+} from './format.js';
+export { formatPortfolioPosition, formatPosition } from './position-format.js';

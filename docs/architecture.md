@@ -103,6 +103,7 @@ src/
     section-sectors.ts        секторы для базы знаний по секциям
     compose.ts                итоговый markdown
     portfolio-report.ts       рендер сводки по счетам и дисклеймеры
+    format.ts, position-format.ts  форматтеры чисел, денег и строк позиций
     providers/portfolio/      по файлу на секцию: table, structure, concentration, gaps
       holdings.ts, sectors.ts  общие расчёты позиций и секторов
   collection/                 план и исполнение сбора
@@ -113,6 +114,7 @@ src/
   parsing/                    парсинг: mappers/, yaml.ts, feed.ts (RSS/Atom/JSON)
   config/                     схема env и типизированный конфиг
     env.schema.ts             публичный API схемы (фасад)
+    app-config.types.ts       типы AppConfig (секции конфигурации)
     env/{constants,helpers,scalar,mcp}.ts  секции схемы и разбор MCP-серверов
   mcp/                        инфраструктура MCP: реестр, клиент, прокси, адаптер, схемы, бюджет
     local-tools.ts            локальные тулы (счета, динамика, новости, налоги, ставка)
