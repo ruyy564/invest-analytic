@@ -45,6 +45,20 @@ export const formatKnowledge = (
 export const withPreamble = (body: string): string | undefined =>
   body.length > 0 ? `${KNOWLEDGE_PREAMBLE}\n${body}` : undefined;
 
+/** Компактный блок для секции отчёта: заголовок, определение и несколько тезисов. */
+export const formatKnowledgeBlock = (
+  topics: readonly KnowledgeTopic[],
+  pointsPerTopic = 3,
+): string =>
+  topics
+    .map((topic) =>
+      [
+        `**${topic.title}** — ${topic.summary}`,
+        ...topic.points.slice(0, pointsPerTopic).map((point) => `• ${point}`),
+      ].join('\n'),
+    )
+    .join('\n\n');
+
 /** Ответ на справочный вопрос: определение, тезисы, подразделы, ошибки и источник. */
 export const formatKnowledgeAnswer = (topic: KnowledgeTopic): string => {
   const lines = [`${topic.title}. ${topic.summary}`, ''];

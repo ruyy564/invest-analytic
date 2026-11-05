@@ -9,7 +9,12 @@ export {
   KNOWLEDGE_PREAMBLE,
   KNOWLEDGE_QUESTION_PATTERN,
 } from './knowledge.constants.js';
-export { formatKnowledge, formatKnowledgeAnswer, formatKnowledgeMiss } from './knowledge.format.js';
+export {
+  formatKnowledge,
+  formatKnowledgeAnswer,
+  formatKnowledgeBlock,
+  formatKnowledgeMiss,
+} from './knowledge.format.js';
 export { findTopicForQuestion, selectTopics } from './knowledge.select.js';
 export {
   EMPTY_KNOWLEDGE,

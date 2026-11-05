@@ -25,6 +25,11 @@ export interface ReportSection {
   scopes: SectionScope[];
   /** Темы базы знаний, обязательные для этой секции (дополняют отбор по секторам). */
   knowledge: string[];
+  /**
+   * Секция необязательна: если провайдер не дал фактов (например, база знаний
+   * выключена), секция просто не попадает в отчёт — без «Данных нет» и partial.
+   */
+  optional: boolean;
 }
 
 export interface ReportThresholds {
@@ -141,6 +146,8 @@ export const parseReportTemplate = (raw: unknown, source: string): ReportTemplat
       knowledge: Array.isArray(section.knowledge)
         ? section.knowledge.map(String).filter((id) => id.trim().length > 0)
         : [],
+      // Необязательные секции пропускаются, если данных нет (например, знания выключены).
+      optional: section.optional === true,
     });
   });
 

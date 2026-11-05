@@ -20,6 +20,8 @@ export const createReportNode =
       providers: createProviderMap({
         // Драйверы секторов и профили «экспортёр / внутренний рынок» — данные из файла.
         profiles: loadCompanyProfiles(deps.config.value.sources.companyProfilesFile),
+        // База знаний: темы показываются отдельной секцией «Справочный контекст».
+        knowledge: deps.knowledge.isEmpty ? undefined : deps.knowledge,
       }),
       plan: {
         entries: state.readingPlan as PlanEntry[],

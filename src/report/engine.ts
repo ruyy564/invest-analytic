@@ -44,6 +44,10 @@ export const buildReport = (deps: BuildReportDeps): ReportBuildResult => {
     const facts = provider?.section(ctx);
 
     if (!provider) {
+      // Необязательная секция без провайдера просто не попадает в отчёт.
+      if (section.optional) {
+        continue;
+      }
       partial = true;
       coverage.push({
         source: section.provider,
@@ -60,6 +64,10 @@ export const buildReport = (deps: BuildReportDeps): ReportBuildResult => {
     }
 
     if (!facts || (!facts.markdown && !facts.brief)) {
+      // Необязательная секция без фактов (например, знания выключены) не шумит.
+      if (section.optional) {
+        continue;
+      }
       partial = true;
       sections.push({
         id: section.id,

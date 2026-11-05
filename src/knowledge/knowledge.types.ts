@@ -47,6 +47,8 @@ export interface KnowledgeQuery {
  */
 export interface KnowledgeProvider {
   readonly isEmpty: boolean;
+  /** Отбор тем: нужен секции отчёта, чтобы показать справочный блок. */
+  select?: (query: KnowledgeQuery) => KnowledgeTopic[];
   promptBlock(query: KnowledgeQuery & { maxChars?: number; requireChecklist?: boolean }): string | undefined;
   topicFor(question: string): KnowledgeTopic | undefined;
   answerFor(question: string): string | undefined;
