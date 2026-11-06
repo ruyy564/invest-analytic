@@ -3,9 +3,13 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { AppConfigService } from './config/app-config.service.js';
+import { APP_LOGGER, toNestLogger } from './platform/logging/index.js';
+import type { Logger as PinoLogger } from 'pino';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+  // Все `new Logger('X')` внутри Nest пишут структурированные JSON-записи.
+  app.useLogger(toNestLogger(app.get<PinoLogger>(APP_LOGGER)));
   app.setGlobalPrefix('api/v1');
   app.enableShutdownHooks();
 

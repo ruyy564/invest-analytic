@@ -1,17 +1,8 @@
 import { Logger } from '@nestjs/common';
 
-/** Имя корневого прогона, которым LangGraph называет запуск графа в LangSmith. */
-const GRAPH_RUN_NAME = 'LangGraph';
-
 const logger = new Logger('Tracing');
 
-/** Минимальные сведения о прогоне, нужные для сборки ссылки на трейс. */
-export interface RunSummary {
-  id?: string;
-  name?: string;
-  metadata?: Record<string, unknown>;
-}
-
+/** Контекст ссылки на трейс: идентификаторы уже известны сервису. */
 export interface TraceContext {
   runId?: string;
   orgId?: string;
@@ -34,11 +25,16 @@ export const buildTraceUrl = (template: string, context: TraceContext): string |
 
 /**
  * Организация для ссылки на трейс: из env, а если не задана — запрашиваем текущую
- * у LangSmith (ссылку можно собрать и без ручной настройки).
+ * у LangSmith. Один запрос на процесс: результат кэшируется модулем.
  */
+let cachedOrgId: string | undefined;
+
 export const resolveOrgId = async (apiKey?: string): Promise<string | undefined> => {
   if (!apiKey) {
     return undefined;
+  }
+  if (cachedOrgId) {
+    return cachedOrgId;
   }
   try {
     const response = await fetch('https://api.smith.langchain.com/api/v1/orgs/current', {
@@ -48,102 +44,16 @@ export const resolveOrgId = async (apiKey?: string): Promise<string | undefined>
       return undefined;
     }
     const body = (await response.json()) as { id?: string };
-    return body.id;
-  } catch {
+    cachedOrgId = body.id;
+    return cachedOrgId;
+  } catch (error) {
+    logger.warn(`Организация LangSmith недоступна: ${(error as Error)?.message ?? String(error)}`);
     return undefined;
   }
 };
 
-/**
- * Узнаёт идентификатор корневого прогона в LangSmith после запуска графа:
- * LangChain не отдаёт его в колбэках, поэтому читаем свежие трейсы проекта.
- * Ошибка трассировки не влияет на ответ (fail-open), но попадает в лог.
- */
-export const resolveRootRunId = async (
-  options: {
-    project: string;
-    /** Номер запроса: ссылка должна вести именно в его трейс, а не в соседний. */
-    requestId?: string;
-    maxAttempts?: number;
-    delayMs?: number;
-  },
-  /**
-   * Источник прогонов (по умолчанию — LangSmith SDK). Вынесен параметром, чтобы
-   * тестировать логику выбора и повторов без сети и мока ESM-модулей.
-   */
-  listRuns: (project: string) => AsyncIterable<RunSummary> = listRunsViaLangsmith,
-): Promise<string | undefined> => {
-  const attempts = options.maxAttempts ?? 5;
-  let unlabelled: string | undefined;
-
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      // Корневой run графа называется `LangGraph`; у вызовов инструментов своих родителей
-      // в выдаче нет (они пишутся отдельными трейсами), поэтому фильтруем по имени.
-      // Явный `isRoot` отсекает `__start__` (он тоже без родителя) и требует, чтобы
-      // до старта корня уже были известны все дети — поэтому его не используем.
-      let found = false;
-      for await (const run of listRuns(options.project)) {
-        if (!run.id || run.name !== GRAPH_RUN_NAME) {
-          continue;
-        }
-        const match = requestMatch(run, options.requestId);
-        if (match === true) {
-          logger.debug(`Трейс запроса ${options.requestId}: ${run.id}`);
-          return run.id;
-        }
-        // Прогоны без `requestId` — запасной вариант: подходят, только если точного
-        // совпадения нет ни в одной попытке (иначе ссылка уводила бы в чужой трейс).
-        if (match === 'unknown' && !unlabelled) {
-          unlabelled = run.id;
-          found = true;
-        }
-      }
-      if (found && attempt === attempts - 1 && unlabelled) {
-        return unlabelled;
-      }
-      logger.debug(
-        `Трейс запроса ${options.requestId} ещё не найден (попытка ${attempt + 1}/${attempts})`,
-      );
-    } catch (error) {
-      // LangSmith недоступен — ответ отдаём без ссылки.
-      logger.warn(`Ссылка на трейс недоступна: ${(error as Error)?.message ?? String(error)}`);
-      return undefined;
-    }
-    if (attempt < attempts - 1) {
-      await new Promise((resolve) => setTimeout(resolve, options.delayMs ?? 800));
-    }
-  }
-  return unlabelled;
+/** Сброс кэша организации: нужен тестам и смене ключа без перезапуска. */
+export const resetOrgIdCache = (): void => {
+  cachedOrgId = undefined;
 };
 
-/**
- * Принадлежит ли прогон запросу. Возвращает `true`, `false` или `'unknown'`, когда прогон
- * писался без метаданных (например, утилитой или старой версией сервиса).
- */
-const requestMatch = (run: RunSummary, requestId?: string): boolean | 'unknown' => {
-  if (!requestId) {
-    return true;
-  }
-  const actual = run.metadata?.requestId;
-  if (actual === undefined) {
-    return 'unknown';
-  }
-  return actual === requestId;
-};
-
-/** Прогоны проекта из LangSmith: идентификатор, имя и номер запроса. */
-const listRunsViaLangsmith = (project: string): AsyncIterable<RunSummary> => {
-  const iterator = async function* iterate(): AsyncGenerator<RunSummary> {
-    const { Client } = await import('langsmith');
-    const client = new Client();
-    for await (const run of client.listRuns({ projectName: project, limit: 100 })) {
-      yield {
-        id: run.id ? String(run.id) : undefined,
-        name: run.name,
-        metadata: (run.extra?.metadata ?? {}) as Record<string, unknown>,
-      };
-    }
-  };
-  return iterator();
-};

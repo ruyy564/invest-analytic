@@ -10,7 +10,9 @@
 | `LANGSMITH_ORG_ID` | Организация — нужна для сборки `traceUrl` |
 | `LANGSMITH_TRACE_URL_TEMPLATE` | Шаблон ссылки с `{orgId}`, `{project}`, `{runId}` |
 | `LANGSMITH_HIDE_INPUTS` | Не отправлять содержимое промптов в трейсы |
+| `LOG_LEVEL` | Уровень логов pino (`debug`, `info`, `warn`, `error`) |
 | `LOG_QUESTION_TEXT` | Логировать текст вопроса (по умолчанию выключено) |
+| `STATE_RUNS_DIR` | Каталог журналов прогонов (JSONL, по файлу на `runId`) |
 
 ## Что попадает в трейс
 
@@ -29,11 +31,15 @@ LangGraph и LangChain трассируются автоматически: уз
 https://smith.langchain.com/o/{orgId}/projects/p/{project}/r/{runId}
 ```
 
-`runId` — идентификатор корневого прогона графа. LangChain не отдаёт его в колбэках (`handleChainStart` приходит только для вложенных runnable), поэтому после `invoke` сервис читает свежие прогоны имени `LangGraph` из проекта (`resolveRootRunId` в `src/observability/run-collector.ts`): до 5 попыток с паузой 800 мс — экспорт асинхронный. Выбирается прогон с совпадающим `requestId`; прогоны без метаданных берутся только если точного совпадения не нашлось ни в одной попытке — иначе ссылка уводила бы в чужой трейс. Явный флаг `isRoot` не используется: `__start__` тоже считается корневым, а собственные корневые узлы инструментов пишутся отдельными трейсами.
+`runId` генерирует сам сервис до запуска графа (`randomUUID`) и передаёт его в
+`config.metadata`. Поэтому ссылка строится сразу после прогона: опрос LangSmith
+(`resolveRootRunId`) больше не используется, сетевых запросов для ссылки нет.
 
-`orgId` берётся из `LANGSMITH_ORG_ID`, а если не задан — из `GET /api/v1/orgs/current` по `LANGSMITH_API_KEY` (`resolveOrgId`).
+`orgId` берётся из `LANGSMITH_ORG_ID`, а если не задан — один раз запрашивается
+у LangSmith по ключу (`resolveOrgId`) и кэшируется на процесс.
 
-Ссылки нет, если трассировка выключена, `runId` не получен или в шаблоне нужен `{orgId}`, а получить его не удалось.
+Ссылки нет, если трассировка выключена или в шаблоне нужен `{orgId}`, а получить
+его не удалось.
 
 ## Проверка трейса
 
@@ -52,9 +58,54 @@ https://smith.langchain.com/o/{orgId}/projects/p/{project}/r/{runId}
 
 ## Логи
 
-Запись содержит `requestId`, `sessionId`, интент, длительность этапа, имена вызванных инструментов и код ошибки. Текст вопроса попадает в лог только при `LOG_QUESTION_TEXT=true` и проходит через `redactString` (Bearer-токены маскируются).
+Логи пишутся структурированно (pino, JSON-строки в stdout), уровень — `LOG_LEVEL`.
+Nest-логгеры (`new Logger('ClassifyNode')`) автоматически попадают в тот же поток
+через `app.useLogger`, поэтому переписывать вызовы в узлах не нужно.
 
-`src/observability/redact.ts` рекурсивно маскирует поля с именами `token`, `authorization`, `apiKey`, `secret`, `password`, `credentials`, оставляя от значения только два первых и два последних символа.
+Поля записи:
+
+| Поле | Смысл |
+|---|---|
+| `time`, `level`, `msg`, `service`, `env` | стандартные поля pino |
+| `context` | имя класса/узла из Nest-логгера |
+| `runId` | идентификатор прогона: связывает лог, журнал и трейс |
+| `requestId`, `sessionId` | запрос и диалог |
+| `intent` | сценарий прогона (когда известен) |
+| `durationMs`, `tools`, `errorCode` | метрики этапа и ошибки |
+
+`runId` попадает в записи автоматически: `AgentRunnerService` оборачивает прогон
+в `withLogContext`, а мост `toNestLogger` добавляет поля контекста в каждую
+запись. Текст вопроса попадает в лог только при `LOG_QUESTION_TEXT=true`.
+
+Маскирование: `src/platform/logging/redact.ts` маскирует поля с именами `token`,
+`authorization`, `apiKey`, `secret`, `password`, `credentials` и Bearer-токены в
+тексте сообщения. Pino применяет те же правила к полям по путям.
+
+## Журнал прогона
+
+Каждый прогон пишет JSONL-файл `STATE_RUNS_DIR/<runId>.jsonl` (по умолчанию
+`./.state/runs`):
+
+```json
+{"at":"2026-11-06T10:00:00.000Z","type":"run_started","sessionId":"s-1"}
+{"at":"2026-11-06T10:00:03.000Z","type":"run_finished","intent":"portfolio_review","status":"completed","partial":false,"tools":["portfolio__snapshot"],"coverage":[{"source":"get_portfolio","status":"ok"}],"stopReason":"answered","usage":{"inputTokens":120,"outputTokens":40},"durationMs":3000}
+```
+
+`stopReason`: `answered`, `approval`, `budget`, `guard`, `no_data`, `error`.
+Ошибка записи журнала не прерывает прогон — в лог уходит предупреждение.
+
+Транскрипт по журналу печатает команда (сеть не нужна):
+
+```bash
+npm run replay -- <runId>
+```
+
+## Метрики
+
+`summarizeRuns` (`src/platform/runs/metrics.ts`) агрегирует записи журнала по
+интентам: число прогонов, доля частичных результатов, доля отказов модели, доля
+ошибок инструментов и источников, стоимость, p50/p95 задержки. Функция чистая —
+её можно вызвать на выгрузке журналов без запуска сервиса.
 
 ## Сбои
 

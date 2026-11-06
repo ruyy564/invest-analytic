@@ -117,6 +117,7 @@ describe('граф агента с подтверждением', () => {
 
     expect(result.status).toBe('completed');
     expect(result.intent).toBe('off_topic');
+    expect(result.runId).toMatch(/^[0-9a-f-]{36}$/);
     expect(result.answer).toContain('вне моей компетенции');
     expect(toolCalls()).toBe(0);
   });

@@ -15,6 +15,7 @@
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest-e2e.config.cjs --runInBand",
     "smoke:mcp": "node --env-file=.env scripts/smoke-mcp.mjs",
     "trace": "node --env-file=.env scripts/trace-report.mjs",
+    "replay": "node --env-file=.env scripts/replay-run.mjs",
     "studio": "npm run build && langgraphjs dev --host 127.0.0.1 --port 2024 --no-browser",
     "studio:open": "node scripts/open-studio.mjs",
     "studio:check": "node --env-file=.env scripts/studio-check.mjs",
@@ -37,6 +38,7 @@
     "dotenv": "^18.0.9",
     "langchain-gigachat": "^0.0.18",
     "langsmith": "^0.11.4",
+    "pino": "^10.4.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^4.6.7"

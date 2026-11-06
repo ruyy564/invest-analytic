@@ -81,6 +81,7 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
     backend: env.STATE_BACKEND,
     sqlitePath: env.STATE_SQLITE_PATH,
     ttlDays: env.STATE_TTL_DAYS,
+    runsDir: env.STATE_RUNS_DIR,
   },
   approvals: {
     ttlMinutes: env.APPROVAL_TTL_MINUTES,

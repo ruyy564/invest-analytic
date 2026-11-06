@@ -1,4 +1,7 @@
-﻿import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import type { Logger as PinoLogger } from 'pino';
+import { APP_LOGGER, createAppLogger, runLogger, withLogContext } from '../platform/logging/index.js';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { HumanMessage } from '@langchain/core/messages';
 import { Command, type BaseCheckpointSaver } from '@langchain/langgraph';
@@ -18,9 +21,11 @@ import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
 import { KnowledgeService } from '../knowledge/index.js';
 import type { AgentStateType } from './graph/state.js';
-import { buildTraceUrl, resolveOrgId, resolveRootRunId } from '../observability/run-collector.js';
+import { buildTraceUrl, resolveOrgId } from '../observability/run-collector.js';
 import { ReportStoreService } from '../state/report-store.service.js';
 import { newsReportOf, reportOf } from './runner/report-builder.js';
+import { RunJournal } from '../platform/runs/index.js';
+import { stopReasonOf, toolsOf, usageOf } from './runner/journal-summary.js';
 import {
   extractInterrupt,
   hasBudgetError,
@@ -40,7 +45,6 @@ export type { NewsReport, RunReport, RunResult } from './runner/runner.types.js'
  */
 @Injectable()
 export class AgentRunnerService {
-  private readonly logger = new Logger(AgentRunnerService.name);
   private compiled?: CompiledAgentGraph;
 
   private defaultAccount?: string;
@@ -56,74 +60,158 @@ export class AgentRunnerService {
     private readonly reports: ReportStoreService,
     // База знаний — обычный Nest-провайдер: файлы и кэш живут в модуле знаний.
     private readonly knowledge: KnowledgeService,
-  ) {}
+    // Логгер опционален: ручная сборка в тестах может его не передавать.
+    @Optional() @Inject(APP_LOGGER) logger?: PinoLogger,
+  ) {
+    this.logger = logger ?? createAppLogger({ level: 'silent' });
+  }
+
+  private readonly logger: PinoLogger;
 
   async run(message: string, sessionId: string, requestId?: string): Promise<RunResult> {
-    const graph = await this.graph();
-    if (!graph) {
-      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'data_lookup', partial: true };
-    }
-    const config = { ...this.configFor(sessionId) };
-    this.registry.beginRun(sessionId);
+    // runId создаётся до графа: узлы и вызовы инструментов логируют с ним же.
+    const runId = randomUUID();
+    const startedAt = Date.now();
+    const log = runLogger(this.logger, { runId, requestId, sessionId });
+    log.info('Прогон начат');
+    const journal = this.journalFor(runId);
+    journal?.append({ type: 'run_started', sessionId, requestId });
 
-    try {
-      const result = await withTimeout(
-        graph.invoke(
-          { messages: [new HumanMessage(message)] },
-          {
-            ...config,
-            metadata: { requestId, sessionId },
-          },
-        ),
-        this.config.value.run.deadlineMs,
-        () => new Error('deadline'),
-      );
-      const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
-      return { ...mapped, traceUrl: await this.traceUrlFor(requestId) };
-    } catch (error) {
-      const message = (error as Error)?.message ?? String(error);
-      this.logger.warn(`Прогон прерван: ${message}`);
-      if (process.env.AGENT_DEBUG_ERRORS === '1') {
-        this.logger.error((error as Error)?.stack ?? message);
+    return withLogContext({ runId, requestId, sessionId }, async () => {
+      const graph = await this.graph();
+      if (!graph) {
+        return {
+          runId,
+          status: 'completed',
+          answer: NO_TOOLS_ANSWER,
+          intent: 'data_lookup',
+          partial: true,
+        };
       }
-      return this.partialResult(config, sessionId);
-    } finally {
-      this.registry.endRun(sessionId);
-    }
+      const config = { ...this.configFor(sessionId) };
+      this.registry.beginRun(sessionId);
+
+      try {
+        const result = await withTimeout(
+          graph.invoke(
+            { messages: [new HumanMessage(message)] },
+            {
+              ...config,
+              metadata: { requestId, sessionId, runId },
+            },
+          ),
+          this.config.value.run.deadlineMs,
+          () => new Error('deadline'),
+        );
+        const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId, runId);
+        log.info({ intent: mapped.intent, partial: mapped.partial }, 'Прогон завершён');
+        await this.appendFinished(journal, graph, config, mapped, startedAt);
+        return { ...mapped, traceUrl: await this.traceUrlFor(runId) };
+      } catch (error) {
+        const message = (error as Error)?.message ?? String(error);
+        log.warn({ err: message }, 'Прогон прерван');
+        journal?.append({ type: 'run_finished', status: 'failed', stopReason: 'error', error: message });
+        if (process.env.AGENT_DEBUG_ERRORS === '1') {
+          log.error({ stack: (error as Error)?.stack }, 'Причина прерывания');
+        }
+        return this.partialResult(config, sessionId, runId);
+      } finally {
+        this.registry.endRun(sessionId);
+      }
+    });
   }
 
   async resume(sessionId: string, decision: ApproveDecision, requestId?: string): Promise<RunResult> {
-    const graph = await this.graph();
-    if (!graph) {
-      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'data_lookup', partial: true };
-    }
-    if (!this.flow.hasPending(sessionId) && !(await this.isAwaiting(graph, sessionId))) {
-      throw new NotAwaitingApprovalError();
-    }
-    this.flow.assertSessionNotExpired(sessionId);
-    const config = { ...this.configFor(sessionId) };
-    this.registry.beginRun(sessionId);
+    const runId = randomUUID();
+    const startedAt = Date.now();
+    const log = runLogger(this.logger, { runId, requestId, sessionId });
+    log.info('Прогон продолжен после подтверждения');
+    const journal = this.journalFor(runId);
+    journal?.append({ type: 'run_started', sessionId, requestId, resumed: true });
 
+    return withLogContext({ runId, requestId, sessionId }, async () => {
+      const graph = await this.graph();
+      if (!graph) {
+        return {
+          runId,
+          status: 'completed',
+          answer: NO_TOOLS_ANSWER,
+          intent: 'data_lookup',
+          partial: true,
+        };
+      }
+      if (!this.flow.hasPending(sessionId) && !(await this.isAwaiting(graph, sessionId))) {
+        throw new NotAwaitingApprovalError();
+      }
+      this.flow.assertSessionNotExpired(sessionId);
+      const config = { ...this.configFor(sessionId) };
+      this.registry.beginRun(sessionId);
+
+      try {
+        const result = await graph.invoke(new Command({ resume: decision }), {
+          ...config,
+          metadata: { requestId, sessionId, runId },
+        });
+        const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId, runId);
+        log.info({ intent: mapped.intent, partial: mapped.partial }, 'Прогон завершён');
+        await this.appendFinished(journal, graph, config, mapped, startedAt);
+        return { ...mapped, traceUrl: await this.traceUrlFor(runId) };
+      } finally {
+        this.registry.endRun(sessionId);
+      }
+    });
+  }
+
+  /** Журнал прогона: ошибка файловой системы не ломает прогон. */
+  private journalFor(runId: string): RunJournal | undefined {
     try {
-      const result = await graph.invoke(new Command({ resume: decision }), {
-        ...config,
-        metadata: { requestId, sessionId },
+      return new RunJournal({
+        dir: this.config.value.state.runsDir,
+        runId,
+        onError: (error) => this.logger.warn({ err: error.message }, 'Журнал прогона недоступен'),
       });
-      const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId);
-      return { ...mapped, traceUrl: await this.traceUrlFor(requestId) };
-    } finally {
-      this.registry.endRun(sessionId);
+    } catch (error) {
+      this.logger.warn({ err: (error as Error).message }, 'Журнал прогона не создан');
+      return undefined;
     }
   }
 
-  /** Ссылка на трейс: берём последний корневой run проекта (только при включённой трассировке). */
-  private async traceUrlFor(requestId?: string): Promise<string | undefined> {
+  /** Итог прогона в журнале: инструменты, покрытие, расход и причина остановки. */
+  private async appendFinished(
+    journal: RunJournal | undefined,
+    graph: CompiledAgentGraph,
+    config: ReturnType<AgentRunnerService['configFor']>,
+    result: RunResult,
+    startedAt: number,
+  ): Promise<void> {
+    if (!journal) {
+      return;
+    }
+    try {
+      const snapshot = await graph.getState(config);
+      const values = (snapshot.values ?? {}) as AgentStateType;
+      journal.append({
+        type: 'run_finished',
+        intent: result.intent,
+        status: result.status,
+        partial: result.partial,
+        tools: toolsOf(values.messages),
+        coverage: result.report?.coverage,
+        stopReason: stopReasonOf(result, values.messages),
+        usage: usageOf(values.messages),
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      this.logger.warn({ err: (error as Error).message }, 'Журнал: состояние недоступно');
+    }
+  }
+
+  /** Ссылка на трейс: собирается из собственного `runId`, без опроса LangSmith. */
+  private async traceUrlFor(runId: string): Promise<string | undefined> {
     const langsmith = this.config.value.langsmith;
     if (!langsmith.tracing) {
       return undefined;
     }
-    const runId = await resolveRootRunId({ project: langsmith.project, requestId });
-    this.logger.debug?.(`traceUrl: requestId=${requestId} runId=${runId}`);
     const orgId = langsmith.orgId ?? (await resolveOrgId(langsmith.apiKey));
     return buildTraceUrl(langsmith.traceUrlTemplate, {
       runId,
@@ -138,8 +226,9 @@ export class AgentRunnerService {
     result: unknown,
     config: ReturnType<AgentRunnerService['configFor']>,
     sessionId: string,
+    runId: string,
   ): Promise<RunResult> {
-    const mapped = await this.toResult(graph, result, config);
+    const mapped = await this.toResult(graph, result, config, runId);
     if (mapped.status === 'awaiting_approval') {
       this.flow.markPending(sessionId);
     } else {
@@ -214,6 +303,7 @@ export class AgentRunnerService {
     graph: CompiledAgentGraph,
     result: unknown,
     config: ReturnType<AgentRunnerService['configFor']>,
+    runId: string,
   ): Promise<RunResult> {
     const inlineValues = (result as { values?: AgentStateType }).values;
     const values =
@@ -222,6 +312,7 @@ export class AgentRunnerService {
 
     if (approval) {
       return {
+        runId,
         status: 'awaiting_approval',
         intent: values?.intent ?? 'data_lookup',
         scope: values?.scope,
@@ -233,6 +324,7 @@ export class AgentRunnerService {
     }
 
     return {
+      runId,
       status: 'completed',
       answer: lastAnswer(values?.messages),
       intent: values?.intent ?? 'data_lookup',
@@ -248,15 +340,23 @@ export class AgentRunnerService {
   private async partialResult(
     config: ReturnType<AgentRunnerService['configFor']>,
     _sessionId: string,
+    runId: string,
   ): Promise<RunResult> {
     const graph = await this.graph();
     if (!graph) {
-      return { status: 'completed', answer: NO_TOOLS_ANSWER, intent: 'data_lookup', partial: true };
+      return {
+        runId,
+        status: 'completed',
+        answer: NO_TOOLS_ANSWER,
+        intent: 'data_lookup',
+        partial: true,
+      };
     }
     const snapshot = await graph.getState(config);
     const values = (snapshot.values ?? {}) as AgentStateType;
 
     return {
+      runId,
       status: 'completed',
       answer:
         lastAnswer(values.messages) ??

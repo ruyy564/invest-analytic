@@ -4,12 +4,14 @@ import { ApiModule } from './api/api.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { LlmModule } from './llm/llm.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
+import { LoggingModule } from './platform/logging/index.js';
 import { StateModule } from './state/state.module.js';
 import { ToolsModule } from './tools/tools.module.js';
 
 @Module({
   imports: [
     ConfigModule,
+    LoggingModule,
     ObservabilityModule,
     LlmModule,
     ToolsModule,

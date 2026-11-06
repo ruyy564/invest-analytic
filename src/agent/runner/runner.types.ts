@@ -19,6 +19,8 @@ export interface NewsReport {
 }
 
 export interface RunResult {
+  /** Идентификатор прогона: связывает ответ, логи и журнал. */
+  runId: string;
   status: 'completed' | 'awaiting_approval';
   answer?: string;
   intent: AgentStateType['intent'];

@@ -123,6 +123,8 @@ export const scalarEnvObject = z
       .default('sqlite'),
     STATE_SQLITE_PATH: z.string().trim().min(1).default('./.state/state.sqlite'),
     STATE_TTL_DAYS: z.coerce.number().int().positive().default(30),
+    /** Каталог журналов прогонов: по файлу JSONL на прогон. */
+    STATE_RUNS_DIR: z.string().trim().min(1).default('./.state/runs'),
 
     APPROVAL_TTL_MINUTES: z.coerce.number().int().positive().default(15),
     APPROVAL_UNLISTED: z

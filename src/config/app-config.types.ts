@@ -90,6 +90,8 @@ export interface AppConfig {
     backend: StateBackend;
     sqlitePath: string;
     ttlDays: number;
+    /** Каталог журналов прогонов (JSONL, по файлу на прогон). */
+    runsDir: string;
   };
   approvals: {
     ttlMinutes: number;

@@ -1,7 +1,5 @@
 ﻿import { randomUUID } from 'node:crypto';
-import { jest } from '@jest/globals';
 import type { INestApplication } from '@nestjs/common';
-import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AIMessage } from '@langchain/core/messages';
 import request from 'supertest';
@@ -272,7 +270,6 @@ describe('HTTP API', () => {
     const originalTracing = process.env.LANGSMITH_TRACING;
     process.env.LANGSMITH_TRACING = 'true';
     process.env.LANGSMITH_API_KEY = 'lsv2_invalid_key_for_test';
-    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const local = await createApp(toolsFactory);
 
     try {
@@ -286,11 +283,12 @@ describe('HTTP API', () => {
         .post('/api/v1/agent/chat/approve')
         .send({ sessionId: awaiting.body.sessionId, approved: true });
 
+      // Сбой экспорта трейса (403 от LangSmith) не влияет на ответ: статус и текст на месте.
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('completed');
-      expect(warn).toHaveBeenCalled();
+      expect(response.body.answer).toBeTruthy();
+      expect(response.body.runId).toBeTruthy();
     } finally {
-      warn.mockRestore();
       process.env.LANGSMITH_TRACING = originalTracing;
       delete process.env.LANGSMITH_API_KEY;
       await local.app.close();

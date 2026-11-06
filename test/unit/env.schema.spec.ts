@@ -40,6 +40,7 @@ describe('конфигурация окружения', () => {
       backend: 'sqlite',
       sqlitePath: './.state/state.sqlite',
       ttlDays: 30,
+      runsDir: './.state/runs',
     });
     expect(config.approvals.unlisted).toBe('require');
     expect(config.approvals.ttlMinutes).toBe(15);
