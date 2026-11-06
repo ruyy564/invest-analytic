@@ -3,6 +3,8 @@ import { withTimeout } from '../../mcp/mcp-tool.adapter.js';
 import { asJson } from '../../tools/portfolio-snapshot/portfolio-snapshot.service.js';
 import type { NewsQuery, NewsSourceAdapter, SourceItem, SourceTopic } from '../news.types.js';
 import { isDigestTitle } from '../news.filters.js';
+import type { NewsPolicy } from '../../capabilities/news/index.js';
+import { withReport } from './policy.js';
 
 export interface TinkoffNewsSourceOptions {
   /** Инструмент по короткому имени, например `invest_get_news`. */
@@ -11,6 +13,8 @@ export interface TinkoffNewsSourceOptions {
   topics?: readonly SourceTopic[];
   /** Сколько символов текста новости оставлять. */
   summaryLimit?: number;
+  /** Политика релевантности: заменяет встроенные фильтры. */
+  policy?: NewsPolicy;
 }
 
 interface RawNews {
@@ -69,7 +73,8 @@ export const mapNews = (
         title,
         summary: content ? content.slice(0, summaryLimit) : undefined,
         publishedAt,
-        tags: [item.source ?? '', ...(item.instrumentId ?? [])].filter((tag) => tag.length > 0),
+        tags: [item.source ?? ''].filter((tag) => tag.length > 0),
+        instrumentTags: (item.instrumentId ?? []).filter((tag) => tag.length > 0),
         source: sourceId,
       },
     ];
@@ -122,37 +127,39 @@ export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): News
     return collected;
   };
 
+  const fetchNews = async (query: NewsQuery): Promise<SourceItem[]> => {
+    const tickers = (query.tickers ?? []).filter((ticker) => ticker.length > 0).slice(0, 5);
+    const batches: SourceItem[] = [];
+
+    if (tickers.length > 0) {
+      // Только новости по бумагам портфеля: общая лента не влияет на решения
+      // и забивает отчёт спортом/политикой.
+      for (const ticker of tickers) {
+        try {
+          batches.push(
+            ...(await collect(ticker, {
+              ...query,
+              pages: 1,
+              maxItems: Math.min(3, query.maxItems),
+            })),
+          );
+        } catch {
+          // Один тикер не должен ломать сводку: остальные соберём.
+        }
+      }
+      // Пустой ответ — не ошибка: у бумаги может просто не быть новостей.
+      return batches;
+    }
+
+    // Общая лента нужна только когда бумаги неизвестны (первая фаза плана).
+    return collect(undefined, query);
+  };
+
   return {
     id: 'tinkoff',
     topics: options.topics ?? ['news', 'tax'],
     // Брокер умеет отдавать новости по конкретной бумаге.
     supportsTickerQuery: true,
-    async fetchNews(query: NewsQuery): Promise<SourceItem[]> {
-      const tickers = (query.tickers ?? []).filter((ticker) => ticker.length > 0).slice(0, 5);
-      const batches: SourceItem[] = [];
-
-      if (tickers.length > 0) {
-        // Только новости по бумагам портфеля: общая лента не влияет на решения
-        // и забивает отчёт спортом/политикой.
-        for (const ticker of tickers) {
-          try {
-            batches.push(
-              ...(await collect(ticker, {
-                ...query,
-                pages: 1,
-                maxItems: Math.min(3, query.maxItems),
-              })),
-            );
-          } catch {
-            // Один тикер не должен ломать сводку: остальные соберём.
-          }
-        }
-        // Пустой ответ — не ошибка: у бумаги может просто не быть новостей.
-        return batches;
-      }
-
-      // Общая лента нужна только когда бумаги неизвестны (первая фаза плана).
-      return collect(undefined, query);
-    },
+    ...withReport(fetchNews, options.policy, { tagsAreInstruments: true }),
   };
 };

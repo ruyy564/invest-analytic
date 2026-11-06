@@ -3,6 +3,8 @@ import { stripMarkup } from '../../parsing/feed.js';
 import { isDigestTitle } from '../news.filters.js';
 import type { NewsQuery, NewsSourceAdapter, SourceItem } from '../news.types.js';
 import { defaultFetchText } from './feed.js';
+import type { NewsPolicy } from '../../capabilities/news/index.js';
+import { withReport } from './policy.js';
 
 /** Лента РБК Инвестиций: новости фондового рынка и котировки. */
 export const RBC_QUOTE_URL = 'https://www.rbc.ru/quote';
@@ -12,6 +14,8 @@ export interface RbcQuoteOptions {
   url?: string;
   fetchText?: (url: string) => Promise<string>;
   summaryLimit?: number;
+  /** Политика релевантности: заменяет встроенные фильтры. */
+  policy?: NewsPolicy;
 }
 
 const rawItemsOf = (pageProps: Record<string, unknown>): Record<string, unknown>[] => {
@@ -59,7 +63,8 @@ export const parseRbcQuote = (html: string, summaryLimit = 400): SourceItem[] =>
         title,
         summary: summary ? stripMarkup(summary).slice(0, summaryLimit) : undefined,
         publishedAt: timestamp.toISOString(),
-        tags: tickersOf(item.tickers),
+        tags: [],
+        instrumentTags: tickersOf(item.tickers),
         url: asString(item.url),
         source: RBC_QUOTE_SOURCE,
       },
@@ -71,39 +76,45 @@ export const parseRbcQuote = (html: string, summaryLimit = 400): SourceItem[] =>
 export const createRbcQuoteSource = (options: RbcQuoteOptions = {}): NewsSourceAdapter => {
   const fetchText = options.fetchText ?? defaultFetchText;
 
+  const fetchNews = async (query: NewsQuery): Promise<SourceItem[]> => {
+    const items = parseRbcQuote(
+      await fetchText(options.url ?? RBC_QUOTE_URL),
+      options.summaryLimit,
+    );
+    const since = query.sinceDays
+      ? Date.now() - query.sinceDays * 24 * 60 * 60 * 1000
+      : undefined;
+    const tickers = (query.tickers ?? []).map((ticker) => ticker.trim().toUpperCase());
+    const matchers = (query.matchers ?? [])
+      .map((matcher) => matcher.trim().toLowerCase())
+      .filter((matcher) => matcher.length > 1);
+
+    return items
+      .filter((item) => !since || Date.parse(item.publishedAt) >= since)
+      .filter(
+        (item) =>
+          tickers.length === 0 ||
+          (item.instrumentTags ?? item.tags).some((tag) => tickers.includes(tag)),
+      )
+      .filter((item) => {
+        if (matchers.length === 0) {
+          return true;
+        }
+        // Привязка от источника (теги) или упоминание в заголовке: аннотацию
+        // не смотрим, иначе проходят обзоры «акции нефтяных компаний».
+        const haystack = `${item.title} ${(item.instrumentTags ?? item.tags).join(' ')}`.toLowerCase();
+        return matchers.some((matcher) => haystack.includes(matcher));
+      })
+      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
+      .slice(0, query.maxItems);
+  };
+
   return {
     id: RBC_QUOTE_SOURCE,
     topics: ['news'],
     // Страница отдаёт новости по рынку и помечает материалы тикерами.
     supportsTickerQuery: true,
     supportsMatcherQuery: true,
-    async fetchNews(query: NewsQuery): Promise<SourceItem[]> {
-      const items = parseRbcQuote(
-        await fetchText(options.url ?? RBC_QUOTE_URL),
-        options.summaryLimit,
-      );
-      const since = query.sinceDays
-        ? Date.now() - query.sinceDays * 24 * 60 * 60 * 1000
-        : undefined;
-      const tickers = (query.tickers ?? []).map((ticker) => ticker.trim().toUpperCase());
-      const matchers = (query.matchers ?? [])
-        .map((matcher) => matcher.trim().toLowerCase())
-        .filter((matcher) => matcher.length > 1);
-
-      return items
-        .filter((item) => !since || Date.parse(item.publishedAt) >= since)
-        .filter((item) => tickers.length === 0 || item.tags.some((tag) => tickers.includes(tag)))
-        .filter((item) => {
-          if (matchers.length === 0) {
-            return true;
-          }
-          // Привязка от источника (теги) или упоминание в заголовке: аннотацию
-          // не смотрим, иначе проходят обзоры «акции нефтяных компаний».
-          const haystack = `${item.title} ${item.tags.join(' ')}`.toLowerCase();
-          return matchers.some((matcher) => haystack.includes(matcher));
-        })
-        .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
-        .slice(0, query.maxItems);
-    },
+    ...withReport(fetchNews, options.policy),
   };
 };

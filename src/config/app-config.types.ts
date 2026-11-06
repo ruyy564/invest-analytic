@@ -73,6 +73,10 @@ export interface AppConfig {
       ids: string[];
       scanPages: number;
       maxItems: number;
+      /** Политика релевантности включена (флаг отката). */
+      policyV2: boolean;
+      /** Файл политики: правила отбраковки и привязки к бумаге. */
+      policyFile: string;
     };
     /** Сводка новостей рынка по периодам (ветка `news`). */
     newsFeed: {

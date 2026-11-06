@@ -67,6 +67,8 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
       ids: env.NEWS_SOURCES,
       scanPages: env.NEWS_SCAN_PAGES,
       maxItems: env.NEWS_DIGEST_MAX_ITEMS,
+      policyV2: env.NEWS_POLICY_V2,
+      policyFile: env.NEWS_POLICY_FILE,
     },
     newsFeed: {
       enabled: env.NEWS_FEED_ENABLED,

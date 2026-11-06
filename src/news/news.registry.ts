@@ -10,6 +10,8 @@ export interface SourceCoverageEntry {
   status: 'ok' | 'missing';
   items?: number;
   reason?: string;
+  /** Причины отбраковки на стадиях источника (если он их отдаёт). */
+  dropped?: { reason: string; count: number }[];
 }
 
 /** Короткое имя того же типа: используется сбором и отчётом. */
@@ -90,9 +92,16 @@ export class NewsRegistry {
     await Promise.all(
       sources.map(async (source) => {
         try {
-          const items = await source.fetchNews(query);
-          batches.push({ source: source.id, items });
-          coverage.push({ source: source.id, status: 'ok', items: items.length });
+          const result = source.fetchNewsWithReport
+            ? await source.fetchNewsWithReport(query)
+            : { items: await source.fetchNews(query) };
+          batches.push({ source: source.id, items: result.items });
+          coverage.push({
+            source: source.id,
+            status: 'ok',
+            items: result.items.length,
+            ...(result.dropped && result.dropped.length > 0 ? { dropped: result.dropped } : {}),
+          });
         } catch (error) {
           coverage.push({
             source: source.id,

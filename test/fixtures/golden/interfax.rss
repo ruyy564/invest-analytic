@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Интерфакс</title>
+    <item>
+      <title>Индекс Мосбиржи вырос на 1,2 %</title>
+      <link>https://example.test/news/1</link>
+      <description>Рынок акций вырос вслед за нефтью</description>
+      <pubDate>Thu, 05 Nov 2026 09:00:00 +0300</pubDate>
+      <category>рынок</category>
+    </item>
+    <item>
+      <title>Утренний дайджест: главное за день</title>
+      <link>https://example.test/news/2</link>
+      <description>Подборка новостей</description>
+      <pubDate>Thu, 05 Nov 2026 08:00:00 +0300</pubDate>
+    </item>
+    <item>
+      <title>В АдГ заявили, что визиты дорого обходятся немцам</title>
+      <link>https://example.test/news/3</link>
+      <description>Политика</description>
+      <pubDate>Thu, 05 Nov 2026 07:00:00 +0300</pubDate>
+    </item>
+  </channel>
+</rss>

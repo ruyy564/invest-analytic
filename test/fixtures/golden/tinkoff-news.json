@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "id": "t-1",
+      "source": "tinkoff",
+      "title": "ЛУКОЙЛ отчитался за квартал",
+      "content": "Выручка выросла, дивиденды подтверждены",
+      "ts": "2026-11-05T09:00:00Z",
+      "instrumentId": ["LKOH"]
+    },
+    {
+      "id": "t-2",
+      "source": "tinkoff",
+      "title": "Итоги торгов: индекс вырос",
+      "content": "Общий обзор рынка",
+      "ts": "2026-11-05T08:00:00Z",
+      "instrumentId": ["LKOH", "SBER"]
+    },
+    {
+      "id": "t-3",
+      "source": "tinkoff",
+      "title": "Акции нефтяных компаний снизились",
+      "content": "Обзор сектора",
+      "ts": "2026-11-05T07:00:00Z",
+      "instrumentId": ["LKOH"]
+    }
+  ],
+  "nextCursor": "cursor-2"
+}

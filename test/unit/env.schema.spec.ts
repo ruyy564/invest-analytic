@@ -148,6 +148,8 @@ describe('конфигурация окружения', () => {
         ids: ['interfax', 'rbc', 'smartlab'],
         scanPages: 3,
         maxItems: 15,
+        policyV2: true,
+        policyFile: 'data/policy/news.yaml',
       },
       newsFeed: {
         enabled: true,

@@ -14,6 +14,6 @@ const baseConfig = {
 
 module.exports = {
   ...baseConfig,
-  testRegex: 'test/unit/.*\\.spec\\.ts$',
+  testRegex: 'test/(unit|contract)/.*\\.spec\\.ts$',
   collectCoverageFrom: ['src/**/*.ts'],
 };

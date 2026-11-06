@@ -1,4 +1,4 @@
-﻿import type { DynamicStructuredTool } from '@langchain/core/tools';
+import type { DynamicStructuredTool } from '@langchain/core/tools';
 import type { AppConfig } from '../config/configuration.js';
 import { createFeedSource, defaultFetchText, type FeedFormat } from './sources/feed.js';
 import { FEED_DEFAULTS, feedFallbackUrl, feedUrl } from './sources/defaults.js';
@@ -7,6 +7,7 @@ import { createTinkoffNewsSource } from './sources/tinkoff.js';
 import { createSmartLabTagSource } from './sources/smartlab-tag.js';
 import { createRbcQuoteSource } from './sources/rbc-quote.js';
 import { createTbankResearchSource } from './sources/tbank-research.js';
+import { loadNewsPolicy, type NewsPolicy } from '../capabilities/news/index.js';
 import type { NewsSourceAdapter } from './news.types.js';
 
 export interface NewsFactoryDeps {
@@ -27,12 +28,17 @@ export const buildNewsRegistry = (deps: NewsFactoryDeps): NewsRegistry => {
   const enabled = new Set(config.sources.enabled);
   const env = deps.env ?? process.env;
   const news: NewsSourceAdapter[] = [];
+  // Политика релевантности: включена по умолчанию, отключается флагом.
+  const policy: NewsPolicy | undefined = config.sources.news.policyV2
+    ? loadNewsPolicy(config.sources.news.policyFile)
+    : undefined;
 
   if (enabled.has('tinkoff')) {
     news.push(
       createTinkoffNewsSource({
         tool: deps.tool,
         timeoutMs: config.run.mcpToolTimeoutMs,
+        policy,
       }),
     );
   }
@@ -45,6 +51,7 @@ export const buildNewsRegistry = (deps: NewsFactoryDeps): NewsRegistry => {
         template: env.NEWS_SMARTLAB_TAG_URL?.trim() || undefined,
         fetchText: deps.fetchText ?? defaultFetchText,
         summaryLimit: 600,
+        policy,
         // Ошибка по бумаге не должна теряться: она видна в логе сервиса.
         onError: (ticker, error) =>
           console.warn(`[smartlab_tag] ${ticker}:`, error.message.slice(0, 120)),
@@ -59,6 +66,7 @@ export const buildNewsRegistry = (deps: NewsFactoryDeps): NewsRegistry => {
       createRbcQuoteSource({
         url: env.NEWS_RBC_QUOTE_URL?.trim() || undefined,
         fetchText: deps.fetchText,
+        policy,
       }),
     );
   }
@@ -67,6 +75,7 @@ export const buildNewsRegistry = (deps: NewsFactoryDeps): NewsRegistry => {
       createTbankResearchSource({
         url: env.NEWS_TBANK_RESEARCH_URL?.trim() || undefined,
         fetchText: deps.fetchText,
+        policy,
       }),
     );
   }
@@ -89,6 +98,7 @@ export const buildNewsRegistry = (deps: NewsFactoryDeps): NewsRegistry => {
         mapping: feed.mapping,
         summaryLimit: feed.summaryLimit,
         fetchText: deps.fetchText,
+        policy,
       }),
     );
   }

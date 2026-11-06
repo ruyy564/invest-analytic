@@ -95,7 +95,7 @@ describe('источники-страницы вместо Telegram', () => {
     ]);
     const dividends = items[0];
     expect(dividends.source).toBe(RBC_QUOTE_SOURCE);
-    expect(dividends.tags).toEqual(['SBER', 'LKOH']);
+    expect(dividends.instrumentTags).toEqual(['SBER', 'LKOH']);
     expect(dividends.publishedAt).toBe('2026-11-05T16:39:46.000Z');
     expect(dividends.summary).toBe('Дивиденды выше ставки');
     // «Утренняя сводка» — дайджест, а не новость по рынку.
@@ -120,7 +120,7 @@ describe('источники-страницы вместо Telegram', () => {
     expect(items).toHaveLength(2);
     expect(items[0].title).toBe('Татнефть — все еще фаворит сектора');
     expect(items[0].source).toBe(TBANK_RESEARCH_SOURCE);
-    expect(items[0].tags).toEqual(['TATN']);
+    expect(items[0].instrumentTags).toEqual(['TATN']);
     expect(items[0].publishedAt).toBe('2026-10-29T17:48:06.417Z');
     expect(items[0].summary).toBe('Драйверы дивиденд 55 ₽ на акцию');
   });

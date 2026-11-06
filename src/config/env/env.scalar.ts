@@ -88,6 +88,9 @@ export const scalarEnvObject = z
     NEWS_SOURCES: csvList('interfax,rbc,smartlab'),
     NEWS_SCAN_PAGES: z.coerce.number().int().positive().max(20).default(3),
     NEWS_DIGEST_MAX_ITEMS: z.coerce.number().int().positive().max(100).default(15),
+    /** Политика релевантности новостей: правила в YAML вместо кода источников. */
+    NEWS_POLICY_V2: flag(true),
+    NEWS_POLICY_FILE: z.string().trim().min(1).default('data/policy/news.yaml'),
     /** Сводка новостей рынка отдельной веткой графа. */
     NEWS_FEED_ENABLED: z
       .enum(['true', 'false'])

@@ -2,6 +2,8 @@ import { asRecord, asString, jsonScriptsOf } from '../../parsing/html.js';
 import { stripMarkup } from '../../parsing/feed.js';
 import type { NewsQuery, NewsSourceAdapter, SourceItem } from '../news.types.js';
 import { defaultFetchText } from './feed.js';
+import type { NewsPolicy } from '../../capabilities/news/index.js';
+import { withReport } from './policy.js';
 
 /** Аналитика Т-Инвестиций: идеи и разборы по бумагам. */
 export const TBANK_RESEARCH_URL = 'https://www.tbank.ru/invest/research/';
@@ -14,6 +16,8 @@ export interface TbankResearchOptions {
   url?: string;
   fetchText?: (url: string) => Promise<string>;
   summaryLimit?: number;
+  /** Политика релевантности: заменяет встроенные фильтры. */
+  policy?: NewsPolicy;
 }
 
 const ideasOf = (html: string): Record<string, unknown>[] => {
@@ -60,7 +64,8 @@ export const parseTbankResearch = (html: string, summaryLimit = 400): SourceItem
         title,
         summary: description ? stripMarkup(description).slice(0, summaryLimit) : undefined,
         publishedAt: timestamp.toISOString(),
-        tags: tickersOf(idea.tickers),
+        tags: [],
+        instrumentTags: tickersOf(idea.tickers),
         source: TBANK_RESEARCH_SOURCE,
       },
     ];
@@ -72,37 +77,43 @@ export const createTbankResearchSource = (
 ): NewsSourceAdapter => {
   const fetchText = options.fetchText ?? defaultFetchText;
 
+  const fetchNews = async (query: NewsQuery): Promise<SourceItem[]> => {
+    const items = parseTbankResearch(
+      await fetchText(options.url ?? TBANK_RESEARCH_URL),
+      options.summaryLimit,
+    );
+    const since = query.sinceDays
+      ? Date.now() - query.sinceDays * 24 * 60 * 60 * 1000
+      : undefined;
+    const tickers = (query.tickers ?? []).map((ticker) => ticker.trim().toUpperCase());
+    const matchers = (query.matchers ?? [])
+      .map((matcher) => matcher.trim().toLowerCase())
+      .filter((matcher) => matcher.length > 1);
+
+    return items
+      .filter((item) => !since || Date.parse(item.publishedAt) >= since)
+      .filter(
+        (item) =>
+          tickers.length === 0 ||
+          (item.instrumentTags ?? item.tags).some((tag) => tickers.includes(tag)),
+      )
+      .filter((item) => {
+        if (matchers.length === 0) {
+          return true;
+        }
+        // Привязка от источника (тикеры идеи) или упоминание в заголовке.
+        const haystack = `${item.title} ${(item.instrumentTags ?? item.tags).join(' ')}`.toLowerCase();
+        return matchers.some((matcher) => haystack.includes(matcher));
+      })
+      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
+      .slice(0, query.maxItems);
+  };
+
   return {
     id: TBANK_RESEARCH_SOURCE,
     topics: ['news'],
     supportsTickerQuery: true,
     supportsMatcherQuery: true,
-    async fetchNews(query: NewsQuery): Promise<SourceItem[]> {
-      const items = parseTbankResearch(
-        await fetchText(options.url ?? TBANK_RESEARCH_URL),
-        options.summaryLimit,
-      );
-      const since = query.sinceDays
-        ? Date.now() - query.sinceDays * 24 * 60 * 60 * 1000
-        : undefined;
-      const tickers = (query.tickers ?? []).map((ticker) => ticker.trim().toUpperCase());
-      const matchers = (query.matchers ?? [])
-        .map((matcher) => matcher.trim().toLowerCase())
-        .filter((matcher) => matcher.length > 1);
-
-      return items
-        .filter((item) => !since || Date.parse(item.publishedAt) >= since)
-        .filter((item) => tickers.length === 0 || item.tags.some((tag) => tickers.includes(tag)))
-        .filter((item) => {
-          if (matchers.length === 0) {
-            return true;
-          }
-          // Привязка от источника (тикеры идеи) или упоминание в заголовке.
-          const haystack = `${item.title} ${item.tags.join(' ')}`.toLowerCase();
-          return matchers.some((matcher) => haystack.includes(matcher));
-        })
-        .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
-        .slice(0, query.maxItems);
-    },
+    ...withReport(fetchNews, options.policy),
   };
 };

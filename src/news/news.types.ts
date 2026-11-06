@@ -10,6 +10,8 @@ export interface SourceItem {
   /** ISO 8601. */
   publishedAt: string;
   tags: string[];
+  /** Привязка к бумагам от источника: теги инструментов (РБК, брокер). */
+  instrumentTags?: string[];
   /** id источника, из которого пришёл элемент. */
   source: string;
 }
@@ -31,6 +33,18 @@ export interface NewsQuery {
   sinceDays?: number;
 }
 
+/** Отчёт стадии: сколько элементов отброшено и почему. */
+export interface DroppedEntry {
+  reason: string;
+  count: number;
+}
+
+/** Расширенный ответ источника: элементы и причины отбраковки. */
+export interface NewsFetchResult {
+  items: SourceItem[];
+  dropped?: DroppedEntry[];
+}
+
 /** Источник новостей: RSS/Atom-лента или инструмент брокера. */
 export interface NewsSourceAdapter {
   readonly id: string;
@@ -44,5 +58,10 @@ export interface NewsSourceAdapter {
   /** Источник умеет фильтровать общую ленту по подстрокам (`matchers`). */
   readonly supportsMatcherQuery?: boolean;
   fetchNews(query: NewsQuery): Promise<SourceItem[]>;
+  /**
+   * Ответ с отчётом стадий: реестр показывает в покрытии, сколько элементов и по
+   * какой причине отброшено. Необязателен — старые источники его не реализуют.
+   */
+  fetchNewsWithReport?(query: NewsQuery): Promise<NewsFetchResult>;
 }
 
