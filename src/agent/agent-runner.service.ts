@@ -195,6 +195,7 @@ export class AgentRunnerService {
         intent: result.intent,
         status: result.status,
         partial: result.partial,
+        routeSource: values.routeSource,
         tools: toolsOf(values.messages),
         coverage: result.report?.coverage,
         stopReason: stopReasonOf(result, values.messages),

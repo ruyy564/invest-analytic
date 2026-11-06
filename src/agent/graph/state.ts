@@ -47,6 +47,10 @@ export const AgentState = new StateSchema({
   scopeTarget: z.string().optional(),
   /** Подпись области для отчёта и запроса подтверждения («бумаги SBER»). */
   scopeLabel: z.string().optional(),
+  /** Откуда взят сценарий: правило, модель, безопасный вариант или guard. */
+  routeSource: z.enum(['rule', 'model', 'fallback', 'guard']).optional(),
+  /** Ответ guardrail: текст возвращается без обращения к модели. */
+  guardAnswer: z.string().optional(),
   partial: z.boolean().default(false),
   dataAsOf: z.string().optional(),
   /** Время постановки в `interrupt` — для проверки срока подтверждения. */

@@ -55,7 +55,14 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
   });
 
   const base = new StateGraph(AgentState)
-    .addNode('classify', createClassifyNode(deps.routerModel, knowledge))
+    .addNode(
+      'classify',
+      createClassifyNode(deps.routerModel, knowledge, {
+        aliasesPath: deps.review.config.value.sources?.tickerAliasesFile,
+        helpEnabled,
+        newsEnabled,
+      }),
+    )
     .addNode('offTopic', offTopicNode)
     .addNode('help', createHelpNode({ config: deps.review.config }))
     .addNode('knowledge', createKnowledgeNode({ knowledge }))
