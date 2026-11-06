@@ -19,6 +19,11 @@ export interface ReviewSubgraphDeps extends ReviewDeps {
 /**
  * Подграф разбора: план → подтверждение → сбор → отчёт. Снаружи это один узел,
  * поэтому основная топология не разрастается, а ветка разбора живёт отдельно.
+ *
+ * `checkpointer: true` обязателен: `interrupt` внутри подграфа возобновляется
+ * только из сохранённого состояния подграфа. Без наследования чекпоинтера
+ * `Resume` из Studio перезапускал подграф с начала (план вызывал модель заново)
+ * и подставлял решение к устаревшему id прерывания — пауза не снималась.
  */
 export const buildReviewSubgraph = (deps: ReviewSubgraphDeps) =>
   new StateGraph(AgentState)
@@ -35,4 +40,4 @@ export const buildReviewSubgraph = (deps: ReviewSubgraphDeps) =>
     .addEdge('plan', 'approve')
     .addEdge('collect', 'report')
     .addEdge('report', END)
-    .compile();
+    .compile({ checkpointer: true });
