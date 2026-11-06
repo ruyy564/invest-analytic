@@ -12,6 +12,7 @@ import { buildCommoditySource } from '../commodities/commodity.factory.js';
 import type { CommoditySource } from '../commodities/commodity.types.js';
 import { ToolBudget } from './tool-budget.js';
 import { createThematicTools } from './local-tools.js';
+import { aliasHint, deprecatedAliasesPresent } from './tool-aliases.js';
 import {
   ALL_ACCOUNTS_TOOL,
   createAllAccountsTool,
@@ -162,6 +163,14 @@ export class McpRegistryService {
       ...createThematicTools({ newsRegistry: this.newsRegistry, keyRate: this.keyRate, commodity: this.commodity, byName, config: { timeoutMs: this.config.value.run.mcpToolTimeoutMs, scanPages: this.config.value.sources.news.scanPages, maxItems: this.config.value.sources.news.maxItems, taxKeywordsFile: this.config.value.sources.taxKeywordsFile } }),
       ...(this.knowledgeTool ? [this.knowledgeTool] : []),
     ];
+
+    // Устаревшие имена остаются рабочими, но о них стоит знать заранее.
+    const aliases = deprecatedAliasesPresent(this.toolsCache.map((tool) => tool.name));
+    if (aliases.length > 0) {
+      this.logger.warn(
+        `Старые имена инструментов сохранены как алиасы: ${aliases.map(aliasHint).join('; ')}`,
+      );
+    }
   }
 
   /** Новостные источники прогона: новости и налоги. */

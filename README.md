@@ -327,7 +327,9 @@ curl -s "http://localhost:3000/api/v1/reports/<reportId>?format=html"  # для 
 | Метод | Путь | Ответ |
 |---|---|---|
 | `POST` | `/api/v1/agent/chat` | `200` — ответ; `202` — нужно подтверждение |
+| `POST` | `/api/v1/agent/chat/stream` | поток событий (SSE): этапы прогона и итоговый результат |
 | `POST` | `/api/v1/agent/chat/approve` | `approved: true\|false`; `200`/`202` |
+| `POST` | `/api/v1/agent/runs/:runId/cancel` | `cancelled: true\|false` (идемпотентно) |
 | `GET` | `/api/v1/health` | состояние LLM и каждого MCP-сервера |
 | `GET` | `/api/v1/reports/:reportId?format=md\|json\|html` | готовый отчёт |
 
@@ -353,11 +355,24 @@ src/
   app.module.ts           сборка feature-модулей
   api/                    HTTP: controllers (agent, health, reports), dto, filters
   agent/                  граф и узлы
-    agent-runner.service.ts   run / approve / отчёт
+    agent-runner.service.ts   run / stream / cancel / approve / отчёт
     graph/                    state, routers, build-graph
     nodes/<node>/             узел + промпт рядом (classify, agent, review, news, help, knowledge)
+    routing/                  guard → правила → модель → безопасный вариант
+    planning/                 каталог возможностей и планировщик с фолбэком
+    results/                  типизированный результат узла (report / analysis / facts)
+    services/                 ответ: отказ модели, факты вместо разбора, готовый отчёт
+    runner/                   события прогона, журнал, лимиты
     approvals/                правила подтверждений
     scope.ts                  «портфель / счёт / бумага» по вопросу
+  platform/               сквозное: config-free утилиты нижнего слоя
+    logging/                  pino, контекст прогона, маскирование секретов
+    runs/                     журнал прогонов (JSONL), воспроизведение, метрики
+    http/                     шлюз внешних запросов: таймаут, повторы, кэш
+  capabilities/           вертикальные срезы
+    news/                     домен (CanonicalItem, политика), конвейер, источники, tools
+    instruments/              фасады бумаг (find / prices / candles / forecast / dividends / meta)
+  eval/                   кейсы, грейдеры, агрегаты, судья по рубрике
   collection/             план сбора данных и его исполнение (группы, приоритеты, бюджет)
   report/                 отчёт: шаблон, движок фактов, провайдеры, рендер
     engine.ts               сборка фактов по секциям
@@ -456,11 +471,19 @@ certs/                    CA для T-Invest MCP (.gitignore)
 ```bash
 npm run build             # tsc, строгая проверка типов
 npm run lint              # eslint (src + test)
-npm test                  # 330 unit-теста, 43 набора
-npm run test:e2e          # 28 e2e: граф, HTTP, MCP, рестарт состояния
+npm test                  # unit-тесты: домен, узлы, источники, фасады, контракты
+npm run test:e2e          # e2e: граф, HTTP, MCP, рестарт состояния
+npm run eval              # оценка качества агента на наборе кейсов (офлайн)
+npm run replay -- <runId> # транскрипт прогона из журнала (без сети)
 npm run smoke:mcp         # живое подключение к T-Invest MCP (нужен .env)
 npm run studio:check      # граф виден в LangGraph Studio
 ```
+
+Как устроены оценка и отладка:
+
+- [`docs/evals.md`](docs/evals.md) — кейсы, грейдеры, `pass@k`/`pass^k`, режимы `offline`/`live`/`judge`;
+- [`docs/observability.md`](docs/observability.md) — JSON-логи, `runId`, журнал прогона, метрики;
+- [`docs/structure.md`](docs/structure.md) — куда класть новую ноду, тул, источник, секцию.
 
 
 ---
