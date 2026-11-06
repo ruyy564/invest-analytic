@@ -12,11 +12,9 @@ import { createNewsNode } from '../nodes/news/index.js';
 import { createHelpNode } from '../nodes/help/index.js';
 import { createKnowledgeNode } from '../nodes/knowledge/index.js';
 import {
-  createCollectNode,
-  createPlanNode,
-  createReportNode,
   type ReviewDeps,
 } from '../nodes/review/index.js';
+import { buildReviewSubgraph } from '../subgraphs/review/index.js';
 import { afterClassify, createAfterAgent } from './routers.js';
 import { AgentState } from './state.js';
 
@@ -78,8 +76,9 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
       }),
     )
     .addNode('approve', createApproveNode(deps), {
-      // В режиме без разбора узла `collect` нет: и список выходов короче.
-      ends: (reviewEnabled ? ['tools', 'agent', 'collect'] : ['tools', 'agent']) as never,
+      // Подтверждение в свободной ветке ведёт только в инструменты или обратно к модели:
+      // план разбора подтверждается внутри подграфа `review`.
+      ends: ['tools', 'agent'] as never,
     })
     .addNode('tools', new ToolNode(deps.tools));
 
@@ -108,14 +107,21 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
   }
 
   const graph = base
-    .addNode('plan', createPlanNode(deps.review))
-    .addNode('collect', createCollectNode(deps.review))
-    .addNode('report', createReportNode(deps.review))
+    // Ветка разбора — отдельный подграф: снаружи один узел, внутри план → подтверждение → сбор → отчёт.
+    .addNode(
+      'review',
+      buildReviewSubgraph({
+        ...deps.review,
+        policy: deps.policy,
+        flow: deps.flow,
+        accountId: deps.accountId,
+      }),
+    )
     .addEdge(START, 'classify')
     .addConditionalEdges('classify', afterClassify(true, newsEnabled, helpEnabled, knowledgeEnabled), {
       offTopic: 'offTopic',
       agent: 'agent',
-      plan: 'plan',
+      review: 'review',
       news: 'news',
       help: 'help',
       knowledge: 'knowledge',
@@ -130,12 +136,11 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     .addEdge('help', END)
     .addEdge('knowledge', END)
     .addEdge('tools', 'agent')
-    .addEdge('plan', 'approve')
-    .addEdge('collect', 'report')
-    .addEdge('report', END);
+    .addEdge('review', END);
 
-  // Узел `approve` сам выбирает ветку через `Command`: подтверждённый план идёт
-  // в `collect`, подтверждённые вызовы инструментов — в `tools`, отказ — в `agent`.
+  // Узел `approve` сам выбирает ветку через `Command`: подтверждённые вызовы
+  // инструментов идут в `tools`, отказ — в `agent`. План разбора подтверждается
+  // внутри подграфа `review`.
   return graph.compile({ checkpointer: deps.checkpointer });
 };
 

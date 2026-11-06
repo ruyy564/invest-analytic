@@ -12,7 +12,7 @@ export const afterClassify =
   (reviewEnabled = true, newsEnabled = true, helpEnabled = true, knowledgeEnabled = true) =>
   (
     state: AgentStateType,
-  ): 'offTopic' | 'agent' | 'plan' | 'news' | 'help' | 'knowledge' => {
+  ): 'offTopic' | 'agent' | 'review' | 'news' | 'help' | 'knowledge' => {
     if (state.intent === 'off_topic') {
       return 'offTopic';
     }
@@ -25,7 +25,7 @@ export const afterClassify =
     if (newsEnabled && state.intent === 'market_news') {
       return 'news';
     }
-    return reviewEnabled && state.intent === 'portfolio_review' ? 'plan' : 'agent';
+    return reviewEnabled && state.intent === 'portfolio_review' ? 'review' : 'agent';
   };
 
 /**

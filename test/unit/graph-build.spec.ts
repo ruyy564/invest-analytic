@@ -91,16 +91,18 @@ describe('граф агента', () => {
     expect(String(sessionB.messages[0]?.content)).toBe('сессия Б');
   });
 
-  it('просьбу разобрать портфель уводит в ветку плана и останавливает на подтверждении', async () => {
+  it('просьбу разобрать портфель уводит в подграф разбора и останавливает на подтверждении', async () => {
     const graph = buildGraph(['portfolio_review'], ['ответ агента не используется']);
 
     const result = (await graph.invoke(
       { messages: [new HumanMessage('проанализируй мой портфель')] },
       { configurable: { thread_id: 'unit-review' } },
-    )) as { plan?: unknown[]; __interrupt__?: { value?: { question?: string } }[] };
+    )) as { __interrupt__?: { value?: { question?: string; actions?: unknown[] } }[] };
 
-    expect(result.readingPlan?.length).toBeGreaterThan(0);
-    expect(result.__interrupt__?.[0]?.value?.question).toContain('разбора портфеля');
+    // План подтверждается внутри подграфа: снаружи видно payload подтверждения.
+    const approval = result.__interrupt__?.[0]?.value;
+    expect(approval?.question).toContain('разбора портфеля');
+    expect(approval?.actions?.length).toBeGreaterThan(0);
   });
 
   it('при выключенной ветке разбора вопрос о портфеле идёт прежним путём', async () => {
