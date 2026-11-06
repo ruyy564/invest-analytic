@@ -1,5 +1,4 @@
 import type { AgentStateType } from '../graph/state.js';
-import { hasBudgetError } from './runner.helpers.js';
 import type { RunResult } from './runner.types.js';
 
 type Messages = AgentStateType['messages'];
@@ -39,12 +38,13 @@ export const usageOf = (
 /** Почему прогон завершился: нужен для метрик и разбора инцидентов. */
 export const stopReasonOf = (
   result: RunResult,
-  messages: Messages,
+  options: { budgetExhausted?: boolean } = {},
 ): 'answered' | 'approval' | 'budget' | 'guard' | 'no_data' => {
   if (result.status === 'awaiting_approval') {
     return 'approval';
   }
-  if (hasBudgetError(messages)) {
+  // Бюджет проверяется по счётчику прогона, а не по тексту сообщения инструмента.
+  if (options.budgetExhausted) {
     return 'budget';
   }
   if (result.intent === 'off_topic') {

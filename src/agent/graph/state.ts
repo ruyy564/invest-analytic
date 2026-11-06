@@ -52,6 +52,8 @@ export const AgentState = new StateSchema({
   routeSource: z.enum(['rule', 'model', 'fallback', 'guard']).optional(),
   /** Ответ guardrail: текст возвращается без обращения к модели. */
   guardAnswer: z.string().optional(),
+  /** Нужны данные состава портфеля: решает правило маршрутизации. */
+  dataNeed: z.enum(['portfolio']).optional(),
   /** Типизированный результат узла: отчёт, факты или анализ. */
   lastResult: NodeResultSchema.optional(),
   partial: z.boolean().default(false),

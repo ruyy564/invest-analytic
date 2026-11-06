@@ -210,6 +210,12 @@ export class McpRegistryService {
     return this.budgets.get(sessionId);
   }
 
+  /** Бюджет исчерпан (вызовы или время): нужен для честной пометки частичности. */
+  isBudgetExhausted(sessionId: string): boolean {
+    const budget = this.budgets.get(sessionId);
+    return budget ? !budget.hasCallsLeft() || budget.isExpired() : false;
+  }
+
   /** Бюджет на один прогон: значения из конфигурации (`RUN_TOOL_MAX_CALLS`, `RUN_DEADLINE_MS`). */
   createBudget(): ToolBudget {
     return new ToolBudget({

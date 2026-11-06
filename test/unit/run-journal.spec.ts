@@ -103,15 +103,12 @@ describe('итог прогона для журнала', () => {
   });
 
   it('определяет причину остановки', () => {
-    const budget = [
-      new ToolMessage({ tool_call_id: '1', content: 'Лимит вызовов инструментов исчерпан' }),
-    ];
-
-    expect(stopReasonOf(resultOf({ status: 'awaiting_approval' }), [])).toBe('approval');
-    expect(stopReasonOf(resultOf(), budget)).toBe('budget');
-    expect(stopReasonOf(resultOf({ intent: 'off_topic' }), [])).toBe('guard');
-    expect(stopReasonOf(resultOf({ partial: true }), [])).toBe('no_data');
-    expect(stopReasonOf(resultOf(), [])).toBe('answered');
+    expect(stopReasonOf(resultOf({ status: 'awaiting_approval' }))).toBe('approval');
+    // Бюджет определяется счётчиком прогона, а не текстом сообщения инструмента.
+    expect(stopReasonOf(resultOf(), { budgetExhausted: true })).toBe('budget');
+    expect(stopReasonOf(resultOf({ intent: 'off_topic' }))).toBe('guard');
+    expect(stopReasonOf(resultOf({ partial: true }))).toBe('no_data');
+    expect(stopReasonOf(resultOf())).toBe('answered');
   });
 });
 

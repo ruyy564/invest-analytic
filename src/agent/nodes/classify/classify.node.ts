@@ -62,6 +62,7 @@ export const createClassifyNode = (
       scope: route.scope,
       scopeTarget: route.scopeTarget,
       scopeLabel: route.scopeLabel,
+      ...(route.dataNeed ? { dataNeed: route.dataNeed } : {}),
       routeSource: route.source,
       ...(route.guard ? { guardAnswer: route.guard.answer } : {}),
     };

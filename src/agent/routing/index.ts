@@ -5,6 +5,7 @@ export {
   type GuardDecision,
   type GuardReason,
 } from './guard.js';
+export { PORTFOLIO_DATA_PATTERN, needsPortfolioData } from './rules.js';
 export {
   ROUTE_TIMEOUT_MS,
   routeQuestion,

@@ -28,7 +28,6 @@ import { RunJournal } from '../platform/runs/index.js';
 import { stopReasonOf, toolsOf, usageOf } from './runner/journal-summary.js';
 import {
   extractInterrupt,
-  hasBudgetError,
   lastAnswer,
 } from './runner/runner.helpers.js';
 import {
@@ -106,7 +105,7 @@ export class AgentRunnerService {
         );
         const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId, runId);
         log.info({ intent: mapped.intent, partial: mapped.partial }, 'Прогон завершён');
-        await this.appendFinished(journal, graph, config, mapped, startedAt);
+        await this.appendFinished(journal, graph, config, mapped, startedAt, sessionId);
         return { ...mapped, traceUrl: await this.traceUrlFor(runId) };
       } catch (error) {
         const message = (error as Error)?.message ?? String(error);
@@ -155,7 +154,7 @@ export class AgentRunnerService {
         });
         const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId, runId);
         log.info({ intent: mapped.intent, partial: mapped.partial }, 'Прогон завершён');
-        await this.appendFinished(journal, graph, config, mapped, startedAt);
+        await this.appendFinished(journal, graph, config, mapped, startedAt, sessionId);
         return { ...mapped, traceUrl: await this.traceUrlFor(runId) };
       } finally {
         this.registry.endRun(sessionId);
@@ -271,6 +270,7 @@ export class AgentRunnerService {
     config: ReturnType<AgentRunnerService['configFor']>,
     result: RunResult,
     startedAt: number,
+    sessionId: string,
   ): Promise<void> {
     if (!journal) {
       return;
@@ -286,7 +286,7 @@ export class AgentRunnerService {
         routeSource: values.routeSource,
         tools: toolsOf(values.messages),
         coverage: result.report?.coverage,
-        stopReason: stopReasonOf(result, values.messages),
+        stopReason: stopReasonOf(result, { budgetExhausted: this.registry.isBudgetExhausted(sessionId) }),
         usage: usageOf(values.messages),
         durationMs: Date.now() - startedAt,
       });
@@ -317,7 +317,7 @@ export class AgentRunnerService {
     sessionId: string,
     runId: string,
   ): Promise<RunResult> {
-    const mapped = await this.toResult(graph, result, config, runId);
+    const mapped = await this.toResult(graph, result, config, runId, sessionId);
     if (mapped.status === 'awaiting_approval') {
       this.flow.markPending(sessionId);
     } else {
@@ -393,6 +393,7 @@ export class AgentRunnerService {
     result: unknown,
     config: ReturnType<AgentRunnerService['configFor']>,
     runId: string,
+    sessionId: string,
   ): Promise<RunResult> {
     const inlineValues = (result as { values?: AgentStateType }).values;
     const values =
@@ -420,7 +421,7 @@ export class AgentRunnerService {
       scope: values?.scope,
       scopeTarget: values?.scopeTarget,
       scopeLabel: values?.scopeLabel,
-      partial: (values?.partial ?? false) || hasBudgetError(values?.messages),
+      partial: (values?.partial ?? false) || this.registry.isBudgetExhausted(sessionId),
       report: newsReportOf(values) ?? reportOf(values, lastAnswer(values?.messages), { reports: this.reports, userId: this.config.value.app.userId }),
     };
   }

@@ -10,10 +10,6 @@ import { isDataRefusal } from '../../services/respond.service.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
 
-/** Вопросы, на которые данные портфеля нужны всегда — без решения модели. */
-const PORTFOLIO_INTENT =
-  /портфел|позици|позиций|по счёт|по счет|счетам|счетах|счётам|счетам|что у меня|сколько у меня|акци|бумаг/i;
-
 /** Готовый вызов сводки: тот же инструмент, что выбирает модель. */
 const snapshotCall = (): AIMessage =>
   new AIMessage({
@@ -136,11 +132,7 @@ export const createAgentNode =
     options: { accountId?: string; knowledge?: string } = {},
   ) =>
   async (state: AgentStateType) => {
-    // Последний вопрос пользователя нужен для детерминированных сценариев
-    // («что у меня в портфеле»), где модель отвечает уточнением вместо вызова.
-    const lastHuman = [...state.messages]
-      .reverse()
-      .find((message) => messageType(message) === 'human');
+    // Последний вопрос нужен только для истории: решение о данных — в `dataNeed`.
     const history = withToolResults(state.messages);
     // Сначала типизированный результат (review-ветка), затем отчёт инструмента-агрегатора.
     const report = reportOfState(state)?.payload ?? reportFromTools(history);
@@ -164,9 +156,8 @@ export const createAgentNode =
     const empty = typeof response.content === 'string' && response.content.trim() === '';
 
     // «Что в моем портфеле / сколько у меня акций» — данные нужны всегда.
-    // Модель иногда отвечает уточняющим вопросом вместо вызова инструмента,
-    // поэтому на первом шаге подставляем вызов сводки сами.
-    const askedPortfolio = lastHuman ? PORTFOLIO_INTENT.test(textOf(lastHuman.content)) : false;
+    // Правило живёт в маршрутизации (`dataNeed`), узел не разбирает текст вопроса.
+    const askedPortfolio = state.dataNeed === 'portfolio';
     const hasToolResult = state.messages.some((message) => messageType(message) === 'tool');
     const useless = empty || isDataRefusal(textOf(response.content));
     if (askedPortfolio && !hasToolResult && (useless || (response.tool_calls ?? []).length === 0)) {

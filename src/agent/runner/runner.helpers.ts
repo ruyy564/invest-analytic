@@ -8,15 +8,6 @@ export const extractInterrupt = (result: unknown): ApprovePayload | undefined =>
   return value ? (value as ApprovePayload) : undefined;
 };
 
-/** Ответ помечается частичным, если инструмент упёрся в бюджет прогона. */
-export const hasBudgetError = (messages: AgentStateType['messages'] | undefined): boolean =>
-  (messages ?? []).some(
-    (message) =>
-      (message as { _getType?: () => string })._getType?.() === 'tool' &&
-      typeof message.content === 'string' &&
-      /run_budget_exceeded|Лимит вызовов|Лимит времени/.test(message.content),
-  );
-
 /** Последний содержательный ответ модели: только он попадает в `answer`. */
 export const lastAnswer = (
   messages: AgentStateType['messages'] | undefined,

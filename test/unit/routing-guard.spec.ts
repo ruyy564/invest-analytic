@@ -78,6 +78,15 @@ describe('маршрутизация вопроса', () => {
     expect(route).toMatchObject({ intent: 'data_lookup', source: 'model' });
   });
 
+  it('вопрос о составе портфеля помечает потребность в данных', async () => {
+    const withData = await routeQuestion({ question: 'что у меня в портфеле?' });
+    const withoutData = await routeQuestion({ question: 'сколько стоит Сбер?' });
+
+    // Правило маршрутизации, а не разбор текста в узле ответа.
+    expect(withData.dataNeed).toBe('portfolio');
+    expect(withoutData.dataNeed).toBeUndefined();
+  });
+
   it('недоступная модель даёт безопасный вариант', async () => {
     const model = new ScriptedChatModel([new AIMessage('')]);
     // Пустой ответ разбирается как data_lookup моделью, но источник остаётся model.

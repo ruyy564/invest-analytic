@@ -18,6 +18,7 @@ import {
 import { PORTFOLIO_SCOPE_PROMPT } from '../nodes/off-topic/prompt.js';
 import type { AgentStateType } from '../graph/state.js';
 import { guardQuestion, type GuardDecision } from './guard.js';
+import { needsPortfolioData } from './rules.js';
 
 /** Время ожидания классификатора: одно слово, дольше ждать бессмысленно. */
 export const ROUTE_TIMEOUT_MS = 8_000;
@@ -30,6 +31,8 @@ export interface RouteDecision {
   scope: AgentStateType['scope'];
   scopeTarget?: string;
   scopeLabel?: string;
+  /** Для вопроса нужны данные состава портфеля (решает правило, не модель). */
+  dataNeed?: 'portfolio';
   source: RouteSource;
   /** Заполнено, если вопрос заблокирован до модели. */
   guard?: GuardDecision & { blocked: true };
@@ -64,13 +67,16 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
   const aliases = options.aliases ?? loadTickerAliases('data/ticker-aliases.yaml');
   const scoped = scopeOf(question, aliases);
 
+  // Правило: некоторым вопросам данные портфеля нужны без решения модели.
+  const dataNeedFields = needsPortfolioData(question) ? { dataNeed: 'portfolio' as const } : {};
+
   const guard = guardQuestion(question);
   if (guard.blocked) {
-    return { intent: 'off_topic', ...scoped, source: 'guard', guard };
+    return { intent: 'off_topic', ...scoped, ...dataNeedFields, source: 'guard', guard };
   }
 
   if ((options.helpEnabled ?? true) && CAPABILITIES_PATTERN.test(question)) {
-    return { intent: 'agent_help', ...scoped, source: 'rule' };
+    return { intent: 'agent_help', ...scoped, ...dataNeedFields, source: 'rule' };
   }
 
   if (
@@ -79,21 +85,21 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
     KNOWLEDGE_QUESTION_PATTERN.test(question) &&
     options.knowledge.topicFor(question)
   ) {
-    return { intent: 'knowledge_question', ...scoped, source: 'rule' };
+    return { intent: 'knowledge_question', ...scoped, ...dataNeedFields, source: 'rule' };
   }
 
   const heuristic = heuristicIntent(question, scoped.scope);
   if (heuristic) {
-    return { intent: heuristic.intent, ...scoped, source: 'rule' };
+    return { intent: heuristic.intent, ...scoped, ...dataNeedFields, source: 'rule' };
   }
 
   const newsEnabled = options.newsEnabled ?? true;
   if (newsEnabled && heuristicNewsIntent(question, scoped.scope)) {
-    return { intent: 'market_news', ...scoped, source: 'rule' };
+    return { intent: 'market_news', ...scoped, ...dataNeedFields, source: 'rule' };
   }
 
   if (!options.model) {
-    return { intent: 'data_lookup', ...scoped, source: 'fallback' };
+    return { intent: 'data_lookup', ...scoped, ...dataNeedFields, source: 'fallback' };
   }
 
   try {
@@ -114,9 +120,9 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
       intent === 'market_news' && (!newsEnabled || scoped.scope !== 'portfolio')
         ? 'data_lookup'
         : intent;
-    return { intent: normalized, ...scoped, source: 'model' };
+    return { intent: normalized, ...scoped, ...dataNeedFields, source: 'model' };
   } catch {
     // Недоступность классификатора не должна ломать прогон: безопасный вариант.
-    return { intent: 'data_lookup', ...scoped, source: 'fallback' };
+    return { intent: 'data_lookup', ...scoped, ...dataNeedFields, source: 'fallback' };
   }
 };
