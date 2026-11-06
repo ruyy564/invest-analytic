@@ -9,10 +9,21 @@ export interface ApprovalAction {
   args: Record<string, unknown>;
 }
 
+/** Лимиты прогона, о которых пользователь узнаёт при подтверждении. */
+export interface ApproveLimits {
+  maxCalls: number;
+  deadlineMs: number;
+  approvalTtlMinutes: number;
+}
+
 export interface ApprovePayload {
   question: string;
   actions: ApprovalAction[];
   accountId?: string;
+  /** Сколько вызовов и времени разрешено после подтверждения. */
+  limits?: ApproveLimits;
+  /** Когда согласие перестанет действовать. */
+  expiresAt?: string;
 }
 
 export interface ApproveDecision {
@@ -73,16 +84,26 @@ export class ApprovalFlowService {
   buildPayload(
     items: { rule: ApprovalRule; args: Record<string, unknown> }[],
     accountId?: string,
+    now: Date = new Date(),
   ): ApprovePayload {
     const actions = items.map((item) => ({
       tool: item.rule.tool,
       label: item.rule.label,
       args: item.args,
     }));
+    const ttlMinutes = this.ttlMinutes;
+    const run = this.config.value.run;
     return {
       question: items[0]?.rule.question ?? 'Подтвердить чтение данных?',
       actions,
       ...(accountId ? { accountId } : {}),
+      // Пользователь видит, что именно разрешает: объём вызовов и срок согласия.
+      limits: {
+        maxCalls: run?.toolMaxCalls ?? 0,
+        deadlineMs: run?.deadlineMs ?? 0,
+        approvalTtlMinutes: ttlMinutes,
+      },
+      expiresAt: new Date(now.getTime() + ttlMinutes * 60_000).toISOString(),
     };
   }
 

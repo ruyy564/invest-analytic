@@ -52,6 +52,20 @@ export const APPROVAL_RULES: ApprovalRule[] = [
     requiresApproval: true,
   },
   {
+    tool: 'news__search',
+    label: 'Новости по бумаге или рынку',
+    // Публичный источник: подтверждение не требуется, данные пользователя не читаются.
+    question: 'Прочитать публичные новости?',
+    requiresApproval: false,
+  },
+  {
+    tool: 'instruments__*',
+    label: 'Данные бумаг',
+    // Фасады бумаг читают данные брокера: подтверждение обязательно.
+    question: 'Прочитать данные бумаг у брокера?',
+    requiresApproval: true,
+  },
+  {
     tool: 'market__tax_watch',
     label: 'Налоговые события',
     question: 'Прочитать историю операций и налоговые публикации?',

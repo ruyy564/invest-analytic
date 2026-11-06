@@ -35,10 +35,20 @@ describe('правила подтверждений', () => {
   });
 
   it('для инструментов без правила применяет политику по умолчанию', () => {
-    expect(new ApprovalPolicyService(configStub()).requiresApproval('news__search')).toBe(true);
+    expect(new ApprovalPolicyService(configStub()).requiresApproval('custom__unknown')).toBe(true);
     expect(
-      new ApprovalPolicyService(configStub({ unlisted: 'allow' })).requiresApproval('news__search'),
+      new ApprovalPolicyService(configStub({ unlisted: 'allow' })).requiresApproval('custom__unknown'),
     ).toBe(false);
+  });
+
+  it('фасады бумаг требуют подтверждения, публичные новости — нет', () => {
+    const policy = new ApprovalPolicyService(configStub());
+
+    // Любое чтение данных брокера — только с согласия пользователя.
+    expect(policy.requiresApproval('instruments__prices')).toBe(true);
+    expect(policy.requiresApproval('instruments__dividends')).toBe(true);
+    // Публичный источник данных пользователя не читает.
+    expect(policy.requiresApproval('news__search')).toBe(false);
   });
 
   it('сопоставляет правила по шаблону', () => {
@@ -131,7 +141,7 @@ describe('жизненный цикл подтверждения', () => {
       'acc-1',
     );
 
-    expect(payload).toEqual({
+    expect(payload).toMatchObject({
       question: 'Прочитать данные портфеля у брокера?',
       actions: [
         {
@@ -141,6 +151,9 @@ describe('жизненный цикл подтверждения', () => {
         },
       ],
       accountId: 'acc-1',
+      limits: { approvalTtlMinutes: 15 },
     });
+    // Срок согласия виден заранее: пользователь знает, сколько оно действует.
+    expect(Date.parse(payload.expiresAt ?? '')).toBeGreaterThan(Date.now());
   });
 });

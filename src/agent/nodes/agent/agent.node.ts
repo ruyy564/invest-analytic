@@ -6,6 +6,7 @@ import { buildAgentSystemPrompt } from './prompt.js';
 import { ALL_ACCOUNTS_TOOL } from '../../../tools/portfolio-snapshot/portfolio-snapshot.service.js';
 import { PRICE_DYNAMICS_TOOL } from '../../../tools/price-dynamics/price-dynamics.tool.js';
 import { reportOfState } from '../../results/index.js';
+import { isDataRefusal } from '../../services/respond.service.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
 
@@ -31,18 +32,12 @@ interface BoundModel {
 const messageType = (message: BaseMessage): string =>
   (message as unknown as { _getType?: () => string })._getType?.() ?? '';
 
-/** Текст сообщения независимо от того, строка это или блоки контента. */
+/**
+ * Отказ модели показать данные, хотя они уже получены, обрабатывается сервисом
+ * ответа (`isDataRefusal`): здесь остаётся только решение, что делать дальше.
+ */
 const textOf = (content: unknown): string =>
   typeof content === 'string' ? content : JSON.stringify(content ?? '');
-
-/**
- * Отказ модели показать данные, хотя они уже получены: «не могу предоставить»,
- * «обратитесь в приложение брокера», «уточните запрос». Используется как сигнал,
- * что ответ бесполезен: для портфельных вопросов вместо него подставляется вызов
- * инструмента, а при наличии отчёта — сам отчёт.
- */
-const REFUSAL =
-  /не могу (предоставить|показать|получить)|техническ|обратитесь к (вашему )?брокеру|в приложени[еи] брокера|(данные|информаци\w*) (сейчас )?недоступн|уточните запрос|нет доступа к данным/i;
 
 /**
  * Провайдеры (GigaChat среди них) отклоняют историю, где у `assistant` есть
@@ -173,7 +168,7 @@ export const createAgentNode =
     // поэтому на первом шаге подставляем вызов сводки сами.
     const askedPortfolio = lastHuman ? PORTFOLIO_INTENT.test(textOf(lastHuman.content)) : false;
     const hasToolResult = state.messages.some((message) => messageType(message) === 'tool');
-    const useless = empty || REFUSAL.test(textOf(response.content));
+    const useless = empty || isDataRefusal(textOf(response.content));
     if (askedPortfolio && !hasToolResult && (useless || (response.tool_calls ?? []).length === 0)) {
       return { messages: [snapshotCall()] };
     }

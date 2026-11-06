@@ -9,18 +9,13 @@ import { templateOf, type ReviewDeps } from './deps.js';
 import { collectionFromState } from './collect.node.js';
 import { cleanSection, INTERPRETATION_TIMEOUT_MS, loadInterpretationPrompt } from './interpretation.js';
 import { reportResult } from '../../results/index.js';
+import {
+  factsFallback,
+  isRefusal,
+  isRefusalFallback,
+} from '../../services/respond.service.js';
 
-/**
- * Отказ модели вместо раздела: провайдеры (GigaChat) иногда отвечают
- * «я не обладаю мнением» или «разговоры на эту тему ограничены». Такой текст
- * в отчёт не идёт — вместо него подставляем факты брифинга.
- */
-const REFUSAL =
-  /не обладает собственным мнением|как и любая языковая модель|разговоры на некоторые темы временно ограничены|не могу (дать|предоставить|комментировать)|не являюсь инвестиционным советником/i;
-
-/** Факты брифинга как текст раздела: строки «поле: значение» через «•». */
-export const factsFallback = (brief: string): string =>
-  ['• ' + brief.split(' | ').join('\n• '), '', 'Трактовка модели недоступна: выше — факты брифинга.'].join('\n');
+export { factsFallback, isRefusalFallback };
 
 /**
  * Текст раздела из ответа модели: отказ («я не обладаю мнением») заменяется
@@ -31,12 +26,8 @@ export const interpretSection = (text: string, brief: string, id: string): strin
   if (cleaned.length === 0) {
     return undefined;
   }
-  return REFUSAL.test(cleaned) ? factsFallback(brief) : cleaned;
+  return isRefusal(cleaned) ? factsFallback(brief) : cleaned;
 };
-
-/** Модель отказалась писать раздел (для честного лога в узле отчёта). */
-export const isRefusalFallback = (section: string): boolean =>
-  section.endsWith('Трактовка модели недоступна: выше — факты брифинга.');
 
 export const createReportNode =
   (deps: ReviewDeps) =>
