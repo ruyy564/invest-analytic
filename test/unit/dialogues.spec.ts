@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+﻿import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { planKey, type CollectionPlan } from '../../src/collection/plan.js';
 import { buildReport, type FactContext } from '../../src/report/engine.js';
@@ -32,7 +32,7 @@ interface Dialogue {
 }
 
 const DIALOGUES: Dialogue[] = JSON.parse(
-  readFileSync(join(import.meta.dirname, '..', 'fixtures', 'dialogues.json'), 'utf8'),
+  readFileSync(join(import.meta.dirname, '..', 'eval', 'cases', 'dialogues.json'), 'utf8'),
 ) as Dialogue[];
 
 const ALIASES = loadTickerAliases('data/ticker-aliases.yaml');

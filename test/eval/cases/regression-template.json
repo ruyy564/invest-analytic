@@ -1,0 +1,16 @@
+{
+  "id": "regression-<краткое-имя>",
+  "question": "<вопрос пользователя дословно>",
+  "resolvedBy": "rule",
+  "intent": "data_lookup",
+  "scope": "instrument",
+  "target": "<ТИКЕР>",
+  "expectedTools": [],
+  "forbiddenTools": [],
+  "trials": 1,
+  "tags": ["required", "regression"],
+  "answer": {
+    "mustContain": ["<что обязательно должно быть в ответе>"],
+    "mustNotContain": ["<чего быть не должно>"]
+  }
+}
