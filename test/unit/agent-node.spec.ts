@@ -18,14 +18,22 @@ describe('решение по подтверждению', () => {
     expect(isApprovedDecision({ approve: 'true' })).toBe(true);
   });
 
-  it('считает отказом пустое значение и мусор', () => {
-    // Пустое поле Resume в Studio приходит как `undefined` или `{}` — это не «да».
-    expect(isApprovedDecision(undefined)).toBe(false);
-    expect(isApprovedDecision(null)).toBe(false);
-    expect(isApprovedDecision({})).toBe(false);
-    expect(isApprovedDecision('')).toBe(false);
-    expect(isApprovedDecision('какой-то текст')).toBe(false);
+  it('считает подтверждением пустое поле Resume в Studio', () => {
+    // Пользователь нажал Resume и ничего не ввёл: Studio отправляет `""`.
+    expect(isApprovedDecision('')).toBe(true);
+    expect(isApprovedDecision(undefined)).toBe(true);
+    expect(isApprovedDecision(null)).toBe(true);
+    expect(isApprovedDecision({})).toBe(true);
+  });
+
+  it('считает отказом явный отказ и мусор', () => {
+    expect(isApprovedDecision(false)).toBe(false);
+    expect(isApprovedDecision('false')).toBe(false);
+    expect(isApprovedDecision('нет')).toBe(false);
+    expect(isApprovedDecision('no')).toBe(false);
     expect(isApprovedDecision({ approved: false })).toBe(false);
+    expect(isApprovedDecision({ decision: 'decline' })).toBe(false);
+    expect(isApprovedDecision('какой-то текст')).toBe(false);
   });
 });
 

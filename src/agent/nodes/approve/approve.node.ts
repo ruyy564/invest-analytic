@@ -43,8 +43,13 @@ const groupLabels: Record<string, string> = {
 
 /**
  * Решение приходит из разных источников: HTTP-API (`{ approved: true }`),
- * поле Resume в Studio (объект или строка JSON), голый boolean. Пустое значение
- * (`undefined`, `{}`) — это отказ: подтверждение без явного «да» не считается данным.
+ * поле Resume в LangSmith Studio (объект, строка JSON или пустое значение),
+ * голый boolean.
+ *
+ * Пустое значение — это нажатая кнопка Resume: пользователь согласился, но
+ * ничего не ввёл, а Studio отправляет `""`. Поэтому согласием считаются
+ * `""`, `null`, `undefined` и `{}`, а отказом — только явные `false`, «нет»,
+ * `no`, `decline`, `reject` и `{ approved: false }`.
  */
 export const isApprovedDecision = (decision: unknown): boolean => {
   if (typeof decision === 'boolean') {
@@ -53,10 +58,13 @@ export const isApprovedDecision = (decision: unknown): boolean => {
   if (typeof decision === 'string') {
     const text = decision.trim();
     if (text === '') {
-      return false;
+      return true;
     }
     if (/^(true|да|yes|ок|ok|approve[ds]?)$/i.test(text)) {
       return true;
+    }
+    if (/^(false|нет|no|decline[ds]?|reject(ed)?)$/i.test(text)) {
+      return false;
     }
     try {
       return isApprovedDecision(JSON.parse(text) as unknown);
@@ -73,10 +81,14 @@ export const isApprovedDecision = (decision: unknown): boolean => {
     if (value !== undefined) {
       return isApprovedDecision(value);
     }
-    // `{1: true}` — так Studio передаёт решение, если поле оставили пустым.
+    // Пустой объект из Studio — тоже нажатый Resume; `{1: true}` Studio шлёт иначе.
+    if (Object.keys(record).length === 0) {
+      return true;
+    }
     return Object.values(record).some(isApprovedDecision);
   }
-  return false;
+  // Studio без значения в поле Resume (`null`/`undefined`) — подтверждение.
+  return decision === null || decision === undefined;
 };
 
 /**

@@ -312,6 +312,12 @@ npm run studio:open       # открывает Studio в браузере
 Привязка к `127.0.0.1` обязательна: по умолчанию CLI слушает IPv6 `::1`, и браузер не
 достучится до API.
 
+**Как подтвердить действие в Studio.** Панель `Interrupts` → в поле значения введите
+`true` (или `{"approved": true}`) и нажмите `Resume`. Пустое поле не сработает: Studio
+отправляет пустую строку, и dev-сервер LangGraph отвечает
+`EmptyInputError: Received empty Command input` — до узла `approve` дело не доходит.
+Отказ — `{"approved": false}`. Подробности в `docs/approvals.md`.
+
 ### Выгрузка готового отчёта
 
 ```bash
