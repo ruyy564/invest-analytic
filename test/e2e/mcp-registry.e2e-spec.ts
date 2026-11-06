@@ -1,8 +1,7 @@
-﻿import { AppConfigService } from '../../src/config/app-config.service.js';
+import { AppConfigService } from '../../src/config/app-config.service.js';
 import type { McpServerConfig } from '../../src/config/env.schema.js';
 import { HealthController } from '../../src/api/controllers/health.controller.js';
 import { MultiServerMcpFactory } from '../../src/mcp/mcp-client.factory.js';
-import { ALL_ACCOUNTS_TOOL } from '../../src/tools/portfolio-snapshot/portfolio-snapshot.service.js';
 import { McpRegistryService } from '../../src/mcp/mcp-registry.service.js';
 import { startTestMcpServer, type TestMcpServer } from '../fixtures/mcp-test-server.js';
 
@@ -69,7 +68,6 @@ describe('интеграция с MCP-сервером', () => {
         'tinkoff__invest_get_portfolio',
         'tinkoff__invest_get_positions',
         // Локальные инструменты приложения тоже отдаём модели.
-        ALL_ACCOUNTS_TOOL,
         'portfolio__snapshot',
         'market__price_dynamics',
         'market__news_digest',

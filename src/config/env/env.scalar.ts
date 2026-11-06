@@ -53,6 +53,11 @@ export const scalarEnvObject = z
       .min(1)
       .default('reports/prompts/interpretation.md'),
     REVIEW_ENABLED: flag(true),
+    /**
+     * Режим выбора данных: `legacy` — только детерминированный план, `agent` —
+     * модель добавляет недостающие запросы (обязательные источники сохраняются).
+     */
+    AGENT_MODE: z.enum(['legacy', 'agent']).default('legacy'),
     /** Справка о возможностях агента отдельной веткой. */
     AGENT_HELP_ENABLED: flag(true),
     /**

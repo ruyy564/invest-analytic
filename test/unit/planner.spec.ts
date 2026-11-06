@@ -2,6 +2,7 @@ import { AIMessage } from '@langchain/core/messages';
 import {
   CAPABILITIES,
   fallbackPlanFor,
+  mergePlan,
   parseModelPlan,
   planWithModel,
   validatePlan,
@@ -99,5 +100,31 @@ describe('планировщик', () => {
   it('каталог содержит восемь доменных фасадов', () => {
     expect(CAPABILITIES).toHaveLength(8);
     expect(CAPABILITIES.every((item) => item.description.length > 20)).toBe(true);
+  });
+
+  it('агентский режим добавляет шаги модели, не теряя обязательные', () => {
+    const base = {
+      entries: [
+        {
+          tool: 'invest_get_portfolio',
+          args: { accountId: 'a' },
+          group: 'portfolio' as const,
+          priority: 'mandatory' as const,
+        },
+      ],
+      maxInstruments: 5,
+    };
+
+    const merged = mergePlan(base, [
+      { tool: 'invest_get_candles', args: {}, group: 'candles' },
+      { tool: 'invest_get_portfolio', args: { accountId: 'a' }, group: 'portfolio' },
+    ]);
+
+    // Дубликат запроса не появляется, обязательный источник остаётся первым.
+    expect(merged.entries.map((entry) => entry.tool)).toEqual([
+      'invest_get_portfolio',
+      'invest_get_candles',
+    ]);
+    expect(merged.entries[1].priority).toBe('optional');
   });
 });

@@ -1,9 +1,7 @@
 import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { DynamicStructuredTool as DynamicTool } from '@langchain/core/tools';
 import { toZodV3 } from '../../mcp/tool-schema.js';
-import { ALL_ACCOUNTS_TOOL, collectAllAccounts } from './portfolio-snapshot.service.js';
-
-export { ALL_ACCOUNTS_TOOL };
+import { collectAllAccounts } from './portfolio-snapshot.service.js';
 
 /**
  * Тонкая обёртка тула: сводка по всем открытым счетам одним вызовом, чтобы

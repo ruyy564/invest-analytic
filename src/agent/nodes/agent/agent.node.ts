@@ -3,8 +3,7 @@ import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from '@langch
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import { bindToolsCompat } from '../../../llm/bind-tools.js';
 import { buildAgentSystemPrompt } from './prompt.js';
-import { ALL_ACCOUNTS_TOOL } from '../../../tools/portfolio-snapshot/portfolio-snapshot.service.js';
-import { PRICE_DYNAMICS_TOOL } from '../../../tools/price-dynamics/price-dynamics.tool.js';
+import { PORTFOLIO_SNAPSHOT_TOOL } from '../../../mcp/mcp-registry.service.js';
 import { reportOfState } from '../../results/index.js';
 import { isDataRefusal } from '../../services/respond.service.js';
 import type { AgentStateType } from '../../graph/state.js';
@@ -15,7 +14,7 @@ const snapshotCall = (): AIMessage =>
   new AIMessage({
     content: '',
     tool_calls: [
-      { id: `call-${Date.now()}`, name: ALL_ACCOUNTS_TOOL, args: {} },
+      { id: `call-${Date.now()}`, name: PORTFOLIO_SNAPSHOT_TOOL, args: {} },
     ],
   });
 
@@ -73,14 +72,7 @@ export const withToolResults = (messages: BaseMessage[]): BaseMessage[] => {
 };
 
 /** Инструменты, чей ответ — уже готовый отчёт, а не данные для пересказа. */
-const REPORT_TOOLS = new Set([
-  'portfolio__snapshot',
-  'all_accounts_snapshot',
-  ALL_ACCOUNTS_TOOL,
-  'market__price_dynamics',
-  'price_dynamics',
-  PRICE_DYNAMICS_TOOL,
-]);
+const REPORT_TOOLS = new Set([PORTFOLIO_SNAPSHOT_TOOL, 'market__price_dynamics']);
 
 /**
  * Готовый отчёт из истории: ответ инструмента-агрегатора. Опознаётся по имени

@@ -45,6 +45,8 @@ export interface AppConfig {
     mcpToolTimeoutMs: number;
     /** Глубокий разбор портфеля отдельной веткой. */
     reviewEnabled: boolean;
+    /** Режим выбора данных: детерминированный план или план с добором моделью. */
+    agentMode: 'legacy' | 'agent';
     /** Ветка справки о возможностях. */
     agentHelpEnabled: boolean;
     /** База знаний по инвестициям: справочный контекст и справка по понятиям. */

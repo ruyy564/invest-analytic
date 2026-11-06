@@ -13,20 +13,6 @@ export const APPROVAL_RULES: ApprovalRule[] = [
     requiresApproval: false,
   },
   {
-    // Сводка по всем счетам: один инструмент вместо перебора счетов моделью.
-    tool: 'portfolio_all_accounts',
-    label: 'Портфель по всем счетам',
-    question: 'Прочитать данные портфеля по всем вашим счетам у брокера?',
-    requiresApproval: true,
-  },
-  {
-    // Динамика цены бумаги: свечи вместо «вспоминаний» модели.
-    tool: 'price_dynamics',
-    label: 'Динамика цены бумаги',
-    question: 'Прочитать историю цен бумаги за период у брокера?',
-    requiresApproval: true,
-  },
-  {
     // Тематические имена локальных инструментов (см. спецификацию data-sources).
     tool: 'portfolio__snapshot',
     label: 'Портфель по всем счетам',

@@ -4,7 +4,6 @@ import { toZodV3 } from '../../mcp/tool-schema.js';
 import { collectDynamics } from './price-dynamics.service.js';
 
 /** Локальный инструмент: динамика цены бумаги за период по дневным свечам. */
-export const PRICE_DYNAMICS_TOOL = 'price_dynamics';
 
 /**
  * Тонкая обёртка тула: схема аргументов, описание для модели и вызов сервиса.

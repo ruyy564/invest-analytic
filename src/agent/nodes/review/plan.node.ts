@@ -6,6 +6,7 @@ import { PORTFOLIO_SCOPE } from '../../scope.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { templateOf, type ReviewDeps } from './deps.js';
 import { matchAccount } from './instruments.js';
+import { MCP_CAPABILITIES, mergePlan, planWithModel, validatePlan } from '../../planning/index.js';
 
 const openAccountList = async (
   deps: ReviewDeps,
@@ -86,8 +87,28 @@ export const createPlanNode =
       providers: templateProviders(template, scope),
     });
 
+    // Агентский режим: модель предлагает недостающие запросы, обязательные
+    // источники сценария остаются в плане — отчёт не теряет полноту.
+    let entries = plan.entries;
+    if (deps.config.value.run.agentMode === 'agent' && deps.model) {
+      const question =
+        [...state.messages]
+          .reverse()
+          .find((message) => (message as { _getType?: () => string })._getType?.() === 'human')
+          ?.content;
+      const planned = await planWithModel({
+        model: deps.model,
+        question: typeof question === 'string' ? question : 'разбор портфеля',
+        capabilities: MCP_CAPABILITIES,
+        // Безопасный фолбэк: пустой список — план остаётся детерминированным.
+        fallback: () => ({ steps: [], source: 'fallback' }),
+      });
+      entries = mergePlan(plan, validatePlan({ steps: planned.steps }, MCP_CAPABILITIES).steps)
+        .entries;
+    }
+
     return {
-      readingPlan: plan.entries,
+      readingPlan: entries,
       scope,
       scopeTarget: state.scopeTarget,
       scopeLabel,

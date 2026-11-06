@@ -1,4 +1,4 @@
-﻿import { AIMessage } from '@langchain/core/messages';
+import { AIMessage } from '@langchain/core/messages';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module.js';
 import { AgentRunnerService } from '../../src/agent/agent-runner.service.js';
@@ -183,7 +183,7 @@ describe('граф агента с подтверждением', () => {
     const awaiting = await runner.run('что у меня в портфеле?', 's-approve');
     expect(awaiting.status).toBe('awaiting_approval');
     // Сводку по всем счетам собирает локальный инструмент — одно подтверждение на прогон.
-    expect(awaiting.approval?.actions[0]).toMatchObject({ tool: 'portfolio_all_accounts' });
+    expect(awaiting.approval?.actions[0]).toMatchObject({ tool: 'portfolio__snapshot' });
     expect(toolCalls()).toBe(0);
 
     const result = await runner.resume('s-approve', { approved: true });

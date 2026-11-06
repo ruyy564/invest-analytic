@@ -56,8 +56,7 @@ MCP_NEWS_ALLOWED_TOOLS=search_news,get_article
 | `market__tax_watch` | market | удержанные налоги и изменения законодательства |
 | `macro__key_rate` | macro | ключевая ставка ЦБ и история решений |
 
-Старые имена `portfolio_all_accounts` и `price_dynamics` работают как алиасы
-один релиз — на них ссылаются правила подтверждений и промпты.
+Единственные имена — `portfolio__snapshot` и `market__price_dynamics` (старые удалены): на них ссылаются правила подтверждений и промпты.
 
 ## Как это устроено
 

@@ -1,4 +1,4 @@
-﻿import type { DynamicStructuredTool } from '@langchain/core/tools';
+import type { DynamicStructuredTool } from '@langchain/core/tools';
 import {
   formatAllAccountsReport,
   type AccountPortfolio,
@@ -10,7 +10,6 @@ import { mapPositions } from '../../parsing/mappers/positions.mapper.js';
 import { withTimeout } from '../../mcp/mcp-tool.adapter.js';
 
 /** Как называть инструмент в allowlist, правилах подтверждений и логах. */
-export const ALL_ACCOUNTS_TOOL = 'portfolio_all_accounts';
 
 /** Ответ с сервера в виде JSON: текст, иначе объект. */
 export const asJson = (raw: unknown): unknown => {

@@ -12,13 +12,10 @@ import { buildCommoditySource } from '../../commodities/commodity.factory.js';
 import type { CommoditySource } from '../../commodities/commodity.types.js';
 import { ToolBudget } from './tool-budget.js';
 import { createThematicTools } from './local-tools.js';
-import { aliasHint, deprecatedAliasesPresent } from './tool-aliases.js';
 import {
-  ALL_ACCOUNTS_TOOL,
   createAllAccountsTool,
 } from '../../tools/portfolio-snapshot/portfolio-snapshot.tool.js';
 import {
-  PRICE_DYNAMICS_TOOL,
   createPriceDynamicsTool,
 } from '../../tools/price-dynamics/price-dynamics.tool.js';
 
@@ -157,20 +154,10 @@ export class McpRegistryService {
       ...tools,
       // Тематические имена (см. data-sources) и алиасы старых имён на время миграции.
       createAllAccountsTool(tools, PORTFOLIO_SNAPSHOT_TOOL, this.config.value.run.mcpToolTimeoutMs),
-      createAllAccountsTool(tools, ALL_ACCOUNTS_TOOL, this.config.value.run.mcpToolTimeoutMs),
       createPriceDynamicsTool(tools, MARKET_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
-      createPriceDynamicsTool(tools, PRICE_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
       ...createThematicTools({ newsRegistry: this.newsRegistry, keyRate: this.keyRate, commodity: this.commodity, byName, config: { timeoutMs: this.config.value.run.mcpToolTimeoutMs, scanPages: this.config.value.sources.news.scanPages, maxItems: this.config.value.sources.news.maxItems, taxKeywordsFile: this.config.value.sources.taxKeywordsFile } }),
       ...(this.knowledgeTool ? [this.knowledgeTool] : []),
     ];
-
-    // Устаревшие имена остаются рабочими, но о них стоит знать заранее.
-    const aliases = deprecatedAliasesPresent(this.toolsCache.map((tool) => tool.name));
-    if (aliases.length > 0) {
-      this.logger.warn(
-        `Старые имена инструментов сохранены как алиасы: ${aliases.map(aliasHint).join('; ')}`,
-      );
-    }
   }
 
   /** Новостные источники прогона: новости и налоги. */

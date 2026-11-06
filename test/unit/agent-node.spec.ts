@@ -36,7 +36,7 @@ describe('узел агента после сводки по счетам', () =
       new HumanMessage('Что в моем портфеле?'),
       new AIMessage({
         content: '',
-        tool_calls: [{ id: 'call-1', name: 'portfolio_all_accounts', args: {} }],
+        tool_calls: [{ id: 'call-1', name: 'portfolio__snapshot', args: {} }],
       }),
       new ToolMessage({ tool_call_id: 'call-1', content: SNAPSHOT }),
       ...extra,
@@ -48,11 +48,11 @@ describe('узел агента после сводки по счетам', () =
     const model = new ScriptedChatModel([
       new AIMessage({
         content: '',
-        tool_calls: [{ id: 'call-2', name: 'portfolio_all_accounts', args: {} }],
+        tool_calls: [{ id: 'call-2', name: 'portfolio__snapshot', args: {} }],
       }),
     ]);
 
-    const result = await createAgentNode(model, [fakeTool('portfolio_all_accounts')])({
+    const result = await createAgentNode(model, [fakeTool('portfolio__snapshot')])({
       messages: history(),
     } as never);
 
@@ -64,7 +64,7 @@ describe('узел агента после сводки по счетам', () =
   it('отдаёт текст сводки, если модель вернула пустой ответ', async () => {
     const model = new ScriptedChatModel(['']);
 
-    const result = await createAgentNode(model, [fakeTool('portfolio_all_accounts')])({
+    const result = await createAgentNode(model, [fakeTool('portfolio__snapshot')])({
       messages: history(),
     } as never);
 

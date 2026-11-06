@@ -14,12 +14,10 @@ import {
  * сводка по счетам, динамика цены, тематические инструменты источников.
  */
 export const LOCAL_TOOLS: readonly string[] = [
-  'portfolio_all_accounts',
-  'price_dynamics',
   'portfolio__snapshot',
+  'market__price_dynamics',
   'portfolio__review',
   'security__brief',
-  'market__price_dynamics',
   'market__news_digest',
   'market__tax_watch',
   'macro__key_rate',
@@ -120,7 +118,7 @@ export class ApprovalPolicyService {
 
   /**
    * Правила не должны ссылаться на инструменты, которых нет в каталоге MCP.
-   * Локальные инструменты приложения (`portfolio_all_accounts`) в каталоге
+   * Локальные инструменты приложения (`portfolio__snapshot`) в каталоге
    * отсутствуют по определению — их собирает реестр, а не сервер.
    */
   assertKnownTools(catalog: readonly string[]): void {

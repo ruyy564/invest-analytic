@@ -1,4 +1,4 @@
-﻿import { buildPortfolioReportPrompt } from './portfolio-report.prompt.js';
+import { buildPortfolioReportPrompt } from './portfolio-report.prompt.js';
 
 export interface AgentPromptOptions {
   accountId?: string;
@@ -17,7 +17,7 @@ export const buildAgentSystemPrompt = (options: AgentPromptOptions = {}): string
     'Если данные инструмента уже получены в этом диалоге — сразу отвечай по ним: ' +
       'не вызывай тот же инструмент повторно с теми же аргументами.',
     'Вопросы про конкретную бумагу (цена, динамика за период, дивиденды, фундаментал, новости) — ' +
-      'тоже твоя работа. Для «почему упал/вырос X», «что с ценой за полгода» вызывай price_dynamics ' +
+      'тоже твоя работа. Для «почему упал/вырос X», «что с ценой за полгода» вызывай market__price_dynamics ' +
       '(ticker и days) — он вернёт точные цифры; не придумывай цены и даты сам. ' +
       'Для остального: invest_find_instrument, invest_get_market_values, invest_get_share_dividends, ' +
       'invest_get_asset_fundamentals, invest_get_news. Не отправляй пользователя в приложение брокера.',
@@ -43,12 +43,12 @@ export const buildAgentSystemPrompt = (options: AgentPromptOptions = {}): string
   if (options.accountId) {
     lines.push(
       `Счёт для запросов портфеля: ${options.accountId}. ` +
-        'Если пользователь не назвал счёт — вызывай portfolio_all_accounts ' +
+        'Если пользователь не назвал счёт — вызывай portfolio__snapshot ' +
         '(сводка по всем счетам); конкретный счёт — invest_get_portfolio/invest_get_positions с этим accountId.',
     );
   } else {
     lines.push(
-      'Для вопросов о портфеле вызывай portfolio_all_accounts: он сам обходит все открытые счета ' +
+      'Для вопросов о портфеле вызывай portfolio__snapshot: он сам обходит все открытые счета ' +
         'и возвращает по каждому состав, стоимость и доходность. ' +
         'НЕ вызывай invest_get_portfolio по одному счёту и не спрашивай у пользователя accountId — ' +
         'иначе ответ будет только по одному счёту, а данные есть на нескольких. ' +

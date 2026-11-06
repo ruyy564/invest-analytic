@@ -1,4 +1,4 @@
-﻿import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AIMessage } from '@langchain/core/messages';
@@ -123,7 +123,7 @@ describe('HTTP API', () => {
     expect(response.body).toMatchObject({ status: 'awaiting_approval', intent: 'data_lookup' });
     expect(response.body.sessionId).toBeTruthy();
     expect(response.body.approval.actions[0]).toMatchObject({
-      tool: 'portfolio_all_accounts',
+      tool: 'portfolio__snapshot',
     });
     expect(JSON.stringify(response.body)).not.toContain('test-key');
   });

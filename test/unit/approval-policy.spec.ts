@@ -108,7 +108,7 @@ describe('правила подтверждений', () => {
     // сводки, которую собирает само приложение).
     const catalog = policy.rulesSnapshot
       .map((rule) => rule.tool)
-      .filter((tool) => !tool.includes('*') && tool !== 'portfolio_all_accounts');
+      .filter((tool) => !tool.includes('*'));
     expect(() => policy.assertKnownTools(catalog)).not.toThrow();
   });
 });

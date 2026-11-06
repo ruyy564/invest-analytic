@@ -6,8 +6,8 @@ import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
 const config = { timeoutMs: 100, scanPages: 1, maxItems: 5, taxKeywordsFile: 'data/tax-keywords.yaml' };
 
-describe('каталог инструментов и совместимость имён', () => {
-  it('содержит фасады бумаг и новостей рядом со старыми именами', () => {
+describe('каталог инструментов', () => {
+  it('содержит фасады бумаг и новостей', () => {
     const tools = createThematicTools({
       newsRegistry: new NewsRegistry([]),
       byName: new Map(),
@@ -27,22 +27,20 @@ describe('каталог инструментов и совместимость 
         'instruments__meta',
       ]),
     );
+    // Старых двойников больше нет: имена не дублируются.
+    expect(names.filter((name) => name === 'portfolio__snapshot')).toHaveLength(0);
   });
 
-  it('старые имена snapshot и динамики остаются рабочими', async () => {
-    const source = [fakeTool('invest_get_portfolio', async () => 'portfolio')];
-    const snapshot = createAllAccountsTool(source, 'portfolio__snapshot', 100);
-    const legacySnapshot = createAllAccountsTool(source, 'portfolio_all_accounts', 100);
+  it('сводка по счетам и динамика имеют по одному имени', async () => {
+    const snapshotSource = [fakeTool('invest_get_portfolio', async () => 'portfolio')];
+    const snapshot = createAllAccountsTool(snapshotSource, 'portfolio__snapshot', 100);
 
+    const candlesSource = [fakeTool('invest_get_candles', async () => ({ candles: [] }))];
+    const dynamics = createPriceDynamicsTool(candlesSource, 'market__price_dynamics', 100);
+
+    expect(snapshot.name).toBe('portfolio__snapshot');
+    expect(dynamics.name).toBe('market__price_dynamics');
     expect(await snapshot.invoke({})).toBeTruthy();
-    expect(await legacySnapshot.invoke({})).toBeTruthy();
-    expect(snapshot.name).not.toBe(legacySnapshot.name);
-  });
-
-  it('старое имя динамики цены сохранено как отдельный инструмент', () => {
-    const source = [fakeTool('invest_get_candles', async () => ({ candles: [] }))];
-    const legacy = createPriceDynamicsTool(source, 'price_dynamics', 100);
-
-    expect(legacy.name).toBe('price_dynamics');
   });
 });
+
