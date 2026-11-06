@@ -26,9 +26,12 @@ src/
 └─ transports/        входы: http (контроллеры), mcp (клиент и адаптер)
 ```
 
-Пока перенос не завершён, старые папки (`src/news`, `src/report`, `src/mcp`)
-остаются рабочими: `capabilities/news` уже используется, остальные появятся на
-этапах 4–5.
+Перенос выполнен: `capabilities/news`, `capabilities/instruments`,
+`capabilities/knowledge`, `capabilities/market`, `transports/mcp`,
+`transports/http`, `platform/{logging,runs,http}`, `shared/money`. Старые пути
+(`src/news`, `src/key-rate`, `src/commodities`, `src/mcp`, `src/api`,
+`src/knowledge`, `src/parsing/mappers/money.ts`) оставлены re-export'ами —
+импорты продолжают работать, а код живёт в новом месте.
 
 ## Правила зависимостей
 

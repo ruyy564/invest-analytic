@@ -16,3 +16,7 @@ export { loadNewsPolicy, resetNewsPolicyCache } from './policy-loader.js';
 export { summarizeStage, type StageReport } from './pipeline/stage-report.js';
 export { applyPolicy } from './pipeline/policy-stage.js';
 export { dedupeItems, duplicateKey } from './pipeline/dedupe-stage.js';
+export * from './news.types.js';
+export * from './news.filters.js';
+export * from './news.aliases.js';
+export { NewsRegistry, dedupeKey, mergeNews } from './news.registry.js';
