@@ -47,7 +47,7 @@ export const createReportNode =
       },
       collected,
       scope: state.scope ?? 'portfolio',
-      scopeTarget: state.scopeTarget,
+      scopeTarget: state.scopeTarget ?? undefined,
       // База знаний — сервис с кэшем: файлы читаются один раз, отсутствие каталога не мешает.
       knowledge: deps.knowledge.isEmpty ? undefined : deps.knowledge,
       knowledgeMaxChars: deps.config.value.run.knowledgeMaxChars,
@@ -98,7 +98,7 @@ export const createReportNode =
       }
     }
 
-    const markdown = composeMarkdown(report, interpretation, state.scopeLabel);
+    const markdown = composeMarkdown(report, interpretation, state.scopeLabel ?? undefined);
     const partial =
       report.partial || Object.keys(interpretation).length < report.interpretation.length;
 

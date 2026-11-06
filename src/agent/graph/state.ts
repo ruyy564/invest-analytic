@@ -45,21 +45,25 @@ export const AgentState = new StateSchema({
   /** Область разбора: весь портфель, счёт или отдельная бумага. */
   scope: z.enum(['portfolio', 'account', 'instrument']).default('portfolio'),
   /** Тикер для бумаги, идентификатор счёта для счёта. */
-  scopeTarget: z.string().optional(),
+  scopeTarget: z.string().nullable().optional(),
   /** Подпись области для отчёта и запроса подтверждения («бумаги SBER»). */
-  scopeLabel: z.string().optional(),
+  scopeLabel: z.string().nullable().optional(),
   /** Откуда взят сценарий: правило, модель, безопасный вариант или guard. */
   routeSource: z.enum(['rule', 'model', 'fallback', 'guard']).optional(),
   /** Ответ guardrail: текст возвращается без обращения к модели. */
-  guardAnswer: z.string().optional(),
+  guardAnswer: z.string().nullable().optional(),
   /** Нужны данные состава портфеля: решает правило маршрутизации. */
-  dataNeed: z.enum(['portfolio']).optional(),
-  /** Типизированный результат узла: отчёт, факты или анализ. */
-  lastResult: NodeResultSchema.optional(),
+  dataNeed: z.enum(['portfolio']).nullable().optional(),
+  /**
+   * Типизированный результат узла: отчёт, факты или анализ.
+   * Сбрасывается в `null` в `classify`: иначе новый вопрос в том же треде
+   * получал бы готовый отчёт прошлого прогона.
+   */
+  lastResult: NodeResultSchema.nullable().optional(),
   partial: z.boolean().default(false),
-  dataAsOf: z.string().optional(),
+  dataAsOf: z.string().nullable().optional(),
   /** Время постановки в `interrupt` — для проверки срока подтверждения. */
-  approvalRequestedAt: z.string().optional(),
+  approvalRequestedAt: z.string().nullable().optional(),
   /**
    * Пользователь уже разрешил чтение данных в этом прогоне: повторные
    * MCP-вызовы не останавливают граф. Новый вопрос сбрасывает флаг в `classify`.
@@ -68,13 +72,14 @@ export const AgentState = new StateSchema({
   /** План чтений: подтверждается целиком и исполняется в ветке разбора. */
   readingPlan: z.array(PlanEntrySchema).default([]),
   /** Результаты сбора: тексты инструментов по ключу плана. */
-  collection: CollectionSchema.optional(),
+  collection: CollectionSchema.nullable().optional(),
   /** Идентификатор сохранённого отчёта для выгрузки. */
-  reportId: z.string().optional(),
+  reportId: z.string().nullable().optional(),
   /** Версия шаблона, по которому собран отчёт. */
-  reportTemplateVersion: z.number().optional(),
+  reportTemplateVersion: z.number().nullable().optional(),
   reportType: z
     .enum(['data_answer', 'portfolio_report', 'deep_review', 'market_news'])
+    .nullable()
     .optional(),
 });
 

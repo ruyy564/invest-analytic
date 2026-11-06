@@ -119,7 +119,8 @@ describe('граф агента', () => {
 
     // Плана и отчёта нет: прогон просит подтверждение на чтение сводки, как раньше.
     expect(result.readingPlan ?? []).toHaveLength(0);
-    expect(result.reportId).toBeUndefined();
+    // Отказ: отчёт не собирался. `null` — явный сброс в `classify` нового прогона.
+    expect(result.reportId ?? undefined).toBeUndefined();
     expect(result.__interrupt__?.length).toBe(1);
   });
 });

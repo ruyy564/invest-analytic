@@ -62,11 +62,21 @@ export const createClassifyNode = (
       scope: route.scope,
       scopeTarget: route.scopeTarget,
       scopeLabel: route.scopeLabel,
-      ...(route.dataNeed ? { dataNeed: route.dataNeed } : {}),
+      ...(route.dataNeed ? { dataNeed: route.dataNeed } : { dataNeed: null }),
       routeSource: route.source,
-      ...(route.guard ? { guardAnswer: route.guard.answer } : {}),
+      ...(route.guard ? { guardAnswer: route.guard.answer } : { guardAnswer: null }),
       // Новый вопрос — новое согласие: в рамках одного прогона подтверждение одно.
       dataApproved: false,
+      // Новый вопрос начинает прогон с чистого листа: иначе ответ возьмётся
+      // из прошлого отчёта (`lastResult`), а данные сбора — из прежнего плана.
+      lastResult: null,
+      collection: null,
+      readingPlan: [],
+      reportId: null,
+      reportTemplateVersion: null,
+      reportType: null,
+      partial: false,
+      dataAsOf: null,
     };
   };
 };

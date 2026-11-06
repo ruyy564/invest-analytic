@@ -49,5 +49,7 @@ export const analysisResult = (text: string): NodeResult => ({
 });
 
 /** Отчёт из состояния: используется узлом ответа вместо разбора текста. */
-export const reportOfState = (state: { lastResult?: NodeResult }): NodeResult | undefined =>
+export const reportOfState = (state: {
+  lastResult?: NodeResult | null;
+}): NodeResult | undefined =>
   state.lastResult?.kind === 'report' ? state.lastResult : undefined;

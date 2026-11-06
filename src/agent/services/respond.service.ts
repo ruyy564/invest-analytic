@@ -34,5 +34,5 @@ export const isRefusalFallback = (section: string): boolean =>
  * Готовый ответ из состояния: отчёт отдаётся напрямую, анализ модели — своим
  * текстом. Опознание идёт по `kind`, а не по префиксу строки.
  */
-export const answerOf = (state: { lastResult?: NodeResult }): string | undefined =>
+export const answerOf = (state: { lastResult?: NodeResult | null }): string | undefined =>
   state.lastResult?.kind === 'report' ? state.lastResult.payload : undefined;

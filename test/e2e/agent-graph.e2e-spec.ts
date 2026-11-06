@@ -276,4 +276,25 @@ describe('граф агента с подтверждением', () => {
     // Ответ не должен быть одной строкой динамики за период.
     expect(result.answer).not.toContain('Динамика SBER за');
   });
+
+  it('новый вопрос в той же сессии не получает прошлый отчёт', async () => {
+    const { runner } = await createHarness([
+      'macro: ставка 14 % (оценка).\nverdict: совет — добрать облигации.',
+      'Яндекс просел на слабой отчётности, VK вырос на новостях о рекламе.',
+    ]);
+
+    const awaiting = await runner.run('проанализируй мой портфель', 's-cache');
+    expect(awaiting.status).toBe('awaiting_approval');
+    const report = await runner.resume('s-cache', { approved: true });
+    expect(report.answer).toContain('## Состав портфеля');
+
+    // Второй вопрос того же треда: отчёт прошлого прогона не должен «закешироваться».
+    const second = await runner.run('почему упал яндекс, а vk взлетел за последнюю неделю', 's-cache');
+
+    expect(second.status).toBe('completed');
+    expect(second.intent).toBe('data_lookup');
+    expect(second.answer).toContain('Яндекс');
+    expect(second.answer).not.toContain('## Состав портфеля');
+    expect(second.answer).not.toBe(report.answer);
+  });
 });
