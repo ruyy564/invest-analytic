@@ -16,7 +16,6 @@ import {
 import { briefProvider } from './verdict.js';
 import { marketNewsProvider } from './market-news.provider.js';
 import { createConclusionProvider } from './securities/conclusion.provider.js';
-
 /** Настройки реестра: профили компаний и база знаний для справочного блока. */
 export interface ProviderMapOptions {
   profiles?: CompanyProfiles;

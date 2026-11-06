@@ -1,4 +1,4 @@
-﻿import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { createAgentNode } from '../../src/agent/nodes/agent/index.js';
 import { createHelpNode } from '../../src/agent/nodes/help/index.js';
 import { buildAgentSystemPrompt } from '../../src/agent/nodes/agent/prompt.js';
@@ -74,12 +74,12 @@ describe('узел агента после сводки по счетам', () =
   it('оставляет обычный ответ модели, когда отчёта в истории нет', async () => {
     const model = new ScriptedChatModel(['У вас 77 акций SBER на счёте Долгосрочный.']);
 
-    const result = await createAgentNode(model, [fakeTool('portfolio_all_accounts')])({
+    const result = await createAgentNode(model, [fakeTool('invest_get_share')])({
       messages: [
         new HumanMessage('Сколько у меня акций SBER?'),
         new AIMessage({
           content: '',
-          tool_calls: [{ id: 'call-9', name: 'portfolio_all_accounts', args: {} }],
+          tool_calls: [{ id: 'call-9', name: 'invest_get_share', args: {} }],
         }),
         new ToolMessage({ tool_call_id: 'call-9', content: 'ok' }),
       ],

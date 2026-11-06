@@ -156,7 +156,13 @@ export const createApproveNode =
       goto: 'agent',
       update: {
         messages: calls.map(
-          (call) => new ToolMessage({ tool_call_id: call.id ?? '', content: DECLINE_TEXT }),
+          (call) =>
+            new ToolMessage({
+              tool_call_id: call.id ?? '',
+              content: DECLINE_TEXT,
+              // Структурный признак: ответ-отказ не считается отчётом инструмента.
+              additional_kwargs: { kind: 'denied' },
+            }),
         ),
       },
     });

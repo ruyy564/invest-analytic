@@ -1,5 +1,6 @@
 import { MessagesValue, StateSchema } from '@langchain/langgraph';
 import * as z from 'zod';
+import { NodeResultSchema } from '../results/node-result.js';
 
 /** Сценарий вопроса: от него зависит ветка графа и вид ответа. */
 export const INTENTS = [
@@ -51,6 +52,8 @@ export const AgentState = new StateSchema({
   routeSource: z.enum(['rule', 'model', 'fallback', 'guard']).optional(),
   /** Ответ guardrail: текст возвращается без обращения к модели. */
   guardAnswer: z.string().optional(),
+  /** Типизированный результат узла: отчёт, факты или анализ. */
+  lastResult: NodeResultSchema.optional(),
   partial: z.boolean().default(false),
   dataAsOf: z.string().optional(),
   /** Время постановки в `interrupt` — для проверки срока подтверждения. */

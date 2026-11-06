@@ -1,9 +1,11 @@
-﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import { bindToolsCompat } from '../../../llm/bind-tools.js';
 import { buildAgentSystemPrompt } from './prompt.js';
 import { ALL_ACCOUNTS_TOOL } from '../../../tools/portfolio-snapshot/portfolio-snapshot.service.js';
+import { PRICE_DYNAMICS_TOOL } from '../../../tools/price-dynamics/price-dynamics.tool.js';
+import { reportOfState } from '../../results/index.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
 
@@ -69,6 +71,8 @@ export const withToolResults = (messages: BaseMessage[]): BaseMessage[] => {
         new ToolMessage({
           tool_call_id: call.id ?? '',
           content: 'Данные не запрашивались: прогон прерван. Запроси их заново, если они нужны.',
+          // Прерванный вызов — не отчёт: признак структурный, а не по тексту.
+          additional_kwargs: { kind: 'interrupted' },
         }),
     );
     const { tool_calls: _dropped, ...rest } = message as AIMessage;
@@ -77,22 +81,46 @@ export const withToolResults = (messages: BaseMessage[]): BaseMessage[] => {
   }).flat();
 };
 
-/** Отчёты, которые уже готовы к показу: их не нужно пересказывать моделью. */
-const REPORT_MARKERS = ['Портфель по счетам брокера:', 'Динамика '];
+/** Инструменты, чей ответ — уже готовый отчёт, а не данные для пересказа. */
+const REPORT_TOOLS = new Set([
+  'portfolio__snapshot',
+  'all_accounts_snapshot',
+  ALL_ACCOUNTS_TOOL,
+  'market__price_dynamics',
+  'price_dynamics',
+  PRICE_DYNAMICS_TOOL,
+]);
 
 /**
- * Готовый отчёт из истории: сводка по счетам или динамика цены. Такой текст
- * сформирован кодом (цифры проверены), поэтому отдаём его напрямую — без
- * повторной генерации, которая на большом отчёте упирается в таймаут.
+ * Готовый отчёт из истории: ответ инструмента-агрегатора. Опознаётся по имени
+ * инструмента (контракт), а не по тексту ответа.
  */
-const reportText = (messages: BaseMessage[]): string | undefined => {
+const reportFromTools = (messages: BaseMessage[]): string | undefined => {
+  const names = new Map<string, string>();
+  for (const message of messages) {
+    if (messageType(message) === 'ai') {
+      for (const call of (message as AIMessage).tool_calls ?? []) {
+        if (call.id) {
+          names.set(call.id, call.name);
+        }
+      }
+    }
+  }
+
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (messageType(message) === 'tool' && typeof message.content === 'string') {
-      const content: string = message.content;
-      if (REPORT_MARKERS.some((marker) => content.startsWith(marker))) {
-        return content;
-      }
+    if (messageType(message) !== 'tool' || typeof message.content !== 'string') {
+      continue;
+    }
+    const callId = (message as ToolMessage).tool_call_id;
+    const name = names.get(callId ?? '');
+    // Отказ и прерванный вызов — не отчёт, даже если инструмент агрегатор.
+    const kind = (message as ToolMessage).additional_kwargs?.kind;
+    if (kind === 'denied' || kind === 'interrupted') {
+      continue;
+    }
+    if (name && REPORT_TOOLS.has(name) && message.content.trim().length > 0) {
+      return message.content;
     }
   }
   return undefined;
@@ -119,7 +147,8 @@ export const createAgentNode =
       .reverse()
       .find((message) => messageType(message) === 'human');
     const history = withToolResults(state.messages);
-    const report = reportText(history);
+    // Сначала типизированный результат (review-ветка), затем отчёт инструмента-агрегатора.
+    const report = reportOfState(state)?.payload ?? reportFromTools(history);
     // Отчёт уже сформирован кодом — отдаём его как есть, без генерации и таймаутов.
     if (report) {
       return { messages: [new AIMessage(report)] };

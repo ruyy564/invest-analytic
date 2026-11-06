@@ -8,6 +8,7 @@ import type { AgentStateType } from '../../graph/state.js';
 import { templateOf, type ReviewDeps } from './deps.js';
 import { collectionFromState } from './collect.node.js';
 import { cleanSection, INTERPRETATION_TIMEOUT_MS, loadInterpretationPrompt } from './interpretation.js';
+import { reportResult } from '../../results/index.js';
 
 /**
  * Отказ модели вместо раздела: провайдеры (GigaChat) иногда отвечают
@@ -112,6 +113,8 @@ export const createReportNode =
 
     return {
       messages: [new AIMessage(markdown)],
+      // Контракт вместо строковых эвристик: узел ответа смотрит на kind, а не на префикс.
+      lastResult: reportResult(markdown, { coverage: report.coverage, partial }),
       reportId: report.reportId,
       reportTemplateVersion: report.templateVersion,
       reportType: 'deep_review',
