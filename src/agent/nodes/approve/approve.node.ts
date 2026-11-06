@@ -35,6 +35,7 @@ const groupLabels: Record<string, string> = {
   fundamentals: 'фундаментальные показатели',
   signals: 'сигналы и мнения',
   news: 'новости',
+  marketnews: 'новости рынка',
   tax: 'налоги',
   macro: 'ключевая ставка',
   indices: 'индексы',
@@ -122,7 +123,8 @@ export const createApproveNode =
       deps.flow.clear(threadId);
 
       if (isApprovedDecision(approved)) {
-        return new Command({ goto: 'collect' });
+        // Согласие действует до конца прогона: сбор не спросит заново.
+        return new Command({ goto: 'collect', update: { dataApproved: true } });
       }
       return new Command({
         goto: END,
@@ -149,7 +151,8 @@ export const createApproveNode =
     deps.flow.clear(threadId);
 
     if (isApprovedDecision(decision)) {
-      return new Command({ goto: 'tools' });
+      // Согласие действует до конца прогона: следующие вызовы идут без паузы.
+      return new Command({ goto: 'tools', update: { dataApproved: true } });
     }
 
     return new Command({

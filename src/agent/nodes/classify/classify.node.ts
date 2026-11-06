@@ -65,6 +65,8 @@ export const createClassifyNode = (
       ...(route.dataNeed ? { dataNeed: route.dataNeed } : {}),
       routeSource: route.source,
       ...(route.guard ? { guardAnswer: route.guard.answer } : {}),
+      // Новый вопрос — новое согласие: в рамках одного прогона подтверждение одно.
+      dataApproved: false,
     };
   };
 };

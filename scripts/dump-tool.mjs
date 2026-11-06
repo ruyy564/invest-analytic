@@ -1,10 +1,10 @@
 // Диагностика формы ответа MCP: печатает сырой JSON инструмента.
 // Использование: node scripts/dump-tool.mjs invest_get_asset '{"instrumentId":"...","idType":"..."}'
 import 'dotenv/config';
-import { loadConfiguration } from '../dist/config/configuration.js';
-import { McpProxyService } from '../dist/tools/mcp-proxy.service.js';
-import { MultiServerMcpFactory } from '../dist/tools/mcp-client.factory.js';
-import { McpRegistryService } from '../dist/tools/mcp-registry.service.js';
+import { loadConfiguration } from '../dist/platform/config/configuration.js';
+import { McpProxyService } from '../dist/transports/mcp/mcp-proxy.service.js';
+import { MultiServerMcpFactory } from '../dist/transports/mcp/mcp-client.factory.js';
+import { McpRegistryService } from '../dist/transports/mcp/mcp-registry.service.js';
 
 const [toolName = 'invest_get_share', rawArgs = '{"instrumentId":"SBER_TQBR","idType":"INSTRUMENT_ID_TYPE_TICKER"}'] =
   process.argv.slice(2);

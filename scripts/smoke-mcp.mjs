@@ -1,5 +1,5 @@
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
-import { McpProxyService } from '../dist/tools/mcp-proxy.service.js';
+import { McpProxyService } from '../dist/transports/mcp/mcp-proxy.service.js';
 
 /**
  * Живая проверка подключения к MCP сервера T-Invest.

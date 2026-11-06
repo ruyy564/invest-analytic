@@ -1,3 +1,5 @@
+import { DynamicStructuredTool } from '@langchain/core/tools';
+import { z } from 'zod';
 import { createInstrumentTools, INSTRUMENT_TOOLS } from '../../src/capabilities/instruments/tools/instruments.tools.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
@@ -101,5 +103,100 @@ describe('доменные фасады бумаг', () => {
     await expect(byName(list, INSTRUMENT_TOOLS.find).invoke({ query: 'SBER' })).rejects.toThrow(
       'invest_find_instrument недоступен',
     );
+  });
+});
+
+describe('аргументы фасадов совпадают со схемами MCP', () => {
+  // Регрессия живого прогона: брокер отклонил `instrumentIds`, `interval: 1d`
+  // и вызов без `idType`, модель зациклилась на повторных подтверждениях.
+  const recorder = () => {
+    const calls = new Map<string, unknown[]>();
+    const tool = (name: string, response: unknown) =>
+      new DynamicStructuredTool({
+        name,
+        description: `${name} — записывает аргументы`,
+        schema: z.object({}).passthrough(),
+        func: async (input: unknown) => {
+          calls.set(name, [...(calls.get(name) ?? []), input]);
+          return response;
+        },
+      } as never);
+    const list = createInstrumentTools({
+      lookup: (name) =>
+        name === 'invest_find_instrument'
+          ? tool(name, findResponse)
+          : name === 'invest_get_market_values'
+            ? tool(name, marketValues)
+            : name === 'invest_get_share'
+              ? tool(name, { sector: 'financial' })
+              : tool(name, { candles: [], targetPrice: 382 }),
+      timeoutMs: 500,
+    });
+    return { calls, list };
+  };
+
+  it('цена: массив `instrumentId`, а не `instrumentIds`', async () => {
+    const { calls, list } = recorder();
+
+    await byName(list, INSTRUMENT_TOOLS.prices).invoke({ ticker: 'SBER' });
+
+    expect(calls.get('invest_get_market_values')).toEqual([{ instrumentId: ['SBER_TQBR'] }]);
+  });
+
+  it('свечи: интервал из перечисления MCP', async () => {
+    const { calls, list } = recorder();
+
+    await byName(list, INSTRUMENT_TOOLS.candles).invoke({ ticker: 'SBER' });
+
+    expect(calls.get('invest_get_candles')?.[0]).toMatchObject({
+      instrumentId: 'SBER_TQBR',
+      interval: 'CANDLE_INTERVAL_DAY',
+    });
+  });
+
+  it('справочник: обязательный `idType`', async () => {
+    const { calls, list } = recorder();
+
+    await byName(list, INSTRUMENT_TOOLS.meta).invoke({ ticker: 'SBER' });
+
+    expect(calls.get('invest_get_share')?.[0]).toMatchObject({
+      instrumentId: 'SBER_TQBR',
+      idType: 'INSTRUMENT_ID_TYPE_ID',
+    });
+  });
+
+  it('одноимённые инструменты: выбирается акция основного режима', async () => {
+    const manySameTicker = {
+      instruments: [
+        // Так отвечает брокер: тикер SBER носят и внебиржевые режимы, и основной TQBR.
+        { ticker: 'SBER', classCode: '37M', name: 'Сбербанк', instrumentKind: 'INSTRUMENT_TYPE_SHARE' },
+        { ticker: 'SBER', classCode: 'SMAL', name: 'Сбербанк', instrumentKind: 'INSTRUMENT_TYPE_SHARE' },
+        { ticker: 'SBER', classCode: 'TQBR', name: 'Сбербанк', instrumentKind: 'INSTRUMENT_TYPE_SHARE' },
+      ],
+    };
+    const calls = new Map<string, unknown[]>();
+    const tool = (name: string, response: unknown) =>
+      new DynamicStructuredTool({
+        name,
+        description: name,
+        schema: z.object({}).passthrough(),
+        func: async (input: unknown) => {
+          calls.set(name, [...(calls.get(name) ?? []), input]);
+          return response;
+        },
+      } as never);
+    const list = createInstrumentTools({
+      lookup: (name) =>
+        name === 'invest_find_instrument'
+          ? tool(name, manySameTicker)
+          : name === 'invest_get_market_values'
+            ? tool(name, marketValues)
+            : tool(name, {}),
+      timeoutMs: 500,
+    });
+
+    await byName(list, INSTRUMENT_TOOLS.prices).invoke({ ticker: 'SBER' });
+
+    expect(calls.get('invest_get_market_values')).toEqual([{ instrumentId: ['SBER_TQBR'] }]);
   });
 });

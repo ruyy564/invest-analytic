@@ -30,7 +30,8 @@ export const afterClassify =
 
 /**
  * Маршрут после модели: `approve` — если хотя бы один вызов требует подтверждения
- * (решение принимает `ApprovalPolicyService`, а не код роутера).
+ * и пользователь ещё не разрешил чтение в этом прогоне (решение принимает
+ * `ApprovalPolicyService`, а не код роутера).
  */
 export const createAfterAgent =
   (policy: ApprovalPolicyService) =>
@@ -39,6 +40,9 @@ export const createAfterAgent =
     const calls = last?.tool_calls ?? [];
     if (calls.length === 0) {
       return END;
+    }
+    if (state.dataApproved) {
+      return 'tools';
     }
     return calls.some((call) => policy.requiresApproval(call.name)) ? 'approve' : 'tools';
   };

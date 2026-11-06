@@ -60,6 +60,11 @@ export const AgentState = new StateSchema({
   dataAsOf: z.string().optional(),
   /** Время постановки в `interrupt` — для проверки срока подтверждения. */
   approvalRequestedAt: z.string().optional(),
+  /**
+   * Пользователь уже разрешил чтение данных в этом прогоне: повторные
+   * MCP-вызовы не останавливают граф. Новый вопрос сбрасывает флаг в `classify`.
+   */
+  dataApproved: z.boolean().default(false),
   /** План чтений: подтверждается целиком и исполняется в ветке разбора. */
   readingPlan: z.array(PlanEntrySchema).default([]),
   /** Результаты сбора: тексты инструментов по ключу плана. */

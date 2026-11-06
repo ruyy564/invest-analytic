@@ -52,7 +52,8 @@ export const createInstrumentTools = (options: InstrumentToolsOptions): DynamicS
       const raw = await invokeTool(
         lookup,
         'invest_get_market_values',
-        { instrumentIds: [instrumentId] },
+        // MCP ждёт массив идентификаторов в поле `instrumentId` (не `instrumentIds`).
+        { instrumentId: [instrumentId] },
         timeoutMs,
       );
       const found = mapMarketValues(raw);
@@ -81,7 +82,7 @@ export const createInstrumentTools = (options: InstrumentToolsOptions): DynamicS
       const raw = await invokeTool(
         lookup,
         'invest_get_candles',
-        { instrumentId, from: from.toISOString(), to: to.toISOString(), interval: '1d' },
+        { instrumentId, from: from.toISOString(), to: to.toISOString(), interval: 'CANDLE_INTERVAL_DAY' },
         timeoutMs,
       );
       return summarizeFields(raw, ['open', 'close', 'high', 'low', 'volume'], 400);
@@ -127,8 +128,20 @@ export const createInstrumentTools = (options: InstrumentToolsOptions): DynamicS
     func: async (input: unknown) => {
       const { ticker } = (input ?? {}) as { ticker?: string };
       const { instrumentId } = await resolveInstrumentId(lookup, ticker ?? '', timeoutMs);
-      const raw = await invokeTool(lookup, 'invest_get_share', { instrumentId }, timeoutMs).catch(
-        () => invokeTool(lookup, 'invest_get_bond', { instrumentId }, timeoutMs),
+      // `idType` обязателен; `INSTRUMENT_ID_TYPE_ID` принимает `TICKER_CLASSCODE`.
+      // Без `responseView` брокер отдаёт только имя и uid — полей карточки не будет.
+      const args = {
+        instrumentId,
+        idType: 'INSTRUMENT_ID_TYPE_ID',
+        responseView: ['BASE', 'IDENTIFIERS', 'STATIC_DATA'],
+      };
+      const raw = await invokeTool(lookup, 'invest_get_share', args, timeoutMs).catch(() =>
+        invokeTool(
+          lookup,
+          'invest_get_bond',
+          { ...args, responseView: ['BASE', 'ADDITIONAL_INFO', 'STATIC_DATA'] },
+          timeoutMs,
+        ),
       );
       return summarizeFields(
         raw,

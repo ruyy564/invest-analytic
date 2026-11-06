@@ -66,9 +66,32 @@ export const summarizeFields = (
 };
 
 /**
+ * Порядок выбора при совпадении тикера: акция важнее фьючерса с тем же тикером,
+ * а основной режим торгов MOEX — важнее внебиржевых (`SBER_37M`, `SBER_SMAL`).
+ */
+const KIND_RANK: Record<string, number> = {
+  INSTRUMENT_TYPE_SHARE: 0,
+  INSTRUMENT_TYPE_ETF: 1,
+  INSTRUMENT_TYPE_BOND: 2,
+  other: 3,
+};
+
+/** Режимы торгов, где обращаются те же акции, что видит пользователь на бирже. */
+const PREFERRED_CLASSES = new Set(['TQBR', 'TQTF', 'TQCB', 'TQOB', 'TQIF', 'TQTD', 'TQPI']);
+
+const rankOf = (record: Record<string, unknown>): number => {
+  const kind = KIND_RANK[String(record.instrumentKind)] ?? KIND_RANK.other;
+  const classRank = PREFERRED_CLASSES.has(String(record.classCode)) ? 0 : 1;
+  return kind * 10 + classRank;
+};
+
+/**
  * Идентификатор инструмента для MCP: `TICKER_CLASSCODE`. По одному тикеру брокер
  * отвечает «Instrument not found» (SBER есть в разных режимах торгов), поэтому
  * класс уточняется через `invest_find_instrument`.
+ *
+ * Один тикер носят разные инструменты (акция `SBER_TQBR`, фьючерс `SBER_37M`),
+ * поэтому кандидаты сортируются по виду: акция, фонд, облигация, остальное.
  */
 export const resolveInstrumentId = async (
   lookup: ToolLookup,
@@ -83,19 +106,35 @@ export const resolveInstrumentId = async (
     return { instrumentId: normalized };
   }
 
-  const raw = await invokeTool(lookup, 'invest_find_instrument', { query: normalized }, timeoutMs);
+  const raw = await invokeTool(
+    lookup,
+    'invest_find_instrument',
+    // Без `STATIC_DATA` в ответе нет вида инструмента и его не выбрать правильно.
+    { query: normalized, responseView: ['BASE', 'IDENTIFIERS', 'STATIC_DATA'] },
+    timeoutMs,
+  );
   const root = asJson(raw) as { instruments?: unknown[] } | undefined;
   const list = Array.isArray(root?.instruments) ? root.instruments : [];
-  for (const item of list) {
-    const record = item as Record<string, unknown>;
-    const foundTicker = typeof record.ticker === 'string' ? record.ticker.toUpperCase() : '';
-    const classCode = typeof record.classCode === 'string' ? record.classCode : '';
-    if (foundTicker === normalized && classCode) {
-      return {
-        instrumentId: `${foundTicker}_${classCode}`,
-        title: typeof record.name === 'string' ? record.name : undefined,
-      };
-    }
+
+  const candidates = list
+    .map((item) => item as Record<string, unknown>)
+    .filter(
+      (record) =>
+        typeof record.ticker === 'string' &&
+        record.ticker.toUpperCase() === normalized &&
+        typeof record.classCode === 'string' &&
+        record.classCode.length > 0,
+    )
+    .map((record) => ({
+      instrumentId: `${normalized}_${String(record.classCode)}`,
+      title: typeof record.name === 'string' ? record.name : undefined,
+      rank: rankOf(record),
+    }))
+    .sort((left, right) => left.rank - right.rank);
+
+  const best = candidates[0];
+  if (best) {
+    return { instrumentId: best.instrumentId, ...(best.title ? { title: best.title } : {}) };
   }
   throw new Error(`бумага ${normalized} не найдена`);
 };
