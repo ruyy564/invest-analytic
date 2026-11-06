@@ -18,7 +18,14 @@ const LOCAL_TOOLS_EXPECTED = [
   MARKET_DYNAMICS_TOOL,
   PRICE_DYNAMICS_TOOL,
   NEWS_DIGEST_TOOL,
+  'news__search',
   TAX_WATCH_TOOL,
+  'instruments__find',
+  'instruments__prices',
+  'instruments__candles',
+  'instruments__forecast',
+  'instruments__dividends',
+  'instruments__meta',
 ];
 
 const server = (overrides: Partial<McpServerConfig> = {}): McpServerConfig => ({

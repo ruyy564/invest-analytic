@@ -2,6 +2,8 @@ import type { DynamicStructuredTool } from '@langchain/core/tools';
 import type { CommoditySource } from '../commodities/commodity.types.js';
 import type { KeyRateSource } from '../key-rate/key-rate.types.js';
 import type { NewsRegistry } from '../news/news.registry.js';
+import { createInstrumentTools } from '../capabilities/instruments/tools/instruments.tools.js';
+import { createNewsSearchTool } from '../capabilities/news/tools/news-search.tool.js';
 import { createCommodityTool } from '../tools/commodity/commodity.tool.js';
 import { createKeyRateTool } from '../tools/key-rate/key-rate.tool.js';
 import { createNewsDigestTool } from '../tools/news-digest/news-digest.tool.js';
@@ -40,6 +42,12 @@ export const createThematicTools = (options: {
   const news = newsRegistry
     ? [
         createNewsDigestTool({ ...shared, newsRegistry }),
+        // Фасад: параметры запроса вместо фиксированной сводки по периодам.
+        createNewsSearchTool({
+          registry: newsRegistry,
+          scanPages: config.scanPages,
+          maxItems: config.maxItems,
+        }),
         createTaxWatchTool({ ...shared, newsRegistry }),
       ]
     : [];
@@ -47,5 +55,7 @@ export const createThematicTools = (options: {
     ...news,
     ...(keyRate ? [createKeyRateTool(keyRate)] : []),
     ...(commodity ? [createCommodityTool(commodity)] : []),
+    // Доменные фасады бумаг: модель видит шесть операций, а не десятки вызовов брокера.
+    ...createInstrumentTools({ lookup: (name) => byName.get(name), timeoutMs: config.timeoutMs }),
   ];
 };
