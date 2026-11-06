@@ -92,3 +92,35 @@ curl -s http://localhost:3000/api/v1/health
 
 Формат ошибки всегда один: `{"error": {"code": "...", "message": "...", "requestId": "..."}}`.
 
+
+## Поток событий и отмена
+
+`POST /api/v1/agent/chat/stream` — тот же запрос, что и `/chat`, но ответ идёт
+как `text/event-stream`. Кадры:
+
+```
+event: run_started
+data: {"type":"run_started","runId":"…"}
+
+event: intent
+data: {"type":"intent","intent":"data_lookup"}
+
+event: tool_call
+data: {"type":"tool_call","tool":"instruments__prices","args":{"ticker":"SBER"}}
+
+event: tool_result
+data: {"type":"tool_result","tool":"instruments__prices","ok":true}
+
+event: approval
+data: {"type":"approval","approval":{…}}
+
+event: completed
+data: {"type":"completed","result":{…}}
+```
+
+`completed.result` совпадает по полям с ответом обычного `/chat`. При ошибке
+приходит `event: failed` с текстом, при отмене — `event: cancelled`.
+
+`POST /api/v1/agent/runs/:runId/cancel` — отмена активного прогона:
+`{ "runId": "…", "cancelled": true }`. Повторная отмена идемпотентна и
+возвращает `cancelled: false`, состояние прогона и сохранённый отчёт не меняются.

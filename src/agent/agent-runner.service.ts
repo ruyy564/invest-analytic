@@ -35,6 +35,7 @@ import {
   RUN_RECURSION_LIMIT,
   type RunResult,
 } from './runner/runner.types.js';
+import { runEventOf, type RunEvent, type StreamEventLike } from './runner/run-events.js';
 
 export { RUN_RECURSION_LIMIT } from './runner/runner.types.js';
 export type { NewsReport, RunReport, RunResult } from './runner/runner.types.js';
@@ -160,6 +161,93 @@ export class AgentRunnerService {
         this.registry.endRun(sessionId);
       }
     });
+  }
+
+  /** Активные прогоны: нужны для отмены по `runId`. */
+  private readonly active = new Map<string, { sessionId: string; controller: AbortController }>();
+
+  /**
+   * Поток событий прогона: клиент видит этапы до итогового ответа. Обычный
+   * `run` остаётся прежним — поток не заменяет его, а дополняет.
+   */
+  async *stream(message: string, sessionId: string, requestId?: string): AsyncGenerator<RunEvent> {
+    const runId = randomUUID();
+    const controller = new AbortController();
+    this.active.set(runId, { sessionId, controller });
+    const log = runLogger(this.logger, { runId, requestId, sessionId });
+    log.info('Прогон (поток) начат');
+
+    yield { type: 'run_started', runId };
+
+    const graph = await this.graph();
+    if (!graph) {
+      this.active.delete(runId);
+      yield { type: 'failed', error: 'инструменты недоступны' };
+      return;
+    }
+
+    const config = this.configFor(sessionId);
+    this.registry.beginRun(sessionId);
+    try {
+      const events = await graph.streamEvents(
+        { messages: [new HumanMessage(message)] },
+        { ...config, metadata: { requestId, sessionId, runId }, version: 'v2', signal: controller.signal },
+      );
+      for await (const streamEvent of events) {
+        if (controller.signal.aborted) {
+          break;
+        }
+        const event = runEventOf(streamEvent as unknown as StreamEventLike);
+        if (event) {
+          yield event;
+        }
+      }
+
+      if (controller.signal.aborted) {
+        yield { type: 'cancelled' };
+        return;
+      }
+
+      const snapshot = await graph.getState(config);
+      const result = await this.toResultAndTrack(
+        graph,
+        { values: snapshot.values },
+        config,
+        sessionId,
+        runId,
+      );
+      if (result.approval) {
+        yield { type: 'approval', approval: result.approval };
+      }
+      log.info({ intent: result.intent, partial: result.partial }, 'Прогон (поток) завершён');
+      yield { type: 'completed', result: { ...result, traceUrl: await this.traceUrlFor(runId) } };
+    } catch (error) {
+      if (controller.signal.aborted) {
+        yield { type: 'cancelled' };
+        return;
+      }
+      const text = (error as Error)?.message ?? String(error);
+      log.warn({ err: text }, 'Прогон (поток) прерван');
+      yield { type: 'failed', error: text };
+    } finally {
+      this.registry.endRun(sessionId);
+      this.active.delete(runId);
+    }
+  }
+
+  /**
+   * Отмена прогона по `runId`: прерывает поток и освобождает бюджет сессии.
+   * Повторная отмена идемпотентна — возвращает `false`, состояние не меняется.
+   */
+  cancel(runId: string): boolean {
+    const active = this.active.get(runId);
+    if (!active) {
+      return false;
+    }
+    active.controller.abort();
+    this.registry.endRun(active.sessionId);
+    this.active.delete(runId);
+    return true;
   }
 
   /** Журнал прогона: ошибка файловой системы не ломает прогон. */

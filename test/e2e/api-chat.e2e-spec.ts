@@ -294,5 +294,39 @@ describe('HTTP API', () => {
       await local.app.close();
     }
   });
+
+  it('поток отдаёт этапы прогона и итоговый ответ', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/agent/chat/stream')
+      .send({ message: 'какая погода в Москве?' });
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/event-stream');
+
+    const text = String(response.text);
+    expect(text).toContain('event: run_started');
+    expect(text).toContain('event: intent');
+    expect(text).toContain('event: completed');
+    // Итоговое событие несёт тот же результат, что и обычный ответ.
+    const completed = text
+      .split('\n\n')
+      .map((frame) => frame.trim())
+      .find((frame) => frame.startsWith('event: completed'));
+    const payload = JSON.parse(completed?.split('\ndata: ')[1] ?? '{}') as {
+      result?: { runId?: string; answer?: string; intent?: string };
+    };
+    expect(payload.result?.runId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(payload.result?.intent).toBe('off_topic');
+    expect(payload.result?.answer).toContain('вне моей компетенции');
+  });
+
+  it('отмена неизвестного прогона идемпотентна', async () => {
+    const first = await request(app.getHttpServer()).post('/api/v1/agent/runs/unknown-run/cancel');
+    const second = await request(app.getHttpServer()).post('/api/v1/agent/runs/unknown-run/cancel');
+
+    expect(first.status).toBe(201);
+    expect(first.body).toEqual({ runId: 'unknown-run', cancelled: false });
+    expect(second.body).toEqual({ runId: 'unknown-run', cancelled: false });
+  });
 });
 
