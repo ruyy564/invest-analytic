@@ -1,8 +1,8 @@
-import { planKey, type CollectionPlan } from '../../src/collection/plan.js';
-import type { CollectionResult } from '../../src/collection/executor.js';
-import type { FactContext } from '../../src/report/engine.js';
-import { loadCompanyProfiles } from '../../src/report/company-profiles.js';
-import { createProviderMap } from '../../src/report/providers/index.js';
+import { planKey, type CollectionPlan } from '../../src/capabilities/reports/collection/plan.js';
+import type { CollectionResult } from '../../src/capabilities/reports/collection/executor.js';
+import type { FactContext } from '../../src/capabilities/reports/engine.js';
+import { loadCompanyProfiles } from '../../src/capabilities/reports/company-profiles.js';
+import { createProviderMap } from '../../src/capabilities/reports/providers/index.js';
 
 const profiles = loadCompanyProfiles('data/company-profiles.yaml');
 

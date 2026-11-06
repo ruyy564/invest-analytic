@@ -1,25 +1,25 @@
-﻿import { readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { planKey, type CollectionPlan } from '../../src/collection/plan.js';
-import { buildReport, type FactContext } from '../../src/report/engine.js';
-import { composeMarkdown } from '../../src/report/compose.js';
-import { createProviderMap } from '../../src/report/providers/index.js';
-import { loadCompanyProfiles } from '../../src/report/company-profiles.js';
-import { loadReportTemplate } from '../../src/report/template.js';
+import { planKey, type CollectionPlan } from '../../src/capabilities/reports/collection/plan.js';
+import { buildReport, type FactContext } from '../../src/capabilities/reports/engine.js';
+import { composeMarkdown } from '../../src/capabilities/reports/compose.js';
+import { createProviderMap } from '../../src/capabilities/reports/providers/index.js';
+import { loadCompanyProfiles } from '../../src/capabilities/reports/company-profiles.js';
+import { loadReportTemplate } from '../../src/capabilities/reports/template.js';
 import { detectScope } from '../../src/agent/scope.js';
 import {
   KNOWLEDGE_QUESTION_PATTERN,
   KnowledgeRepository,
   KnowledgeService,
-} from '../../src/knowledge/index.js';
+} from '../../src/capabilities/knowledge/index.js';
 import { CAPABILITIES_PATTERN } from '../../src/agent/nodes/help/capabilities.js';
 import {
   heuristicIntent,
   heuristicNewsIntent,
   type Intent,
 } from '../../src/agent/nodes/classify/prompt.js';
-import { loadTickerAliases } from '../../src/news/news.aliases.js';
-import type { AppConfigService } from '../../src/config/app-config.service.js';
+import { loadTickerAliases } from '../../src/capabilities/news/news.aliases.js';
+import type { AppConfigService } from '../../src/platform/config/app-config.service.js';
 
 interface Dialogue {
   id: string;

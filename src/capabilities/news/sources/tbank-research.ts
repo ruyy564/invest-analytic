@@ -1,5 +1,5 @@
-import { asRecord, asString, jsonScriptsOf } from '../../../parsing/html.js';
-import { stripMarkup } from '../../../parsing/feed.js';
+import { asRecord, asString, jsonScriptsOf } from '../../../shared/parsing/html.js';
+import { stripMarkup } from '../../../shared/parsing/feed.js';
 import type { NewsQuery, NewsSourceAdapter, SourceItem } from '../news.types.js';
 import { defaultFetchText } from './feed.js';
 import type { NewsPolicy } from '../index.js';

@@ -1,4 +1,4 @@
-import type { PlanGroup } from '../../collection/plan.js';
+import type { PlanGroup } from '../../capabilities/reports/collection/plan.js';
 
 /**
  * Возможность, которую модель может выбрать: доменный фасад, а не низкоуровневый

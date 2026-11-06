@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { AppConfigService } from '../../../config/app-config.service.js';
-import { ReportStoreService } from '../../../state/report-store.service.js';
+import { AppConfigService } from '../../../platform/config/app-config.service.js';
+import { ReportStoreService } from '../../../platform/state/report-store.service.js';
 
 export const REPORT_FORMATS = ['md', 'json', 'html'] as const;
 export type ReportFormat = (typeof REPORT_FORMATS)[number];

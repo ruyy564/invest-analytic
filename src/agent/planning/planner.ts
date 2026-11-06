@@ -1,8 +1,8 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { z } from 'zod';
-import type { PlanGroup } from '../../collection/plan.js';
-import { withTimeout } from '../../mcp/mcp-tool.adapter.js';
+import type { PlanGroup } from '../../capabilities/reports/collection/plan.js';
+import { withTimeout } from '../../transports/mcp/mcp-tool.adapter.js';
 import { CAPABILITIES, capabilityByName, type Capability } from './capabilities.js';
 
 /** Шаг плана: инструмент и аргументы. */

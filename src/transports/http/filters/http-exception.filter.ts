@@ -8,8 +8,8 @@ import {
 import type { Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { ApprovalExpiredError, NotAwaitingApprovalError } from '../../../agent/approval.errors.js';
-import { ConfigError } from '../../../config/config.error.js';
-import { ToolError } from '../../../mcp/errors.js';
+import { ConfigError } from '../../../platform/config/config.error.js';
+import { ToolError } from '../../../transports/mcp/errors.js';
 import { ApiValidationError } from '../dto/agent.dto.js';
 
 export interface ErrorBody {

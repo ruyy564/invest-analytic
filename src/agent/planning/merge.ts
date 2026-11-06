@@ -1,5 +1,5 @@
-import type { CollectionPlan, PlanEntry } from '../../collection/plan.js';
-import { planKey } from '../../collection/plan.js';
+import type { CollectionPlan, PlanEntry } from '../../capabilities/reports/collection/plan.js';
+import { planKey } from '../../capabilities/reports/collection/plan.js';
 import type { PlannedStep } from './planner.js';
 
 /**

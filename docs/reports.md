@@ -2,16 +2,16 @@
 
 Логика отчёта живёт в файле-шаблоне, а не в коде: состав, порядок, пороги и
 периоды меняются правкой YAML. Код остаётся только за поставщиков фактов
-(`src/report/providers/`) и поставщиков данных (`src/sources/`).
+(`src/capabilities/reports/providers/`) и поставщиков данных (`src/sources/`).
 
 ## Где что лежит
 
 ```
 reports/portfolio-review.yaml        шаблон: секции, пороги, периоды
 reports/prompts/interpretation.md    промпт для секций, которые пишет модель
-src/report/template.ts               схема и загрузка шаблона
-src/report/engine.ts                 сборка отчёта по шаблону
-src/report/providers/*.ts            поставщики фактов (имя = provider в шаблоне)
+src/capabilities/reports/template.ts               схема и загрузка шаблона
+src/capabilities/reports/engine.ts                 сборка отчёта по шаблону
+src/capabilities/reports/providers/*.ts            поставщики фактов (имя = provider в шаблоне)
 ```
 
 ## Схема шаблона
@@ -87,7 +87,7 @@ sections:
 Новости брокера по тикеру дополнительно фильтруются по упоминанию бумаги (тикер, название,
 алиасы): общий поток «рынок акций РФ вырос» в карточку не попадает.
 
-График — спарклайн из свечей (`src/report/sparkline.ts`). Свечи запрашиваются за 365 дней,
+График — спарклайн из свечей (`src/capabilities/reports/sparkline.ts`). Свечи запрашиваются за 365 дней,
 а на графике и в диапазоне цен показываются последние 90 дней: старые экстремумы не
 растягивают шкалу и не искажают форму движения.
 
@@ -137,8 +137,8 @@ sections:
 
 ## Что требует кода
 
-- новый `provider` — новый поставщик фактов в `src/report/providers/`;
-- новый тип вывода (`render`) — новый рендерер в `src/report/renderers.ts`;
+- новый `provider` — новый поставщик фактов в `src/capabilities/reports/providers/`;
+- новый тип вывода (`render`) — новый рендерер в `src/capabilities/reports/renderers.ts`;
 - новый источник данных — адаптер в `src/sources/` (см. `docs/sources.md`).
 
 Важно: план сбора выводится из шаблона. Убрали секцию — перестали ходить за её

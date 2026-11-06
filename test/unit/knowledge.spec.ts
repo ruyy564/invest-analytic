@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Test } from '@nestjs/testing';
-import type { AppConfigService } from '../../src/config/app-config.service.js';
+import type { AppConfigService } from '../../src/platform/config/app-config.service.js';
 import {
   formatKnowledge,
   formatKnowledgeAnswer,
@@ -12,7 +12,7 @@ import {
   KNOWLEDGE_PREAMBLE,
   KNOWLEDGE_QUESTION_PATTERN,
   KnowledgeService,
-} from '../../src/knowledge/index.js';
+} from '../../src/capabilities/knowledge/index.js';
 
 const BASE_DIR = 'data/knowledge';
 

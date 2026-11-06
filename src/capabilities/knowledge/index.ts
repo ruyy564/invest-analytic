@@ -25,3 +25,4 @@ export {
   type KnowledgeQuery,
   type KnowledgeTopic,
 } from './knowledge.types.js';
+export { createKnowledgeTool } from './tools/knowledge/knowledge.tool.js';

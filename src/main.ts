@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
-import { AppConfigService } from './config/app-config.service.js';
+import { AppConfigService } from './platform/config/app-config.service.js';
 import { APP_LOGGER, toNestLogger } from './platform/logging/index.js';
 import type { Logger as PinoLogger } from 'pino';
 

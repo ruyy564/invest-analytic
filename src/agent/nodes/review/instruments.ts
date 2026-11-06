@@ -1,6 +1,6 @@
-﻿import { resultsInGroup, type CollectionResult } from '../../../collection/executor.js';
-import type { CollectionPlan } from '../../../collection/plan.js';
-import { mapPositions } from '../../../parsing/mappers/positions.mapper.js';
+import { resultsInGroup, type CollectionResult } from '../../../capabilities/reports/collection/executor.js';
+import type { CollectionPlan } from '../../../capabilities/reports/collection/plan.js';
+import { mapPositions } from '../../../shared/parsing/mappers/positions.mapper.js';
 
 export const instrumentsOf = (
   plan: CollectionPlan,

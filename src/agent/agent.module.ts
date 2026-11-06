@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { KnowledgeModule } from '../knowledge/index.js';
-import { LlmModule } from '../llm/llm.module.js';
-import { StateModule } from '../state/state.module.js';
-import { ToolsModule } from '../tools/tools.module.js';
+import { KnowledgeModule } from '../capabilities/knowledge/index.js';
+import { LlmModule } from '../platform/llm/llm.module.js';
+import { StateModule } from '../platform/state/state.module.js';
+import { ToolsModule } from '../tools.module.js';
 import { AgentRunnerService } from './agent-runner.service.js';
 import { ApprovalFlowService } from './approval-flow.service.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';

@@ -1,9 +1,9 @@
-import { planKey, type CollectionPlan } from '../../src/collection/plan.js';
-import type { CollectionResult } from '../../src/collection/executor.js';
+import { planKey, type CollectionPlan } from '../../src/capabilities/reports/collection/plan.js';
+import type { CollectionResult } from '../../src/capabilities/reports/collection/executor.js';
 import { instrumentFromSearch } from '../../src/agent/nodes/review/instruments.js';
-import type { FactContext } from '../../src/report/engine.js';
-import { securitiesProvider } from '../../src/report/providers/securities/detail.provider.js';
-import { mapNews } from '../../src/news/sources/tinkoff.js';
+import type { FactContext } from '../../src/capabilities/reports/engine.js';
+import { securitiesProvider } from '../../src/capabilities/reports/providers/securities/detail.provider.js';
+import { mapNews } from '../../src/capabilities/news/sources/tinkoff.js';
 
 const NOW = new Date('2026-11-05T12:00:00Z');
 const DAY = 24 * 60 * 60 * 1000;

@@ -1,18 +1,18 @@
-﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { ConfigError } from '../config/config.error.js';
+import { ConfigError } from '../platform/config/config.error.js';
 import { ApprovalFlowService } from './approval-flow.service.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph } from './graph/build-graph.js';
-import { AppConfigService } from '../config/app-config.service.js';
-import { loadConfiguration, type AppConfig } from '../config/configuration.js';
-import { LlmRegistry } from '../llm/llm-registry.js';
-import { MultiServerMcpFactory } from '../mcp/mcp-client.factory.js';
-import { McpProxyService } from '../mcp/mcp-proxy.service.js';
-import { McpRegistryService } from '../mcp/mcp-registry.service.js';
-import { resolveDefaultAccount } from '../accounts/resolve-account.js';
-import { KnowledgeRepository, KnowledgeService } from '../knowledge/index.js';
-import { createKnowledgeTool } from '../tools/knowledge/knowledge.tool.js';
+import { AppConfigService } from '../platform/config/app-config.service.js';
+import { loadConfiguration, type AppConfig } from '../platform/config/configuration.js';
+import { LlmRegistry } from '../platform/llm/llm-registry.js';
+import { MultiServerMcpFactory } from '../transports/mcp/mcp-client.factory.js';
+import { McpProxyService } from '../transports/mcp/mcp-proxy.service.js';
+import { McpRegistryService } from '../transports/mcp/mcp-registry.service.js';
+import { resolveDefaultAccount } from '../capabilities/portfolio/resolve-account.js';
+import { KnowledgeRepository, KnowledgeService } from '../capabilities/knowledge/index.js';
+import { createKnowledgeTool } from '../capabilities/knowledge/tools/knowledge/knowledge.tool.js';
 
 /**
  * Сборка рабочего агента вне NestJS: те же классы и тот же `.env`, что у сервиса

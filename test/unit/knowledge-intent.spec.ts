@@ -1,11 +1,11 @@
-﻿import { HumanMessage } from '@langchain/core/messages';
+import { HumanMessage } from '@langchain/core/messages';
 import { createClassifyNode } from '../../src/agent/nodes/classify/index.js';
 import { OFF_TOPIC_PATTERN } from '../../src/agent/nodes/classify/prompt.js';
-import type { AppConfigService } from '../../src/config/app-config.service.js';
+import type { AppConfigService } from '../../src/platform/config/app-config.service.js';
 import {
   KnowledgeRepository,
   KnowledgeService,
-} from '../../src/knowledge/index.js';
+} from '../../src/capabilities/knowledge/index.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 
 /** Сервис знаний на реальном каталоге: классификатор получает его как зависимость. */

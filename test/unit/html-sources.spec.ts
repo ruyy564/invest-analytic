@@ -2,13 +2,13 @@ import {
   createRbcQuoteSource,
   parseRbcQuote,
   RBC_QUOTE_SOURCE,
-} from '../../src/news/sources/rbc-quote.js';
+} from '../../src/capabilities/news/sources/rbc-quote.js';
 import {
   createTbankResearchSource,
   parseTbankResearch,
   TBANK_RESEARCH_SOURCE,
-} from '../../src/news/sources/tbank-research.js';
-import { jsonScriptsOf } from '../../src/parsing/html.js';
+} from '../../src/capabilities/news/sources/tbank-research.js';
+import { jsonScriptsOf } from '../../src/shared/parsing/html.js';
 
 /** Минимальный слепок `__NEXT_DATA__` страницы РБК Инвестиций. */
 const RBC_HTML = `<html><head><title>РБК</title></head><body>

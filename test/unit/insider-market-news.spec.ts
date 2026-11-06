@@ -1,8 +1,8 @@
-import { planKey, type CollectionPlan } from '../../src/collection/plan.js';
-import type { CollectionResult } from '../../src/collection/executor.js';
-import type { FactContext } from '../../src/report/engine.js';
-import { insiderDealOf, insiderLine } from '../../src/report/providers/securities/shared.js';
-import { marketNewsProvider } from '../../src/report/providers/market-news.provider.js';
+import { planKey, type CollectionPlan } from '../../src/capabilities/reports/collection/plan.js';
+import type { CollectionResult } from '../../src/capabilities/reports/collection/executor.js';
+import type { FactContext } from '../../src/capabilities/reports/engine.js';
+import { insiderDealOf, insiderLine } from '../../src/capabilities/reports/providers/securities/shared.js';
+import { marketNewsProvider } from '../../src/capabilities/reports/providers/market-news.provider.js';
 
 const DEALS = JSON.stringify({
   insiderDeals: [

@@ -1,7 +1,7 @@
-﻿import { buildCollectionPlan } from '../../../collection/plan.js';
-import { openAccounts } from '../../../tools/portfolio-snapshot/portfolio-snapshot.service.js';
-import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
-import { templateProviders } from '../../../report/template.js';
+import { buildCollectionPlan } from '../../../capabilities/reports/collection/plan.js';
+import { openAccounts } from '../../../capabilities/portfolio/tools/portfolio-snapshot/portfolio-snapshot.service.js';
+import { withTimeout } from '../../../transports/mcp/mcp-tool.adapter.js';
+import { templateProviders } from '../../../capabilities/reports/template.js';
 import { PORTFOLIO_SCOPE } from '../../scope.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { templateOf, type ReviewDeps } from './deps.js';

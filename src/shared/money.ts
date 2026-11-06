@@ -1,4 +1,4 @@
-import { McpInvalidResponseError } from '../mcp/errors.js';
+import { McpInvalidResponseError } from '../transports/mcp/errors.js';
 
 export interface Money {
   readonly amount: number;

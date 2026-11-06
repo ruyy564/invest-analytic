@@ -1,4 +1,4 @@
-import type { AppConfig } from '../../../config/configuration.js';
+import type { AppConfig } from '../../../platform/config/configuration.js';
 import { createCbrCommoditySource } from './commodity.cbr.js';
 import type { CommoditySource } from './commodity.types.js';
 

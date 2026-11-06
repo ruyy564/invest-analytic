@@ -1,4 +1,4 @@
-﻿import { DISCLAIMER } from '../../../report/portfolio-report.js';
+﻿import { DISCLAIMER } from '../../../capabilities/reports/portfolio-report.js';
 
 /**
  * Инструкции для модели: что и в каком порядке показывать в ответе по портфелю.

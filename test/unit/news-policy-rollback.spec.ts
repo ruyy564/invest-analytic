@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { buildNewsRegistry } from '../../src/news/news.factory.js';
+import { buildNewsRegistry } from '../../src/capabilities/news/news.factory.js';
 import { resetNewsPolicyCache } from '../../src/capabilities/news/index.js';
 
 const RSS = readFileSync('test/fixtures/golden/interfax.rss', 'utf8');

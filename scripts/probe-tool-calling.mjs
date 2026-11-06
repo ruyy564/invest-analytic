@@ -2,7 +2,7 @@ import { GigaChat } from 'langchain-gigachat';
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod/v3';
-import { toolSchemaFrom } from '../src/tools/tool-schema.ts';
+import { toolSchemaFrom } from '../src/transports/mcp/tool-schema.ts';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { RunnableBinding } from '@langchain/core/runnables';
 

@@ -1,13 +1,13 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { withTimeout } from '../../mcp/mcp-tool.adapter.js';
-import { loadTickerAliases } from '../../news/news.aliases.js';
+import { withTimeout } from '../../transports/mcp/mcp-tool.adapter.js';
+import { loadTickerAliases } from '../../capabilities/news/news.aliases.js';
 import { detectScope } from '../scope.js';
 import { CAPABILITIES_PATTERN } from '../nodes/help/capabilities.js';
 import {
   KNOWLEDGE_QUESTION_PATTERN,
   type KnowledgeProvider,
-} from '../../knowledge/index.js';
+} from '../../capabilities/knowledge/index.js';
 import {
   CLASSIFIER_FALLBACK_PROMPT,
   CLASSIFIER_SYSTEM_PROMPT,

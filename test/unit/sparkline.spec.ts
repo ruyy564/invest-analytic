@@ -1,5 +1,5 @@
-import { sparkline, sparklineOf, seriesRange } from '../../src/report/sparkline.js';
-import type { PriceSeries } from '../../src/report/market-facts.js';
+import { sparkline, sparklineOf, seriesRange } from '../../src/capabilities/reports/sparkline.js';
+import type { PriceSeries } from '../../src/capabilities/reports/market-facts.js';
 
 const series = (closes: number[]): PriceSeries => ({
   ticker: 'TEST',

@@ -12,26 +12,27 @@
 
 ```
 src/
-├─ platform/          сквозное: config, логирование, трассировка, шлюз, журнал прогонов
-├─ shared/            чистые утилиты без домена (не «common», не «helpers»)
-├─ capabilities/      вертикальные срезы
-│  ├─ news/
-│  │  ├─ domain/      CanonicalItem, политика (чистые функции)
-│  │  ├─ pipeline/    стадии: policy, dedupe, stage-report
-│  │  ├─ sources/     источники и экстракторы (по файлу на источник)
-│  │  ├─ tools/       фасады для модели (появляются на этапе 5)
-│  │  └─ index.ts     публичный контракт возможности
-│  └─ …               portfolio, instruments, knowledge, market, reports
-├─ agent/             только оркестрация: graph, nodes, services, prompts
-└─ transports/        входы: http (контроллеры), mcp (клиент и адаптер)
+├─ platform/          сквозное: config, state, llm, observability, logging, runs, http
+├─ shared/            чистые утилиты без домена: money, json, parsing
+├─ capabilities/      вертикальные срезы — по одному на сущность
+│  ├─ news/           domain, pipeline, sources, tools (digest, search)
+│  ├─ instruments/    фасады MCP и динамика цены
+│  ├─ knowledge/      темы, сервис знаний, tools
+│  ├─ market/         key-rate, commodities, tools (ставка, металлы)
+│  ├─ portfolio/      счета, снимок портфеля, налоговый дозор
+│  └─ reports/        отчёты: сборка, секции, план и исполнение сбора
+├─ agent/             только оркестрация: graph, nodes, subgraphs, routing, planning
+├─ transports/        входы: http (контроллеры), mcp (клиент и адаптер)
+├─ eval/              схема кейсов, грейдеры, judge
+├─ app.module.ts      корневой модуль
+├─ main.ts            точка входа
+└─ tools.module.ts    композиция тулов: единственное место, где они регистрируются
 ```
 
-Перенос выполнен: `capabilities/news`, `capabilities/instruments`,
-`capabilities/knowledge`, `capabilities/market`, `transports/mcp`,
-`transports/http`, `platform/{logging,runs,http}`, `shared/money`. Старые пути
-(`src/news`, `src/key-rate`, `src/commodities`, `src/mcp`, `src/api`,
-`src/knowledge`, `src/parsing/mappers/money.ts`) оставлены re-export'ами —
-импорты продолжают работать, а код живёт в новом месте.
+Корень `src` — это шесть папок и три файла. Промежуточные re-export'ы удалены:
+все импорты идут по фактическим путям, «старых» дублей больше нет. Если новая
+сущность появляется в разговоре с пользователем — это новая папка в
+`capabilities/`, а не папка в корне.
 
 ## Правила зависимостей
 
@@ -59,13 +60,13 @@ src/
 | Что | Куда | Регистрация | Тест |
 |---|---|---|---|
 | Нода | `agent/nodes/<name>.node.ts` | `graph/build-graph.ts` | `test/unit/<name>.spec.ts` |
-| Тул | `capabilities/<domain>/tools/<name>.tool.ts` | реестр тулов | схема + tool-choice кейс |
-| Источник новостей | `capabilities/news/sources/<id>.ts` | `news/news.factory.ts` | `test/contract/<id>.spec.ts` + golden |
+| Тул | `capabilities/<domain>/tools/<name>/<name>.tool.ts` | `src/tools.module.ts` | схема + tool-choice кейс |
+| Источник новостей | `capabilities/news/sources/<id>.ts` | `capabilities/news/news.factory.ts` | `test/contract/<id>.spec.ts` + golden |
 | Правило релевантности | `data/policy/news.yaml` | — | `test/unit/news-policy.spec.ts` |
 | Тема знаний | `data/knowledge/NN-<id>.yaml` | — | `test/unit/knowledge*.spec.ts` |
-| Секция отчёта | `capabilities/reports/sections/<group>/<id>.section.ts` | шаблон `reports/*.yaml` | `test/unit/<id>.spec.ts` |
+| Секция отчёта | `capabilities/reports/providers/<group>/<id>.provider.ts` | шаблон `reports/*.yaml` | `test/unit/<id>.spec.ts` |
 | Кейс оценки | `test/eval/cases/*.json` | — | `npm run eval` |
-| Сквозная утилита | `platform/<area>/` | `index.ts` | unit |
+| Сквозная утилита | `platform/<area>/` или `shared/` | `index.ts` | unit |
 
 ## Чек-листы
 
@@ -77,7 +78,7 @@ src/
 5. `test/contract/<id>.spec.ts` — число элементов и ключевые поля.
 
 **Инструмент модели**
-1. Сервис в `capabilities/<domain>/services/` — логика без LangChain.
+1. Сервис в `capabilities/<domain>/tools/<name>/<name>.service.ts` — логика без LangChain.
 2. Тул: схема аргументов, описание «когда звать / когда нет».
 3. Регистрация в каталоге тулов.
 4. Snapshot схемы + 3 кейса «должен выбрать» и 3 «не должен».
@@ -99,7 +100,7 @@ src/
 |---|---|
 | Почему новость не про бумагу? | `data/policy/news.yaml` → `capabilities/news/domain/news-policy.ts` |
 | Почему в ответе мусор из ленты? | `test/fixtures/golden` → `capabilities/news/pipeline/stage-report.ts` |
-| Откуда цифра в отчёте? | `report/providers/**` (до переноса) → `capabilities/reports/sections/**` |
+| Откуда цифра в отчёте? | `capabilities/reports/providers/**` + шаблон `reports/*.yaml` |
 | Почему такой маршрут? | `agent/nodes/classify` → `agent/graph/routers.ts` |
 | Почему модель ответила отказом? | `agent/nodes/agent/agent.node.ts` (`REFUSAL`) |
 | Почему запрос требует подтверждения? | `agent/approvals/*` + `agent/nodes/approve` |

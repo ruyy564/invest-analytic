@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AgentModule } from './agent/agent.module.js';
-import { ApiModule } from './api/api.module.js';
-import { ConfigModule } from './config/config.module.js';
-import { LlmModule } from './llm/llm.module.js';
-import { ObservabilityModule } from './observability/observability.module.js';
+import { ApiModule } from './transports/http/api.module.js';
+import { ConfigModule } from './platform/config/config.module.js';
+import { LlmModule } from './platform/llm/llm.module.js';
+import { ObservabilityModule } from './platform/observability/observability.module.js';
 import { LoggingModule } from './platform/logging/index.js';
-import { StateModule } from './state/state.module.js';
-import { ToolsModule } from './tools/tools.module.js';
+import { StateModule } from './platform/state/state.module.js';
+import { ToolsModule } from './tools.module.js';
 
 @Module({
   imports: [

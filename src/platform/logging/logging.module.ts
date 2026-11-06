@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { AppConfigService } from '../../config/app-config.service.js';
+import { AppConfigService } from '../config/app-config.service.js';
 import { APP_LOGGER, createAppLogger } from './pino-logger.js';
 
 /**

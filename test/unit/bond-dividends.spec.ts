@@ -1,8 +1,8 @@
-import { planKey, type CollectionPlan } from '../../src/collection/plan.js';
-import type { CollectionResult } from '../../src/collection/executor.js';
-import type { FactContext } from '../../src/report/engine.js';
-import { bondFactsOf, bondLine } from '../../src/report/providers/securities/bond-facts.js';
-import { dividendsOf, dividendLine } from '../../src/report/providers/securities/shared.js';
+import { planKey, type CollectionPlan } from '../../src/capabilities/reports/collection/plan.js';
+import type { CollectionResult } from '../../src/capabilities/reports/collection/executor.js';
+import type { FactContext } from '../../src/capabilities/reports/engine.js';
+import { bondFactsOf, bondLine } from '../../src/capabilities/reports/providers/securities/bond-facts.js';
+import { dividendsOf, dividendLine } from '../../src/capabilities/reports/providers/securities/shared.js';
 
 const NOW = new Date('2026-11-05T12:00:00Z');
 

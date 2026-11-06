@@ -1,6 +1,6 @@
-import type { AppConfig } from '../../src/config/configuration.js';
-import { buildGigachatParams } from '../../src/llm/providers/gigachat.provider.js';
-import { buildOpenAiParams } from '../../src/llm/providers/openai.provider.js';
+import type { AppConfig } from '../../src/platform/config/configuration.js';
+import { buildGigachatParams } from '../../src/platform/llm/providers/gigachat.provider.js';
+import { buildOpenAiParams } from '../../src/platform/llm/providers/openai.provider.js';
 
 const llmConfig = (overrides: Partial<AppConfig['llm']> = {}): AppConfig['llm'] => ({
   provider: 'openai',

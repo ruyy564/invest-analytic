@@ -1,8 +1,8 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { AppConfigService } from '../../src/config/app-config.service.js';
-import { ConfigError } from '../../src/config/config.error.js';
-import type { AppConfig } from '../../src/config/configuration.js';
-import { LlmRegistry, createProviderMap } from '../../src/llm/llm-registry.js';
+import { AppConfigService } from '../../src/platform/config/app-config.service.js';
+import { ConfigError } from '../../src/platform/config/config.error.js';
+import type { AppConfig } from '../../src/platform/config/configuration.js';
+import { LlmRegistry, createProviderMap } from '../../src/platform/llm/llm-registry.js';
 import { FakeLlmProvider, ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 
 const llmSection = (provider: string): AppConfig['llm'] => ({

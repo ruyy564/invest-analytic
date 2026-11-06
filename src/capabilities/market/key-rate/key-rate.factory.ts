@@ -1,4 +1,4 @@
-import type { AppConfig } from '../../../config/configuration.js';
+import type { AppConfig } from '../../../platform/config/configuration.js';
 import { createCbrSource } from './key-rate.cbr.js';
 import { KeyRateCache } from './key-rate.cache.js';
 import type { KeyRateSource } from './key-rate.types.js';

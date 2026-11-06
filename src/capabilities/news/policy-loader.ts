@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { parseYaml } from '../../parsing/yaml.js';
+import { parseYaml } from '../../shared/parsing/yaml.js';
 import { compileNewsPolicy, type NewsPolicy, type NewsPolicyRaw } from './domain/news-policy.js';
 
 const cache = new Map<string, NewsPolicy>();

@@ -1,7 +1,7 @@
-﻿import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadTickerAliases, matchersFor } from '../../src/news/news.aliases.js';
+import { loadTickerAliases, matchersFor } from '../../src/capabilities/news/news.aliases.js';
 
 const aliasesFile = (content: string): string => {
   const dir = mkdtempSync(join(tmpdir(), 'aliases-'));

@@ -1,7 +1,7 @@
-﻿import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { Logger } from '@nestjs/common';
-import { loadTickerAliases } from '../../../news/news.aliases.js';
-import type { KnowledgeProvider } from '../../../knowledge/index.js';
+import { loadTickerAliases } from '../../../capabilities/news/news.aliases.js';
+import type { KnowledgeProvider } from '../../../capabilities/knowledge/index.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { routeQuestion } from '../../routing/index.js';
 

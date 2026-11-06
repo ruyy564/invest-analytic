@@ -1,11 +1,11 @@
-﻿import {
+import {
   formatChangePct,
   periodChanges,
   seriesByTicker,
   trendWord,
-} from '../../src/report/market-facts.js';
-import { formatNewsDigest } from '../../src/tools/news-digest/news-digest.service.js';
-import type { SourceItem } from '../../src/news/news.types.js';
+} from '../../src/capabilities/reports/market-facts.js';
+import { formatNewsDigest } from '../../src/capabilities/news/tools/news-digest/news-digest.service.js';
+import type { SourceItem } from '../../src/capabilities/news/news.types.js';
 
 const candles = (points: [string, number][]): string =>
   JSON.stringify({

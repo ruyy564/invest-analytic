@@ -1,9 +1,9 @@
-﻿import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
-import { buildReport, composeMarkdown, type ReportBuildResult } from '../../../report/engine.js';
-import { createProviderMap } from '../../../report/providers/index.js';
-import { loadCompanyProfiles } from '../../../report/company-profiles.js';
-import type { PlanEntry } from '../../../collection/plan.js';
+import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { withTimeout } from '../../../transports/mcp/mcp-tool.adapter.js';
+import { buildReport, composeMarkdown, type ReportBuildResult } from '../../../capabilities/reports/engine.js';
+import { createProviderMap } from '../../../capabilities/reports/providers/index.js';
+import { loadCompanyProfiles } from '../../../capabilities/reports/company-profiles.js';
+import type { PlanEntry } from '../../../capabilities/reports/collection/plan.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { templateOf, type ReviewDeps } from './deps.js';
 import { collectionFromState } from './collect.node.js';

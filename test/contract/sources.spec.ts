@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { parseFeed } from '../../src/parsing/feed.js';
-import { mapNews } from '../../src/news/sources/tinkoff.js';
-import { parseRbcQuote } from '../../src/news/sources/rbc-quote.js';
-import { parseTbankResearch } from '../../src/news/sources/tbank-research.js';
+import { parseFeed } from '../../src/shared/parsing/feed.js';
+import { mapNews } from '../../src/capabilities/news/sources/tinkoff.js';
+import { parseRbcQuote } from '../../src/capabilities/news/sources/rbc-quote.js';
+import { parseTbankResearch } from '../../src/capabilities/news/sources/tbank-research.js';
 
 const golden = (name: string): string => readFileSync(`test/fixtures/golden/${name}`, 'utf8');
 

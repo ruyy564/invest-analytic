@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { MemorySaver } from '@langchain/langgraph';
 import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
-import { AppConfigService } from '../../src/config/app-config.service.js';
-import type { AppConfig } from '../../src/config/configuration.js';
-import { createCheckpointer } from '../../src/state/checkpointer.factory.js';
-import { CleanupService } from '../../src/state/cleanup.service.js';
-import { GlobalStoreService } from '../../src/state/global-store.service.js';
+import { AppConfigService } from '../../src/platform/config/app-config.service.js';
+import type { AppConfig } from '../../src/platform/config/configuration.js';
+import { createCheckpointer } from '../../src/platform/state/checkpointer.factory.js';
+import { CleanupService } from '../../src/platform/state/cleanup.service.js';
+import { GlobalStoreService } from '../../src/platform/state/global-store.service.js';
 
 const stateConfig = (overrides: Partial<AppConfig['state']> = {}): AppConfig['state'] => ({
   backend: 'sqlite',

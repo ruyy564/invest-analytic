@@ -8,8 +8,8 @@ import {
   matchesRule,
   validateApprovalRules,
 } from '../../src/agent/approvals/approval-policy.service.js';
-import { AppConfigService } from '../../src/config/app-config.service.js';
-import { ConfigError } from '../../src/config/config.error.js';
+import { AppConfigService } from '../../src/platform/config/app-config.service.js';
+import { ConfigError } from '../../src/platform/config/config.error.js';
 
 const configStub = (
   approvals: Partial<{ ttlMinutes: number; unlisted: 'require' | 'allow'; file: string }> = {},

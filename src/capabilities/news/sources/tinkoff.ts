@@ -1,6 +1,6 @@
 import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
-import { asJson } from '../../../tools/portfolio-snapshot/portfolio-snapshot.service.js';
+import { withTimeout } from '../../../transports/mcp/mcp-tool.adapter.js';
+import { asJson } from '../../../shared/json.js';
 import type { NewsQuery, NewsSourceAdapter, SourceItem, SourceTopic } from '../news.types.js';
 import { isDigestTitle } from '../news.filters.js';
 import type { NewsPolicy } from '../index.js';

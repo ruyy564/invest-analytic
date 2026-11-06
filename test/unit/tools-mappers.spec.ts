@@ -1,9 +1,9 @@
-﻿import { McpInvalidResponseError } from '../../src/mcp/errors.js';
-import { mapInstrument } from '../../src/parsing/mappers/instrument.mapper.js';
-import { normalizeCurrency, parseDecimal, parseMoney } from '../../src/parsing/mappers/money.js';
-import { mapPortfolio } from '../../src/parsing/mappers/portfolio.mapper.js';
-import { mapPositions } from '../../src/parsing/mappers/positions.mapper.js';
-import { mapMarketValues, priceOf } from '../../src/parsing/mappers/market-values.mapper.js';
+import { McpInvalidResponseError } from '../../src/transports/mcp/errors.js';
+import { mapInstrument } from '../../src/shared/parsing/mappers/instrument.mapper.js';
+import { normalizeCurrency, parseDecimal, parseMoney } from '../../src/shared/parsing/mappers/money.js';
+import { mapPortfolio } from '../../src/shared/parsing/mappers/portfolio.mapper.js';
+import { mapPositions } from '../../src/shared/parsing/mappers/positions.mapper.js';
+import { mapMarketValues, priceOf } from '../../src/shared/parsing/mappers/market-values.mapper.js';
 
 const PORTFOLIO = {
   accountId: 'acc-1',

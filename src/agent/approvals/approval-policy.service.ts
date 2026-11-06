@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { Injectable } from '@nestjs/common';
-import { AppConfigService } from '../../config/app-config.service.js';
-import { ConfigError } from '../../config/config.error.js';
-import { isForbiddenTool } from '../../config/env.schema.js';
+import { AppConfigService } from '../../platform/config/app-config.service.js';
+import { ConfigError } from '../../platform/config/config.error.js';
+import { isForbiddenTool } from '../../platform/config/env.schema.js';
 import { APPROVAL_RULES } from './approval-rules.js';
 import {
   approvalRulesFileSchema,

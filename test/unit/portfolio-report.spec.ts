@@ -1,4 +1,4 @@
-﻿import {
+import {
   DATA_SOURCE,
   DISCLAIMER,
   formatAllAccountsReport,
@@ -8,9 +8,9 @@
   formatPortfolioReport,
   formatPosition,
   UNAVAILABLE,
-} from '../../src/report/portfolio-report.js';
+} from '../../src/capabilities/reports/portfolio-report.js';
 import { buildPortfolioReportPrompt } from '../../src/agent/nodes/agent/portfolio-report.prompt.js';
-import type { Portfolio } from '../../src/parsing/mappers/portfolio.mapper.js';
+import type { Portfolio } from '../../src/shared/parsing/mappers/portfolio.mapper.js';
 
 const PORTFOLIO: Portfolio = {
   accountId: 'acc-1',

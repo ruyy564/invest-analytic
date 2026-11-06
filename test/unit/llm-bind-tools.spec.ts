@@ -3,7 +3,7 @@ import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import { RunnableBinding } from '@langchain/core/runnables';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { bindToolsCompat } from '../../src/llm/bind-tools.js';
+import { bindToolsCompat } from '../../src/platform/llm/bind-tools.js';
 
 const demo = tool(async () => 'ok', {
   name: 'demo',

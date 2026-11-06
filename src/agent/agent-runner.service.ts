@@ -5,12 +5,12 @@ import { APP_LOGGER, createAppLogger, runLogger, withLogContext } from '../platf
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { HumanMessage } from '@langchain/core/messages';
 import { Command, type BaseCheckpointSaver } from '@langchain/langgraph';
-import { AppConfigService } from '../config/app-config.service.js';
-import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../llm/llm.module.js';
-import { CHECKPOINTER } from '../state/state.module.js';
-import { McpRegistryService } from '../mcp/mcp-registry.service.js';
-import { resolveDefaultAccount } from '../accounts/resolve-account.js';
-import { withTimeout } from '../mcp/mcp-tool.adapter.js';
+import { AppConfigService } from '../platform/config/app-config.service.js';
+import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../platform/llm/llm.module.js';
+import { CHECKPOINTER } from '../platform/state/state.module.js';
+import { McpRegistryService } from '../transports/mcp/mcp-registry.service.js';
+import { resolveDefaultAccount } from '../capabilities/portfolio/resolve-account.js';
+import { withTimeout } from '../transports/mcp/mcp-tool.adapter.js';
 import {
   ApprovalFlowService,
   type ApproveDecision,
@@ -19,10 +19,10 @@ import { NotAwaitingApprovalError } from './approval.errors.js';
 import { NO_TOOLS_ANSWER } from './nodes/off-topic/prompt.js';
 import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
-import { KnowledgeService } from '../knowledge/index.js';
+import { KnowledgeService } from '../capabilities/knowledge/index.js';
 import type { AgentStateType } from './graph/state.js';
-import { buildTraceUrl, resolveOrgId } from '../observability/run-collector.js';
-import { ReportStoreService } from '../state/report-store.service.js';
+import { buildTraceUrl, resolveOrgId } from '../platform/observability/run-collector.js';
+import { ReportStoreService } from '../platform/state/report-store.service.js';
 import { newsReportOf, reportOf } from './runner/report-builder.js';
 import { RunJournal } from '../platform/runs/index.js';
 import { stopReasonOf, toolsOf, usageOf } from './runner/journal-summary.js';

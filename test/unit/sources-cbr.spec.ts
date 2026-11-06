@@ -1,4 +1,4 @@
-﻿import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -8,9 +8,9 @@ import {
   parseKeyRateXml,
   soapKeyRateEnvelope,
   toHistory,
-} from '../../src/key-rate/key-rate.cbr.js';
-import { KeyRateCache } from '../../src/key-rate/key-rate.cache.js';
-import { collectKeyRate, formatKeyRate } from '../../src/tools/key-rate/key-rate.service.js';
+} from '../../src/capabilities/market/key-rate/key-rate.cbr.js';
+import { KeyRateCache } from '../../src/capabilities/market/key-rate/key-rate.cache.js';
+import { collectKeyRate, formatKeyRate } from '../../src/capabilities/market/tools/key-rate/key-rate.service.js';
 
 const SOAP_XML = `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
 <soap:Body><KeyRateXMLResponse><KeyRateXMLResult>

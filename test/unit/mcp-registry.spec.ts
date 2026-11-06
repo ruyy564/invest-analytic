@@ -1,12 +1,12 @@
-import { AppConfigService } from '../../src/config/app-config.service.js';
-import type { McpServerConfig } from '../../src/config/env.schema.js';
+import { AppConfigService } from '../../src/platform/config/app-config.service.js';
+import type { McpServerConfig } from '../../src/platform/config/env.schema.js';
 import {
   MARKET_DYNAMICS_TOOL,
   McpRegistryService,
   PORTFOLIO_SNAPSHOT_TOOL,
-} from '../../src/mcp/mcp-registry.service.js';
-import { NEWS_DIGEST_TOOL } from '../../src/tools/news-digest/news-digest.service.js';
-import { TAX_WATCH_TOOL } from '../../src/tools/tax-watch/tax-watch.service.js';
+} from '../../src/transports/mcp/mcp-registry.service.js';
+import { NEWS_DIGEST_TOOL } from '../../src/capabilities/news/tools/news-digest/news-digest.service.js';
+import { TAX_WATCH_TOOL } from '../../src/capabilities/portfolio/tools/tax-watch/tax-watch.service.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
 /** Локальные инструменты, которые всегда добавляются к каталогу сервера. */

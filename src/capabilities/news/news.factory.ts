@@ -1,5 +1,5 @@
 import type { DynamicStructuredTool } from '@langchain/core/tools';
-import type { AppConfig } from '../../config/configuration.js';
+import type { AppConfig } from '../../platform/config/configuration.js';
 import { createFeedSource, defaultFetchText, type FeedFormat } from './sources/feed.js';
 import { FEED_DEFAULTS, feedFallbackUrl, feedUrl } from './sources/defaults.js';
 import { NewsRegistry } from './news.registry.js';

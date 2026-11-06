@@ -1,14 +1,14 @@
-﻿import { join } from 'node:path';
-import { ConfigError } from '../../src/config/config.error.js';
-import { buildCollectionPlan, planKey, ANALYTICS_MAX_INSTRUMENTS, CANDLES_MAX_INSTRUMENTS } from '../../src/collection/plan.js';
-import type { CollectionResult } from '../../src/collection/executor.js';
-import { buildReport, composeMarkdown, missingProviders, type FactProvider } from '../../src/report/engine.js';
-import { createProviderMap } from '../../src/report/providers/index.js';
-import { parseYaml } from '../../src/parsing/yaml.js';
-import { loadReportTemplate, parseReportTemplate, templateProviders } from '../../src/report/template.js';
-import { KnowledgeRepository, KnowledgeService } from '../../src/knowledge/index.js';
-import type { AppConfigService } from '../../src/config/app-config.service.js';
-import type { KnowledgeProvider } from '../../src/knowledge/index.js';
+import { join } from 'node:path';
+import { ConfigError } from '../../src/platform/config/config.error.js';
+import { buildCollectionPlan, planKey, ANALYTICS_MAX_INSTRUMENTS, CANDLES_MAX_INSTRUMENTS } from '../../src/capabilities/reports/collection/plan.js';
+import type { CollectionResult } from '../../src/capabilities/reports/collection/executor.js';
+import { buildReport, composeMarkdown, missingProviders, type FactProvider } from '../../src/capabilities/reports/engine.js';
+import { createProviderMap } from '../../src/capabilities/reports/providers/index.js';
+import { parseYaml } from '../../src/shared/parsing/yaml.js';
+import { loadReportTemplate, parseReportTemplate, templateProviders } from '../../src/capabilities/reports/template.js';
+import { KnowledgeRepository, KnowledgeService } from '../../src/capabilities/knowledge/index.js';
+import type { AppConfigService } from '../../src/platform/config/app-config.service.js';
+import type { KnowledgeProvider } from '../../src/capabilities/knowledge/index.js';
 
 const templatePath = join(import.meta.dirname, '..', '..', 'reports', 'portfolio-review.yaml');
 

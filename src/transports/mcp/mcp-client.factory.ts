@@ -1,6 +1,6 @@
 import { Optional } from '@nestjs/common';
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
-import type { McpServerConfig } from '../../config/env.schema.js';
+import type { McpServerConfig } from '../../platform/config/env.schema.js';
 import type { McpClientFactory } from './mcp-registry.service.js';
 import type { McpProxyService } from './mcp-proxy.service.js';
 

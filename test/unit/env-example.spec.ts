@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCALAR_ENV_KEYS } from '../../src/config/env.schema.js';
-import { loadConfiguration } from '../../src/config/configuration.js';
+import { SCALAR_ENV_KEYS } from '../../src/platform/config/env.schema.js';
+import { loadConfiguration } from '../../src/platform/config/configuration.js';
 
 const examplePath = join(import.meta.dirname, '..', '..', '.env.example');
 

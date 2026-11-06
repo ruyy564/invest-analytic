@@ -1,8 +1,8 @@
-import { planKey, type CollectionPlan } from '../../src/collection/plan.js';
-import type { CollectionResult } from '../../src/collection/executor.js';
-import type { FactContext } from '../../src/report/engine.js';
-import { createConclusionProvider } from '../../src/report/providers/securities/conclusion.provider.js';
-import { EMPTY_PROFILES, loadCompanyProfiles } from '../../src/report/company-profiles.js';
+import { planKey, type CollectionPlan } from '../../src/capabilities/reports/collection/plan.js';
+import type { CollectionResult } from '../../src/capabilities/reports/collection/executor.js';
+import type { FactContext } from '../../src/capabilities/reports/engine.js';
+import { createConclusionProvider } from '../../src/capabilities/reports/providers/securities/conclusion.provider.js';
+import { EMPTY_PROFILES, loadCompanyProfiles } from '../../src/capabilities/reports/company-profiles.js';
 
 const profiles = loadCompanyProfiles('data/company-profiles.yaml');
 const NOW = new Date('2026-11-05T12:00:00Z');

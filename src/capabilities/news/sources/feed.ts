@@ -12,7 +12,7 @@ import {
   parseFeed,
   type FeedFormat,
   type FeedMapping,
-} from '../../../parsing/feed.js';
+} from '../../../shared/parsing/feed.js';
 
 export type { FeedFormat, FeedMapping };
 

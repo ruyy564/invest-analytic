@@ -1,13 +1,13 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
-import { bindToolsCompat } from '../../../llm/bind-tools.js';
+import { bindToolsCompat } from '../../../platform/llm/bind-tools.js';
 import { buildAgentSystemPrompt } from './prompt.js';
-import { PORTFOLIO_SNAPSHOT_TOOL } from '../../../mcp/mcp-registry.service.js';
+import { PORTFOLIO_SNAPSHOT_TOOL } from '../../../transports/mcp/mcp-registry.service.js';
 import { reportOfState } from '../../results/index.js';
 import { isDataRefusal } from '../../services/respond.service.js';
 import type { AgentStateType } from '../../graph/state.js';
-import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
+import { withTimeout } from '../../../transports/mcp/mcp-tool.adapter.js';
 
 /** Готовый вызов сводки: тот же инструмент, что выбирает модель. */
 const snapshotCall = (): AIMessage =>

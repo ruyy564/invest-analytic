@@ -1,5 +1,5 @@
-import { ConfigError } from '../../src/config/config.error.js';
-import { loadConfiguration } from '../../src/config/configuration.js';
+import { ConfigError } from '../../src/platform/config/config.error.js';
+import { loadConfiguration } from '../../src/platform/config/configuration.js';
 
 const baseEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
   LLM_PROVIDER: 'openai',

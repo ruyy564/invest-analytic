@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { createFeedSource } from '../../src/news/sources/feed.js';
+import { createFeedSource } from '../../src/capabilities/news/sources/feed.js';
 import { HttpGateway } from '../../src/platform/http/index.js';
 import { loadNewsPolicy, resetNewsPolicyCache } from '../../src/capabilities/news/index.js';
 

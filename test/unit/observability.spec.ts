@@ -1,7 +1,7 @@
-﻿import { jest } from '@jest/globals';
-import { formatLogEntry } from '../../src/observability/logger.js';
-import { maskSecret, redact } from '../../src/observability/redact.js';
-import { buildTraceUrl, resolveOrgId } from '../../src/observability/run-collector.js';
+import { jest } from '@jest/globals';
+import { formatLogEntry } from '../../src/platform/observability/logger.js';
+import { maskSecret, redact } from '../../src/platform/observability/redact.js';
+import { buildTraceUrl, resolveOrgId } from '../../src/platform/observability/run-collector.js';
 
 describe('маскирование секретов', () => {
   it('маскирует Bearer-заголовки и секретные поля', () => {

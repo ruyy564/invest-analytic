@@ -14,7 +14,7 @@ export const INTENTS = [
 ] as const;
 export type Intent = (typeof INTENTS)[number];
 
-/** План сбора в состоянии: сериализуемые записи (см. src/collection/plan.ts). */
+/** План сбора в состоянии: сериализуемые записи (см. src/capabilities/reports/collection/plan.ts). */
 export const PlanEntrySchema = z.object({
   tool: z.string(),
   args: z.record(z.string(), z.unknown()).default({}),

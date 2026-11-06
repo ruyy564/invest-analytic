@@ -1,7 +1,7 @@
-import { createThematicTools } from '../../src/mcp/local-tools.js';
-import { createAllAccountsTool } from '../../src/tools/portfolio-snapshot/portfolio-snapshot.tool.js';
-import { createPriceDynamicsTool } from '../../src/tools/price-dynamics/price-dynamics.tool.js';
-import { NewsRegistry } from '../../src/news/news.registry.js';
+import { createThematicTools } from '../../src/transports/mcp/local-tools.js';
+import { createAllAccountsTool } from '../../src/capabilities/portfolio/tools/portfolio-snapshot/portfolio-snapshot.tool.js';
+import { createPriceDynamicsTool } from '../../src/capabilities/instruments/tools/price-dynamics/price-dynamics.tool.js';
+import { NewsRegistry } from '../../src/capabilities/news/news.registry.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
 const config = { timeoutMs: 100, scanPages: 1, maxItems: 5, taxKeywordsFile: 'data/tax-keywords.yaml' };

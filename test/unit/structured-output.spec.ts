@@ -1,7 +1,7 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { z } from 'zod';
-import { StructuredOutputError, invokeStructured } from '../../src/llm/structured-output.js';
+import { StructuredOutputError, invokeStructured } from '../../src/platform/llm/structured-output.js';
 
 const schema = z.object({ intent: z.enum(['portfolio', 'off_topic']) });
 

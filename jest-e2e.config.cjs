@@ -9,6 +9,7 @@ module.exports = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testRegex: 'test/e2e/.*\\.e2e-spec\\.ts$',
+  setupFiles: ['<rootDir>/test/e2e/setup-env.cjs'],
   testEnvironment: 'node',
   testTimeout: 30000,
   clearMocks: true,

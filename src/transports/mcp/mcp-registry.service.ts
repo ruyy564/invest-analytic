@@ -1,23 +1,23 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { AppConfigService } from '../../config/app-config.service.js';
-import type { McpServerConfig } from '../../config/env.schema.js';
-import { isForbiddenTool } from '../../config/env.schema.js';
+import { AppConfigService } from '../../platform/config/app-config.service.js';
+import type { McpServerConfig } from '../../platform/config/env.schema.js';
+import { isForbiddenTool } from '../../platform/config/env.schema.js';
 import { missingAllowedTools, selectAllowedTools, wrapTool } from './mcp-tool.adapter.js';
-import { buildNewsRegistry } from '../../news/news.factory.js';
-import type { NewsRegistry } from '../../news/news.registry.js';
-import { buildKeyRateSource } from '../../key-rate/key-rate.factory.js';
-import type { KeyRateSource } from '../../key-rate/key-rate.types.js';
-import { buildCommoditySource } from '../../commodities/commodity.factory.js';
-import type { CommoditySource } from '../../commodities/commodity.types.js';
+import { buildNewsRegistry } from '../../capabilities/news/news.factory.js';
+import type { NewsRegistry } from '../../capabilities/news/news.registry.js';
+import { buildKeyRateSource } from '../../capabilities/market/key-rate/key-rate.factory.js';
+import type { KeyRateSource } from '../../capabilities/market/key-rate/key-rate.types.js';
+import { buildCommoditySource } from '../../capabilities/market/commodities/commodity.factory.js';
+import type { CommoditySource } from '../../capabilities/market/commodities/commodity.types.js';
 import { ToolBudget } from './tool-budget.js';
 import { createThematicTools } from './local-tools.js';
 import {
   createAllAccountsTool,
-} from '../../tools/portfolio-snapshot/portfolio-snapshot.tool.js';
+} from '../../capabilities/portfolio/tools/portfolio-snapshot/portfolio-snapshot.tool.js';
 import {
   createPriceDynamicsTool,
-} from '../../tools/price-dynamics/price-dynamics.tool.js';
+} from '../../capabilities/instruments/tools/price-dynamics/price-dynamics.tool.js';
 
 export const MCP_CLIENT_FACTORY = Symbol('MCP_CLIENT_FACTORY');
 /** Локальный инструмент знаний: тонкая обёртка над `KnowledgeService`. */

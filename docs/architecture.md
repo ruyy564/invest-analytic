@@ -22,7 +22,7 @@
    зависимости — через токены (`MCP_TOOLS`, `CHECKPOINTER`, `LLM_ANSWER_MODEL`,
    `REPORT_PROVIDERS`). Фабрики узлов принимают зависимости параметром, а не читают
    глобальное состояние.
-4. **Конфигурация — одна точка.** `process.env` читается только в `src/config`.
+4. **Конфигурация — одна точка.** `process.env` читается только в `src/platform/config`.
    Всё остальное получает типизированный `AppConfigService` (или его срез) параметром.
 5. **Чистые функции для расчётов, адаптеры для I/O.** Движок отчёта, отбор знаний,
    парсер YAML, мапперы — чистые функции без сети и диска: их можно тестировать без
@@ -40,33 +40,34 @@
 
 | Модуль | Ответственность | Экспортирует | Не должен знать |
 |---|---|---|---|
-| `api` | HTTP: контроллеры, DTO, фильтр ошибок | контроллеры | как строится граф и ходят запросы в MCP |
+| `platform/config` | схема env, типизированный конфиг, fail-fast | `AppConfigService` | про домен |
+| `platform/state` | чекпоинтер, хранилище отчётов, глобальные настройки, очистка | `CHECKPOINTER`, `ReportStoreService` | про бизнес-логику |
+| `platform/llm` | реестр провайдеров моделей, bind-tools, structured output | `LlmRegistry`, токены моделей | про домен портфеля |
+| `platform/observability` | структурные логи, редактирование секретов, трейсы | логгер, redact | про домен |
+| `platform/logging`, `platform/runs`, `platform/http` | pino, журнал прогонов, общий HTTP-слой | логгер, `RunJournal`, фильтры | про домен |
+| `shared` | чистые утилиты: деньги, JSON, парсеры и мапперы | `Money`, `asJson`, `parseYaml` | про домен |
+| `capabilities/news` | ленты, фильтры, алиасы, реестр, тулы ленты и поиска | `NewsRegistry`, `createNewsSearchTool` | про агента |
+| `capabilities/market` | ключевая ставка ЦБ и цены металлов + их тулы | `KeyRateSource`, `createKeyRateTool` | про агента |
+| `capabilities/instruments` | фасады MCP и динамика цены | `createInstrumentTools`, `createPriceDynamicsTool` | про агента |
+| `capabilities/knowledge` | каталог тем, отбор, формат ответа, тул | `KnowledgeService`, `createKnowledgeTool` | про агента |
+| `capabilities/portfolio` | счета, снимок портфеля, налоговый дозор | `createAllAccountsTool`, `resolveDefaultAccount` | про агента |
+| `capabilities/reports` | шаблон, движок фактов, провайдеры, рендер, план и исполнение сбора | `buildReport`, `executePlan`, `createProviderMap` | откуда пришли данные |
 | `agent` | граф, узлы, маршрутизация, подтверждения, промпты | `AgentRunnerService`, политику подтверждений | Nest-детали HTTP |
-| `report` | шаблон, движок фактов, провайдеры, рендер | `buildReport`, `createProviderMap` | откуда пришли данные (это знают провайдеры) |
-| `knowledge` | каталог тем, отбор, формат ответа | `KnowledgeService`, `KnowledgeProvider` | как устроен граф |
-| `collection` | план сбора и исполнение (группы, приоритеты) | `buildCollectionPlan`, `executePlan` | как отображается отчёт |
-| `news` | новостные ленты, фильтры, алиасы, реестр | `NewsRegistry`, `NewsSourceAdapter` | про отчёт и граф |
-| `key-rate` | ключевая ставка ЦБ | `KeyRateSource`, `buildKeyRateSource` | про новости и граф |
-| `commodities` | учётные цены металлов ЦБ (сырьевой фактор) | `CommoditySource`, `metalForTicker` | про отчёт, новости и граф |
-| `mcp` | транспорт MCP: реестр, клиент, прокси, адаптер, схемы, бюджет | `McpRegistryService`, `MCP_TOOLS` | про отчёт и узлы |
-| `tools/<tool>` | сами тулы и их подключение | `ToolsModule`, `KNOWLEDGE_TOOL` | про отчёт и граф |
-| `parsing` | разбор ответов MCP и YAML | `parseYaml`, mappers | про домен |
-| `llm` | реестр провайдеров моделей, bind-tools, structured output | `LlmRegistry`, токены моделей | про домен портфеля |
-| `state` | чекпоинтер, хранилище отчётов, глобальные настройки, очистка | `CHECKPOINTER`, `ReportStoreService` | про бизнес-логику |
-| `config` | схема env, типизированный конфиг, fail-fast | `AppConfigService` | про всё остальное |
-| `observability` | структурные логи, редактирование секретов, трейсы | логгер, redact | про домен |
+| `transports/http` | HTTP: контроллеры, DTO, фильтр ошибок | контроллеры | как строится граф и ходят запросы в MCP |
+| `transports/mcp` | транспорт MCP: реестр, клиент, прокси, адаптер, схемы, бюджет | `McpRegistryService`, `MCP_TOOLS` | про отчёт и узлы |
+| `eval` | схема кейсов, грейдеры, judge | `runCase`, `gradeByCodes` | про Nest и граф |
 
 ## 3. Правила зависимостей
 
-- Разрешённые импорты: `api → agent, state`; `agent → report, collection, news, tools, mcp,
-  llm, state, knowledge, config`; `report → collection, knowledge, config`;
-  `tools → mcp, news, key-rate, knowledge, config`; `news, key-rate → config`.
-- Запрещены: `news → agent`, `key-rate → agent`, `tools → agent`, `report → agent`,
-  `knowledge → agent`, `config → что-либо, кроме node`.
+- Разрешённые импорты: `transports → agent, platform`; `agent → capabilities/*/index.ts, platform, shared`;
+  `capabilities/x → platform, shared, capabilities/y/index.ts`; `platform → shared`; `shared → ничего, кроме node`.
+- Запрещены: `capabilities → agent`, `platform → capabilities`, `platform/shared → agent`,
+  импорт внутренних файлов чужой возможности (только `index.ts`).
 - Циклические зависимости запрещены. Если появляется соблазн «просто импортировать
   тип» — выносите контракт в отдельный модуль-контракт (`types.ts`, `*.interface.ts`).
 - Общий тип между слоями (`CoverageEntry`, `SourceItem`, `FactContext`) живёт там,
   где он рождён, и импортируется как `import type` — без side-effect.
+- Правила проверяет `test/unit/architecture.spec.ts`: нарушение ломает сборку.
 
 ## 4. Раскладка по файлам (Nest + LangGraph)
 
@@ -78,57 +79,66 @@
 src/
   main.ts                     точка входа: bootstrap Nest, порт, shutdown hooks
   app.module.ts               корневой модуль: собирает feature-модули
+  tools.module.ts             композиция тулов: единственное место регистрации
 
-  api/                        HTTP-слой (только транспорт)
-    api.module.ts             контроллеры + глобальный фильтр ошибок
-    controllers/              agent, health, reports
-    dto/, filters/
+  platform/                   сквозная инфраструктура, домен сюда не импортируется
+    config/                   схема env, типизированный конфиг, fail-fast
+      env.schema.ts           публичный API схемы (фасад)
+      app-config.types.ts     типы AppConfig (секции конфигурации)
+      env/{constants,helpers,scalar,mcp}.ts  секции схемы и разбор MCP-серверов
+    state/                    чекпоинтер, хранилище отчётов, глобальные настройки, очистка
+    llm/                      реестр провайдеров, bind-tools, structured output
+    observability/            структурные логи, редактирование секретов
+    logging/, runs/, http/    pino, журнал прогонов, общий HTTP-слой
+    index.ts                  агрегатор публичной части платформы
+
+  shared/                     чистые утилиты без домена
+    money.ts, json.ts         деньги и разбор ответов MCP
+    parsing/                  mappers/, yaml.ts, feed.ts (RSS/Atom/JSON), html.ts (SSR-JSON)
+
+  capabilities/               вертикальные срезы: одна папка — одна сущность
+    news/                     новости: реестр, фильтры, алиасы, источники
+      domain/, pipeline/, sources/{defaults,feed,smartlab-tag,tinkoff,rbc-quote,tbank-research}.ts
+      tools/news-digest/, tools/news-search.tool.ts
+    market/                   ключевая ставка ЦБ и цены металлов
+      key-rate/, commodities/, tools/{key-rate,commodity}/
+    instruments/              фасады MCP и динамика цены
+      tools/{facade,instruments.tools,price-dynamics}/
+    knowledge/                знания: сервис, репозиторий, отбор, формат, схема
+      tools/knowledge/knowledge.tool.ts
+    portfolio/                счета, снимок портфеля, налоговый дозор
+      resolve-account.ts, tools/{portfolio-snapshot,tax-watch}/
+    reports/                  отчёт: шаблон, движок, провайдеры, рендер, compose
+      engine.ts               сборка фактов по секциям
+      engine.types.ts         контракты движка (факты, провайдеры, результат)
+      section-sectors.ts      секторы для базы знаний по секциям
+      sparkline.ts            спарклайн цены для карточки бумаги и таблицы
+      company-profiles.ts     драйверы секторов и профили «экспортёр / внутренний рынок»
+      compose.ts              итоговый markdown
+      portfolio-report.ts     рендер сводки по счетам и дисклеймеры
+      format.ts, position-format.ts  форматтеры чисел, денег и строк позиций
+      providers/portfolio/    по файлу на секцию: table, structure, exposure, concentration, gaps
+      providers/securities/   detail, opinions, bond-facts (категория и купон облигации)
+      collection/             план и исполнение сбора фактов
 
   agent/                      оркестрация диалога
     agent.module.ts           модуль графа
     agent-runner.service.ts   прогон: run / approve / отчёт
     runner/{runner.types,runner.helpers,report-builder}.ts  типы, состояние, отчёт прогона
     agent-runtime.ts, agent.server.ts  сборка графа вне Nest (Studio)
+    routing/, planning/, results/, services/  guard, router, план, контракт результата
     approvals/                правила подтверждений
     graph/                    state, routers, build-graph
+    subgraphs/review/         план → подтверждение → сбор → отчёт одним узлом
     nodes/<node>/             узел + его промпт + index.ts (точка входа фичи)
-      classify/{classify.node.ts,prompt.ts,index.ts}
-      agent/{agent.node.ts,prompt.ts,portfolio-report.prompt.ts,index.ts}
-      approve/, off-topic/, help/, knowledge/, news/
-      review/{plan.node.ts,collect.node.ts,report.node.ts,deps.ts,instruments.ts,interpretation.ts,index.ts}
 
-  knowledge/                  знания: сервис, репозиторий, отбор, формат, схема
-  report/                     отчёт: шаблон, движок, провайдеры, рендер, compose
-    engine.ts                 сборка фактов по секциям
-    engine.types.ts           контракты движка (факты, провайдеры, результат)
-    section-sectors.ts        секторы для базы знаний по секциям
-    sparkline.ts              спарклайн цены для карточки бумаги и таблицы
-    company-profiles.ts       драйверы секторов и профили «экспортёр / внутренний рынок»
-    compose.ts                итоговый markdown
-    portfolio-report.ts       рендер сводки по счетам и дисклеймеры
-    format.ts, position-format.ts  форматтеры чисел, денег и строк позиций
-    providers/portfolio/      по файлу на секцию: table, structure, exposure, concentration, gaps
-      holdings.ts, sectors.ts  общие расчёты позиций и секторов
-    providers/securities/     detail, opinions, bond-facts (категория и купон облигации)
-  collection/                 план и исполнение сбора
-  news/                       новости: реестр, фильтры, алиасы, источники
-    news.types.ts, news.registry.ts, news.factory.ts, news.filters.ts, news.aliases.ts
-    sources/{defaults,feed,smartlab-tag,tinkoff,rbc-quote,tbank-research}.ts
-  key-rate/                   ключевая ставка ЦБ: типы, источник, разбор, кэш, фабрика
-  commodities/                цены металлов ЦБ: типы, XML-разбор, карта «тикер → металл», фабрика
-  parsing/                    парсинг: mappers/, yaml.ts, feed.ts (RSS/Atom/JSON), html.ts (SSR-JSON)
-  config/                     схема env и типизированный конфиг
-    env.schema.ts             публичный API схемы (фасад)
-    app-config.types.ts       типы AppConfig (секции конфигурации)
-    env/{constants,helpers,scalar,mcp}.ts  секции схемы и разбор MCP-серверов
-  mcp/                        инфраструктура MCP: реестр, клиент, прокси, адаптер, схемы, бюджет
-    local-tools.ts            сборка локальных тулов из их папок
-    proxy-upstream.ts         соединение с MCP-сервером, TLS и корневые CA
-  tools/<tool>/               сами тулы: commodity, key-rate, knowledge, news-digest, portfolio-snapshot, price-dynamics, tax-watch
-    <tool>.tool.ts            обёртка: схема, описание, вызов сервиса (15–60 строк)
-    <tool>.service.ts         сбор, расчёт и форматирование
-  accounts/                   счёт по умолчанию
-  llm/, state/, observability/, config/
+  transports/
+    http/                     api.module.ts, controllers/{agent,health,reports}, dto/, filters/
+    mcp/                      реестр, клиент, прокси, адаптер, схемы, бюджет
+      local-tools.ts          сборка локальных тулов из папок возможностей
+      proxy-upstream.ts       соединение с MCP-сервером, TLS и корневые CA
+
+  eval/                       схема кейсов, грейдеры, LLM-judge
 ```
 
 Почему часть папок вне `src`:
@@ -158,36 +168,36 @@ src/
 | Вопрос | Файл |
 |---|---|
 | Точка входа приложения | `src/main.ts` → `src/app.module.ts` |
-| HTTP-контроллер | `src/api/controllers/<name>.controller.ts` |
+| HTTP-контроллер | `src/transports/http/controllers/<name>.controller.ts` |
 | Маршруты графа | `src/agent/graph/{build-graph,routers}.ts` |
 | Состояние прогона | `src/agent/graph/state.ts` |
 | Логика узла | `src/agent/nodes/<node>/<node>.node.ts` |
 | Промпт узла | `src/agent/nodes/<node>/prompt.ts` |
-| Логика знаний | `src/knowledge/knowledge.service.ts` |
-| Чтение файлов знаний | `src/knowledge/knowledge.repository.ts` |
-| Сам тул | `src/tools/<tool>/<tool>.tool.ts` |
-| Подключение тулов | `src/tools/tools.module.ts` |
-| Новости: реестр и фильтры | `src/news/{news.registry,news.filters}.ts` |
-| Новости: ленты | `src/news/sources/*` |
-| Ключевая ставка | `src/key-rate/key-rate.cbr.ts` |
-| Профили секторов и компаний | `src/report/company-profiles.ts` + `data/company-profiles.yaml` |
-| Облигации: категория и купон | `src/report/providers/securities/bond-facts.ts` |
-| График цены | `src/report/sparkline.ts` |
-| Внешнеэкономический профиль портфеля | `src/report/providers/portfolio/exposure.provider.ts` |
-| Справочный блок отчёта из базы знаний | `src/knowledge/knowledge.service.ts` (`promptBlock`) |
+| Логика знаний | `src/capabilities/knowledge/knowledge.service.ts` |
+| Чтение файлов знаний | `src/capabilities/knowledge/knowledge.repository.ts` |
+| Сам тул | `src/capabilities/<domain>/tools/<tool>/<tool>.tool.ts` |
+| Подключение тулов | `src/tools.module.ts` |
+| Новости: реестр и фильтры | `src/capabilities/news/{news.registry,news.filters}.ts` |
+| Новости: ленты | `src/capabilities/news/sources/*` |
+| Ключевая ставка | `src/capabilities/market/key-rate/key-rate.cbr.ts` |
+| Профили секторов и компаний | `src/capabilities/reports/company-profiles.ts` + `data/company-profiles.yaml` |
+| Облигации: категория и купон | `src/capabilities/reports/providers/securities/bond-facts.ts` |
+| График цены | `src/capabilities/reports/sparkline.ts` |
+| Внешнеэкономический профиль портфеля | `src/capabilities/reports/providers/portfolio/exposure.provider.ts` |
+| Справочный блок отчёта из базы знаний | `src/capabilities/knowledge/knowledge.service.ts` (`promptBlock`) |
 | Маршрутизация вопросов «стоит ли покупать» | `src/agent/nodes/classify/prompt.ts` (`DECISION_PATTERN`) |
 | Корзина диалогов и эталонные ответы | `test/fixtures/dialogues.json`, `docs/dialogues.md` |
-| MCP: реестр и discovery | `src/mcp/mcp-registry.service.ts` |
-| MCP: подключение и прокси | `src/mcp/{mcp-client.factory,mcp-proxy.service}.ts` |
-| Парсинг ответов MCP | `src/parsing/mappers/*` |
-| Парсинг YAML | `src/parsing/yaml.ts` |
-| Расчёты отчёта | `src/report/{engine.ts,compose.ts,providers/*}` |
-| Секции портфеля | `src/report/providers/portfolio/{table,structure,concentration,gaps}.provider.ts` |
-| Секции бумаг | `src/report/providers/securities/{detail,opinions}.provider.ts` |
-| Схема окружения по секциям | `src/config/env/{constants,helpers,scalar,mcp}.ts` |
-| Локальные тулы MCP | `src/mcp/local-tools.ts` |
-| Парсинг лент | `src/parsing/feed.ts` |
-| Парсинг HTML-страниц (SSR-JSON) | `src/parsing/html.ts` |
+| MCP: реестр и discovery | `src/transports/mcp/mcp-registry.service.ts` |
+| MCP: подключение и прокси | `src/transports/mcp/{mcp-client.factory,mcp-proxy.service}.ts` |
+| Парсинг ответов MCP | `src/shared/parsing/mappers/*` |
+| Парсинг YAML | `src/shared/parsing/yaml.ts` |
+| Расчёты отчёта | `src/capabilities/reports/{engine.ts,compose.ts,providers/*}` |
+| Секции портфеля | `src/capabilities/reports/providers/portfolio/{table,structure,concentration,gaps}.provider.ts` |
+| Секции бумаг | `src/capabilities/reports/providers/securities/{detail,opinions}.provider.ts` |
+| Схема окружения по секциям | `src/platform/config/env/{constants,helpers,scalar,mcp}.ts` |
+| Локальные тулы MCP | `src/transports/mcp/local-tools.ts` |
+| Парсинг лент | `src/shared/parsing/feed.ts` |
+| Парсинг HTML-страниц (SSR-JSON) | `src/shared/parsing/html.ts` |
 | Шаблон отчёта | `reports/portfolio-review.yaml` |
 | Темы знаний | `data/knowledge/*.yaml` |
 | Правила подтверждений | `src/agent/approvals/approval-rules.ts` |
@@ -239,7 +249,7 @@ MCP — это транспорт и каталог, а не место для �
 5. **Ленивая инициализация и явное состояние.** Discovery при первом обращении,
    статусы серверов доступны health-проверке; автоповтор discovery — по явному вызову.
 6. **Секреты не логируются.** Токен уходит в заголовок или прокси, но не в текст ошибки;
-   редактирование — в `observability/redact.ts`.
+   редактирование — в `platform/observability/redact.ts`.
 7. **Версионирование.** Смена схемы инструмента — событие совместимости: allowlist и
    промпты могут отстать. Обновление каталога проверяется тестом и логом о пропавших
    инструментах.
@@ -357,7 +367,7 @@ MCP — это транспорт и каталог, а не место для �
 ## 12. Чек-лист ревью
 
 - [ ] зависимость идёт по разрешённому направлению, цикла нет;
-- [ ] `process.env` не появился вне `src/config`;
+- [ ] `process.env` не появился вне `src/platform/config`;
 - [ ] I/O вынесен в адаптер/репозиторий, бизнес-функция осталась чистой;
 - [ ] новая сущность зарегистрирована в реестре и видна на старте (ошибка конфигурации — fail-fast);
 - [ ] схема аргументов/состояния/данных описана и провалидирована;

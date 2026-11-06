@@ -8,8 +8,8 @@ import {
   releaseExtraCa,
   trustExtraCa,
 } from './proxy-upstream.js';
-import { AppConfigService } from '../../config/app-config.service.js';
-import type { McpServerConfig } from '../../config/env.schema.js';
+import { AppConfigService } from '../../platform/config/app-config.service.js';
+import type { McpServerConfig } from '../../platform/config/env.schema.js';
 
 /**
  * Локальный MCP-прокси: говорит с T-Invest MCP по официальному протоколу

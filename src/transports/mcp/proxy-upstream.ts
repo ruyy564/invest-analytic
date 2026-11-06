@@ -4,7 +4,7 @@ import { Agent as HttpsAgent, request as httpsRequest } from 'node:https';
 import { getCACertificates, setDefaultCACertificates } from 'node:tls';
 import type { Readable } from 'node:stream';
 import { z } from 'zod';
-import type { McpServerConfig } from '../../config/env.schema.js';
+import type { McpServerConfig } from '../../platform/config/env.schema.js';
 
 export interface UpstreamResponse {
   status: number;

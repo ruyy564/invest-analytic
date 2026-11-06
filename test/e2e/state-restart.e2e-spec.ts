@@ -1,12 +1,12 @@
-﻿import { mkdtempSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Test } from '@nestjs/testing';
 import { AIMessage } from '@langchain/core/messages';
 import { AppModule } from '../../src/app.module.js';
 import { AgentRunnerService } from '../../src/agent/agent-runner.service.js';
-import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../../src/llm/llm.module.js';
-import { MCP_CLIENT_FACTORY } from '../../src/mcp/mcp-registry.service.js';
+import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../../src/platform/llm/llm.module.js';
+import { MCP_CLIENT_FACTORY } from '../../src/transports/mcp/mcp-registry.service.js';
 import { ScriptedChatModel } from '../fixtures/fake-chat-model.js';
 import { e2eToolCatalog, E2E_ALLOWED_TOOLS } from '../fixtures/e2e-catalog.js';
 

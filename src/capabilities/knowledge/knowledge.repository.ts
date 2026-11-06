@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import { AppConfigService } from '../../config/app-config.service.js';
-import { parseYaml } from '../../parsing/yaml.js';
+import { AppConfigService } from '../../platform/config/app-config.service.js';
+import { parseYaml } from '../../shared/parsing/yaml.js';
 import { EMPTY_KNOWLEDGE, KnowledgeFileSchema, type KnowledgeData, type KnowledgeTopic } from './knowledge.types.js';
 
 /**

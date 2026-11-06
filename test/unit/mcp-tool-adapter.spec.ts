@@ -1,16 +1,16 @@
-﻿import {
+import {
   McpUnauthorizedError,
   RunBudgetExceededError,
   mapMcpError,
-} from '../../src/mcp/errors.js';
+} from '../../src/transports/mcp/errors.js';
 import {
   missingAllowedTools,
   namespaceTool,
   selectAllowedTools,
   wrapTool,
-} from '../../src/mcp/mcp-tool.adapter.js';
-import { ToolBudget } from '../../src/mcp/tool-budget.js';
-import { toolSchemaFrom, toZodV3 } from '../../src/mcp/tool-schema.js';
+} from '../../src/transports/mcp/mcp-tool.adapter.js';
+import { ToolBudget } from '../../src/transports/mcp/tool-budget.js';
+import { toolSchemaFrom, toZodV3 } from '../../src/transports/mcp/tool-schema.js';
 import { fakeTool } from '../fixtures/fake-mcp-tools.js';
 
 describe('JSON Schema -> zod 3', () => {

@@ -353,11 +353,12 @@ curl -s "http://localhost:3000/api/v1/reports/<reportId>?format=html"  # для 
 src/
   main.ts                 точка входа: Nest, префикс /api/v1, порт
   app.module.ts           сборка feature-модулей
-  api/                    HTTP: controllers (agent, health, reports), dto, filters
+  tools.module.ts         композиция тулов: единственное место регистрации
   agent/                  граф и узлы
     agent-runner.service.ts   run / stream / cancel / approve / отчёт
     graph/                    state, routers, build-graph
-    nodes/<node>/             узел + промпт рядом (classify, agent, review, news, help, knowledge)
+    subgraphs/review/         план → подтверждение → сбор → отчёт одним узлом
+    nodes/<node>/             узел и промпт рядом (classify, agent, news, help, knowledge)
     routing/                  guard → правила → модель → безопасный вариант
     planning/                 каталог возможностей и планировщик с фолбэком
     results/                  типизированный результат узла (report / analysis / facts)
@@ -365,62 +366,36 @@ src/
     runner/                   события прогона, журнал, лимиты
     approvals/                правила подтверждений
     scope.ts                  «портфель / счёт / бумага» по вопросу
-  platform/               сквозное: config-free утилиты нижнего слоя
+  platform/               сквозная инфраструктура: домен сюда не импортируется
+    config/                   zod-схема env, типизированный конфиг, fail-fast
+    state/                    чекпоинтер, хранилище отчётов, глобальные настройки, очистка
+    llm/                      реестр провайдеров, bind-tools, structured output
+    observability/            структурные логи, маскирование секретов
     logging/                  pino, контекст прогона, маскирование секретов
     runs/                     журнал прогонов (JSONL), воспроизведение, метрики
     http/                     шлюз внешних запросов: таймаут, повторы, кэш
-  capabilities/           вертикальные срезы
+  shared/                 чистые утилиты: money.ts, json.ts, parsing/ (mappers, yaml, feed, html)
+  capabilities/           вертикальные срезы — одна папка на сущность
     news/                     домен (CanonicalItem, политика), конвейер, источники, tools
-    instruments/              фасады бумаг (find / prices / candles / forecast / dividends / meta)
+    instruments/              фасады бумаг, динамика цены
+    knowledge/                база знаний: репозиторий, отбор тем, формат ответа, тул
+    market/                   ставка ЦБ, цены металлов, их тулы
+    portfolio/                счета, снимок портфеля, налоговый дозор
+    reports/                  отчёт: шаблон, движок фактов, провайдеры, рендер, сбор фактов
+  transports/
+    http/                     controllers (agent, health, reports), dto, filters
+    mcp/                      реестр, прокси, адаптер, схемы, бюджет
   eval/                   кейсы, грейдеры, агрегаты, судья по рубрике
-  collection/             план сбора данных и его исполнение (группы, приоритеты, бюджет)
-  report/                 отчёт: шаблон, движок фактов, провайдеры, рендер
-    engine.ts               сборка фактов по секциям
-    compose.ts              итоговый markdown (шапка с датой данных)
-    sparkline.ts            график-спарклайн из свечей
-    company-profiles.ts     драйверы секторов и профили «экспортёр / внутренний рынок»
-    providers/portfolio/    table, structure, exposure, concentration, gaps
-    providers/securities/   detail, opinions, bond-facts
-  news/                   ленты, фильтры, алиасы, реестр источников
-    sources/                RSS (Ведомости, Коммерсантъ, ТАСС, Финам, РБК, Интерфакс,
-                            smart-lab) + HTML-страницы rbc-quote и tbank-research
-  key-rate/               ключевая ставка ЦБ (SOAP → кэш → сид → HTML)
-  commodities/            учётные цены металлов ЦБ (золото, серебро, платина, палладий)
-  knowledge/              база знаний: репозиторий, отбор тем, формат ответа
-  mcp/                    транспорт MCP: реестр, прокси, адаптер, схемы, бюджет
-  tools/<tool>/           инструменты для модели: <tool>.tool.ts (схема) + <tool>.service.ts
-  llm/                    реестр провайдеров, bind-tools, structured output
-  state/                  чекпоинтер, хранилище отчётов, глобальные настройки, очистка
-  config/                 zod-схема env, типизированный конфиг, fail-fast
-  parsing/                разбор ответов MCP, YAML и лент (mappers/, yaml.ts, feed.ts, html.ts)
-  observability/          структурные логи, маскирование секретов, трейсы
-
-data/
-  knowledge/*.yaml        база знаний: 17 файлов-тем (файл = тема)
-  company-profiles.yaml   драйверы секторов и профили компаний
-  ticker-aliases.yaml     алиасы эмитентов для поиска новостей
-  tax-keywords.yaml       словарь налоговых терминов
-  key-rate-seed.json      офлайн-сид ключевой ставки
-
-reports/
-  portfolio-review.yaml   шаблон отчёта: секции, порядок, пороги, темы знаний
-  prompts/interpretation.md  промпт для разделов, которые пишет модель
-
-docs/                     архитектура, API, MCP, источники, знания, отчёты, состояние
-scripts/                  смок-тесты и утилиты (smoke:mcp, fetch-mcp-ca, studio-check, db-info)
-test/                     unit (Jest) и e2e (граф, HTTP, MCP, рестарт состояния)
-certs/                    CA для T-Invest MCP (.gitignore)
-.state/                   SQLite состояния и отчётов (.gitignore)
 ```
 
 Куда смотреть по задаче:
 
 | Задача | Файл |
 |---|---|
-| Добавить инструмент для модели | `src/tools/<tool>/` + `src/mcp/local-tools.ts` |
+| Добавить инструмент для модели | `src/capabilities/<domain>/tools/<tool>/` + `src/transports/mcp/local-tools.ts` |
 | Подключить MCP-сервер | `.env` (`MCP_SERVERS`, `MCP_<NAME>_*`), `docs/mcp.md` |
-| Добавить источник новостей | `src/news/sources/` + `NEWS_SOURCES` |
-| Добавить секцию отчёта | `reports/portfolio-review.yaml` + провайдер в `src/report/providers/` |
+| Добавить источник новостей | `src/capabilities/news/sources/` + `NEWS_SOURCES` |
+| Добавить секцию отчёта | `reports/portfolio-review.yaml` + провайдер в `src/capabilities/reports/providers/` |
 | Изменить порядок или пороги отчёта | только `reports/portfolio-review.yaml` |
 | Добавить тему знаний | `data/knowledge/NN-<id>.yaml`, формат — `docs/knowledge.md` |
 | Поправить драйверы сектора или профиль компании | `data/company-profiles.yaml` |
@@ -436,7 +411,7 @@ certs/                    CA для T-Invest MCP (.gitignore)
 ## Конфигурация
 
 Все переменные читаются один раз при старте и проверяются zod-схемой
-(`src/config/env/`). Некорректная конфигурация — падение с перечнем **всех** проблемных
+(`src/platform/config/env/`). Некорректная конфигурация — падение с перечнем **всех** проблемных
 переменных; значения секретов в вывод не попадают. Полный список — в
 [`.env.example`](.env.example).
 

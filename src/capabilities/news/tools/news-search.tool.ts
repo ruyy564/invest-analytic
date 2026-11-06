@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
-import { toZodV3 } from '../../../mcp/tool-schema.js';
-import { collectNewsDigest } from '../../../tools/news-digest/news-digest.service.js';
-import type { NewsRegistry } from '../../../news/news.registry.js';
+import { toZodV3 } from '../../../transports/mcp/tool-schema.js';
+import { collectNewsDigest } from './news-digest/news-digest.service.js';
+import type { NewsRegistry } from '../../../capabilities/news/news.registry.js';
 
 /** Имя фасада новостей: один инструмент на все источники. */
 export const NEWS_SEARCH_TOOL = 'news__search';

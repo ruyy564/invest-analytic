@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AppConfigService } from '../config/app-config.service.js';
+import { AppConfigService } from '../platform/config/app-config.service.js';
 import { ApprovalExpiredError } from './approval.errors.js';
 import type { ApprovalRule } from './approvals/approval-rules.schema.js';
 

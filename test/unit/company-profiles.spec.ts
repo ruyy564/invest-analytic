@@ -8,7 +8,7 @@ import {
   parseCompanyProfiles,
   sectorProfileOf,
   sensitivityWord,
-} from '../../src/report/company-profiles.js';
+} from '../../src/capabilities/reports/company-profiles.js';
 
 const FILE = parseCompanyProfiles({
   version: 1,

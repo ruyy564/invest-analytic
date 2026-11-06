@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { AgentModule } from '../../agent/agent.module.js';
-import { StateModule } from '../../state/state.module.js';
-import { ToolsModule } from '../../tools/tools.module.js';
+import { StateModule } from '../../platform/state/state.module.js';
+import { ToolsModule } from '../../tools.module.js';
 import { AgentController } from './controllers/agent.controller.js';
 import { HttpExceptionFilter } from './filters/http-exception.filter.js';
 import { HealthController } from './controllers/health.controller.js';

@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
-import { toZodV3 } from '../../../mcp/tool-schema.js';
-import { mapMarketValues } from '../../../parsing/mappers/market-values.mapper.js';
+import { toZodV3 } from '../../../transports/mcp/tool-schema.js';
+import { mapMarketValues } from '../../../shared/parsing/mappers/market-values.mapper.js';
 import { invokeTool, resolveInstrumentId, summarizeFields, type ToolLookup } from './facade.js';
 
 /** Фасады инструментов: шесть доменных операций вместо десятков вызовов брокера. */

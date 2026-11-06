@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module.js';
-import { AppConfigService } from '../../src/config/app-config.service.js';
+import { AppConfigService } from '../../src/platform/config/app-config.service.js';
 
 const TEST_ENV: NodeJS.ProcessEnv = {
   LLM_PROVIDER: 'openai',

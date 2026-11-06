@@ -1,12 +1,12 @@
-﻿import { createFeedSource, parseFeed } from '../../src/news/sources/feed.js';
-import { stripMarkup } from '../../src/parsing/feed.js';
-import { FEED_DEFAULTS, feedUrl } from '../../src/news/sources/defaults.js';
-import { createSmartLabTagSource } from '../../src/news/sources/smartlab-tag.js';
-import { isDigestTitle } from '../../src/news/news.filters.js';
-import { dedupeKey, mergeNews, NewsRegistry } from '../../src/news/news.registry.js';
-import type { NewsSourceAdapter, SourceItem } from '../../src/news/news.types.js';
-import { mapNews } from '../../src/news/sources/tinkoff.js';
-import { collectNewsDigest, formatNewsDigest } from '../../src/tools/news-digest/news-digest.service.js';
+import { createFeedSource, parseFeed } from '../../src/capabilities/news/sources/feed.js';
+import { stripMarkup } from '../../src/shared/parsing/feed.js';
+import { FEED_DEFAULTS, feedUrl } from '../../src/capabilities/news/sources/defaults.js';
+import { createSmartLabTagSource } from '../../src/capabilities/news/sources/smartlab-tag.js';
+import { isDigestTitle } from '../../src/capabilities/news/news.filters.js';
+import { dedupeKey, mergeNews, NewsRegistry } from '../../src/capabilities/news/news.registry.js';
+import type { NewsSourceAdapter, SourceItem } from '../../src/capabilities/news/news.types.js';
+import { mapNews } from '../../src/capabilities/news/sources/tinkoff.js';
+import { collectNewsDigest, formatNewsDigest } from '../../src/capabilities/news/tools/news-digest/news-digest.service.js';
 
 const RSS = `<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel>
 <item><title>Сбербанк отчитался за квартал</title><link>https://a/1</link>

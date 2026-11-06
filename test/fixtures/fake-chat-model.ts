@@ -2,7 +2,7 @@ import type { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage, type BaseMessage } from '@langchain/core/messages';
 import type { ChatResult } from '@langchain/core/outputs';
-import type { LlmRole } from '../../src/llm/llm-provider.interface.js';
+import type { LlmRole } from '../../src/platform/llm/llm-provider.interface.js';
 
 /** Один шаг сценария: текст ответа или готовое сообщение с `tool_calls`. */
 export type ScriptedStep = string | AIMessage;

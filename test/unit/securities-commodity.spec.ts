@@ -1,8 +1,8 @@
-import { planKey, type CollectionPlan } from '../../src/collection/plan.js';
-import type { CollectionResult } from '../../src/collection/executor.js';
-import type { FactContext } from '../../src/report/engine.js';
-import { securitiesProvider } from '../../src/report/providers/securities/detail.provider.js';
-import { tableProvider } from '../../src/report/providers/portfolio/table.provider.js';
+import { planKey, type CollectionPlan } from '../../src/capabilities/reports/collection/plan.js';
+import type { CollectionResult } from '../../src/capabilities/reports/collection/executor.js';
+import type { FactContext } from '../../src/capabilities/reports/engine.js';
+import { securitiesProvider } from '../../src/capabilities/reports/providers/securities/detail.provider.js';
+import { tableProvider } from '../../src/capabilities/reports/providers/portfolio/table.provider.js';
 
 const POSITIONS = JSON.stringify({
   securities: [{ balance: '10', ticker: 'PLZL', classCode: 'TQBR', instrumentUid: 'uid-plzl' }],

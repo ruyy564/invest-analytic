@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { GigaChat } from 'langchain-gigachat';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { invokeStructured } from '../src/llm/structured-output.ts';
+import { invokeStructured } from '../src/platform/llm/structured-output.ts';
 import { INTENT_SCHEMA, parseIntentText, CLASSIFIER_SYSTEM_PROMPT, CLASSIFIER_FALLBACK_PROMPT } from '../src/agent/prompts/classifier.prompt.ts';
 import { PORTFOLIO_SCOPE_PROMPT } from '../src/agent/prompts/off-topic.ts';
 

@@ -1,10 +1,10 @@
 import { join } from 'node:path';
-import { buildCollectionPlan, planKey } from '../../src/collection/plan.js';
-import { assetEntries, brandEntries, shareEntries } from '../../src/collection/reference.js';
-import { buildReport } from '../../src/report/engine.js';
-import { createProviderMap } from '../../src/report/providers/index.js';
-import { sectorByTicker, sectorLabel, sectorOf, UNKNOWN_SECTOR } from '../../src/report/sector.js';
-import { loadReportTemplate } from '../../src/report/template.js';
+import { buildCollectionPlan, planKey } from '../../src/capabilities/reports/collection/plan.js';
+import { assetEntries, brandEntries, shareEntries } from '../../src/capabilities/reports/collection/reference.js';
+import { buildReport } from '../../src/capabilities/reports/engine.js';
+import { createProviderMap } from '../../src/capabilities/reports/providers/index.js';
+import { sectorByTicker, sectorLabel, sectorOf, UNKNOWN_SECTOR } from '../../src/capabilities/reports/sector.js';
+import { loadReportTemplate } from '../../src/capabilities/reports/template.js';
 import { POSITIONS_JSON } from '../fixtures/e2e-catalog.js';
 
 const templatePath = join(import.meta.dirname, '..', '..', 'reports', 'portfolio-review.yaml');

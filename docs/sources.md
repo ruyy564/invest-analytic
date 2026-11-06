@@ -64,8 +64,8 @@ Telegram читаются сами страницы:
   `growth-research-portal*.stores.tradingIdeas.ideas`), у идеи есть `title`,
   `date`, `description` и `tickers`.
 
-Разбор HTML — в `src/parsing/html.ts` (`jsonScriptsOf`), адаптеры — рядом с лентами
-(`src/news/sources/rbc-quote.ts`, `tbank-research.ts`). Оба источника объявляют
+Разбор HTML — в `src/shared/parsing/html.ts` (`jsonScriptsOf`), адаптеры — рядом с лентами
+(`src/capabilities/news/sources/rbc-quote.ts`, `tbank-research.ts`). Оба источника объявляют
 `supportsTickerQuery`, поэтому по бумаге отдают только её новости (по `tickers`).
 
 Объём новостей добирают деловые RSS: Ведомости, Коммерсантъ (раздел «Финансы»),
@@ -118,7 +118,7 @@ Telegram читаются сами страницы:
 | `cbr` (metals) | учётные цены золота, серебра, платины, палладия, ₽/г | `https://www.cbr.ru/scripts/XML_metall.asp?date_req1=…&date_req2=…` | XML (windows-1251) |
 
 - источник включён вместе с `cbr` и кэширует снимок в памяти процесса на 6 часов;
-- карта «бумага → металл» живёт в `src/commodities/commodity.links.ts`;
+- карта «бумага → металл» живёт в `src/capabilities/market/commodities/commodity.links.ts`;
 - инструмент модели — `macro__commodities`, группа плана `commodities`;
 - если металл для бумаги неизвестен или ЦБ не ответил, строка просто не выводится
   (никаких «недоступно» в разборе бумаги).
@@ -165,9 +165,9 @@ TICKER_ALIASES_FILE=data/ticker-aliases.yaml
 
 ## Как добавить источник
 
-1. Добавьте адаптер в `src/news/sources/`:
+1. Добавьте адаптер в `src/capabilities/news/sources/`:
    - для RSS/Atom/JSON достаточно `createFeedSource({ id, url, format, topics, mapping })`;
-   - для нового типа данных — реализуйте `NewsSourceAdapter` из `src/news/news.types.ts`.
+   - для нового типа данных — реализуйте `NewsSourceAdapter` из `src/capabilities/news/news.types.ts`.
 2. Зарегистрируйте id в `SOURCES` (и в `FEED_DEFAULTS`, если это лента).
 3. Если источник должен попасть в отчёт — добавьте его тему в провайдер фактов и,
    при необходимости, секцию в шаблон `reports/portfolio-review.yaml`.

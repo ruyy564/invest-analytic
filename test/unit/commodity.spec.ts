@@ -2,9 +2,9 @@ import {
   cbrMetalsUrl,
   createCbrCommoditySource,
   parseMetalsXml,
-} from '../../src/commodities/commodity.cbr.js';
-import { metalForTicker, metalQuoteOf } from '../../src/commodities/commodity.links.js';
-import { collectCommodities, formatCommodities } from '../../src/tools/commodity/commodity.service.js';
+} from '../../src/capabilities/market/commodities/commodity.cbr.js';
+import { metalForTicker, metalQuoteOf } from '../../src/capabilities/market/commodities/commodity.links.js';
+import { collectCommodities, formatCommodities } from '../../src/capabilities/market/tools/commodity/commodity.service.js';
 
 const XML = `<?xml version="1.0" encoding="windows-1251"?>
 <Metall FromDate="20261101" ToDate="20261105" name="Precious metals quotations">

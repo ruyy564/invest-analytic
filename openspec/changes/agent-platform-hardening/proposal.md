@@ -86,14 +86,18 @@
 
 ## Impact
 
-- Граф и узлы: `src/agent/graph/*`, `src/agent/nodes/*`, `src/agent/runner/*`.
-- Инструменты и MCP: `src/mcp/*`, `src/tools/*`, `.env.example`
+- Граф и узлы: `src/agent/graph/*`, `src/agent/nodes/*`, `src/agent/runner/*`,
+  `src/agent/subgraphs/*`.
+- Транспорты и инструменты: `src/transports/mcp/*` (реестр, прокси, адаптер,
+  схемы, бюджет, локальные тулы), `src/tools.module.ts`, `.env.example`
   (`MCP_TINKOFF_ALLOWED_TOOLS`, `AGENT_MODE`, лимиты).
-- Источники и знания: `src/news/*`, `src/parsing/*`, `src/knowledge/*`,
-  новые `src/capabilities/*` и `data/policy/news.yaml`.
-- Отчёт: `src/report/*`, `capabilities/reports/sections/*`.
-- API: `src/api/*` (новый поток событий, отмена), `docs/api.md`.
-- Наблюдаемость: `src/observability/*`, зависимость `pino`, `docs/observability.md`.
+- Источники и знания: `src/capabilities/{news,knowledge,market}/*`,
+  `src/shared/parsing/*` (сеть — через `src/platform/http/*`),
+  `data/policy/news.yaml`.
+- Отчёт: `src/capabilities/reports/*`, шаблон `reports/portfolio-review.yaml`.
+- API: `src/transports/http/*` (поток событий, отмена), `docs/api.md`.
+- Наблюдаемость: `src/platform/{logging,observability,config,state,llm}/*`,
+  зависимость `pino`, `docs/observability.md`.
 - Тесты: `test/fixtures/dialogues.json`, `test/unit/*`, `test/e2e/*`, новый
   `test/eval/*`, `test/fixtures/golden/*`, `test/unit/architecture.spec.ts`.
 - Документация: `docs/architecture.md`, `docs/structure.md` (новый),
@@ -101,3 +105,8 @@
 - Обратная совместимость: HTTP-контракт сохраняется; отменяется только старое
   множество интентов/веток графа (BREAKING для внутренней топологии и имён
   инструментов — со алиасами на время миграции).
+- Структура `src` после M6: четыре корня (`agent`, `capabilities`, `platform`,
+  `shared`, `transports`) и `eval`; старые каталоги (`config`, `state`, `llm`,
+  `observability`, `report`, `tools`, `parsing`, `collection`, `accounts`, `api`,
+  `mcp`, `news`, `knowledge`, `key-rate`, `commodities`) удалены без
+  re-export-двойников.

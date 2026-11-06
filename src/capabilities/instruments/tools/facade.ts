@@ -1,6 +1,6 @@
 import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { withTimeout } from '../../../mcp/mcp-tool.adapter.js';
-import { asJson } from '../../../tools/portfolio-snapshot/portfolio-snapshot.service.js';
+import { withTimeout } from '../../../transports/mcp/mcp-tool.adapter.js';
+import { asJson } from '../../../shared/json.js';
 
 /** Инструмент MCP по короткому имени: фасады не знают про реестр. */
 export type ToolLookup = (name: string) => DynamicStructuredTool | undefined;
