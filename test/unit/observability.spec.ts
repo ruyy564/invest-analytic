@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import { formatLogEntry } from '../../src/platform/observability/logger.js';
 import { maskSecret, redact } from '../../src/platform/observability/redact.js';
-import { buildTraceUrl, resolveOrgId } from '../../src/platform/observability/run-collector.js';
+import { buildTraceUrl, findRootRunId, resolveOrgId } from '../../src/platform/observability/run-collector.js';
 
 describe('маскирование секретов', () => {
   it('маскирует Bearer-заголовки и секретные поля', () => {
@@ -43,6 +43,11 @@ describe('ссылка на трейс', () => {
         project: 'invest',
       }),
     ).toBe('https://smith.langchain.com/projects/p/invest/r/r1');
+  });
+
+  it('без ключа LangSmith прогон не ищется и ссылка не ломается', async () => {
+    // Поиск идёт по нашему runId в metadata: без ключа он не нужен и не должен падать.
+    await expect(findRootRunId({ project: 'invest', runId: 'r1' })).resolves.toBeUndefined();
   });
 });
 

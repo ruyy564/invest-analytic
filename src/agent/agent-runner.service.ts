@@ -21,7 +21,7 @@ import { ApprovalPolicyService } from './approvals/approval-policy.service.js';
 import { buildAgentGraph, type CompiledAgentGraph } from './graph/build-graph.js';
 import { KnowledgeService } from '../capabilities/knowledge/index.js';
 import type { AgentStateType } from './graph/state.js';
-import { buildTraceUrl, resolveOrgId } from '../platform/observability/run-collector.js';
+import { buildTraceUrl, findRootRunId, resolveOrgId } from '../platform/observability/run-collector.js';
 import { ReportStoreService } from '../platform/state/report-store.service.js';
 import { newsReportOf, reportOf } from './runner/report-builder.js';
 import { RunJournal } from '../platform/runs/index.js';
@@ -98,8 +98,11 @@ export class AgentRunnerService {
             { messages: [new HumanMessage(message)] },
             {
               ...config,
+              // Свой `runId` уходит в LangSmith как id корневого прогона: ссылка на
+              // трейс и `npm run trace -- <runId>` ведут на существующий прогон.
+              runId,
               metadata: { requestId, sessionId, runId },
-            },
+            } as typeof config,
           ),
           this.config.value.run.deadlineMs,
           () => new Error('deadline'),
@@ -296,15 +299,24 @@ export class AgentRunnerService {
     }
   }
 
-  /** Ссылка на трейс: собирается из собственного `runId`, без опроса LangSmith. */
+  /**
+   * Ссылка на трейс.
+   *
+   * Id корневого прогона создаёт LangSmith SDK, поэтому сначала находим его по
+   * нашей метке `runId` в metadata: иначе ссылка ведёт на несуществующий прогон.
+   * Если трассировка выключена или поиск не удался — ссылка не строится.
+   */
   private async traceUrlFor(runId: string): Promise<string | undefined> {
     const langsmith = this.config.value.langsmith;
     if (!langsmith.tracing) {
       return undefined;
     }
-    const orgId = langsmith.orgId ?? (await resolveOrgId(langsmith.apiKey));
+    const [orgId, rootId] = await Promise.all([
+      langsmith.orgId ? Promise.resolve(langsmith.orgId) : resolveOrgId(langsmith.apiKey),
+      findRootRunId({ apiKey: langsmith.apiKey, project: langsmith.project, runId }),
+    ]);
     return buildTraceUrl(langsmith.traceUrlTemplate, {
-      runId,
+      runId: rootId ?? runId,
       orgId,
       project: langsmith.project,
     });

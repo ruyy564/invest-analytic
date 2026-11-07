@@ -8,6 +8,8 @@ coverage/
 .env
 .env.local
 *.log
+# Идентификатор запущенного локально сервиса
+*.pid
 # Временные артефакты прогонов и отладки
 report.md
 coverage.json
