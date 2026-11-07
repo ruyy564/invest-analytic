@@ -9,6 +9,7 @@ import {
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import { bindToolsCompat } from '../../../platform/llm/bind-tools.js';
 import { buildAgentSystemPrompt } from './prompt.js';
+import { toolsForQuestion } from './tool-scope.js';
 import {
   MARKET_DYNAMICS_TOOL,
   PORTFOLIO_SNAPSHOT_TOOL,
@@ -496,7 +497,10 @@ export const createAgentNode =
       return { messages: [new AIMessage(report)] };
     }
 
-    const bound = bindToolsCompat(model, tools) as unknown as BoundModel;
+    // Набор инструментов под вопрос: десятки определений в контексте путают модель
+    // (Anthropic, «Writing effective tools for agents»), поэтому грузим базу и расширения темы.
+    const scopedTools = toolsForQuestion(tools, question);
+    const bound = bindToolsCompat(model, scopedTools) as unknown as BoundModel;
     // Уточнение: модели нужен сам предыдущий ответ, иначе она отказывается
     // «показывать данные». Инструкция идёт в тот же system-промпт: GigaChat
     // требует, чтобы system-сообщение было первым, второго он не принимает (422).
@@ -561,6 +565,35 @@ export const createAgentNode =
     }
 
     const text = textOf(reply.content).trim();
+    // Отказ модели показать данные при доступных инструментах: один повтор с явной
+    // инструкцией вызвать инструмент. Иначе агент отвечает «откройте приложение».
+    const retryWithTools = async (): Promise<AIMessage | undefined> => {
+      const hint = scopedTools
+        .slice(0, 8)
+        .map((tool) => tool.name)
+        .join(', ');
+      if (hint.length === 0) {
+        return undefined;
+      }
+      try {
+        const retry = await withTimeout(
+          bound.invoke([
+            new SystemMessage(
+              `${systemText}\n\nПредыдущий ответ был отказом показать данные. ` +
+                `Доступные инструменты: ${hint}. Вызови подходящий инструмент и ответь по его ` +
+                'результату. Отказываться нельзя: данные доступны.',
+            ),
+            ...clipToolResults(history),
+            new HumanMessage(question),
+          ]),
+          ANSWER_TIMEOUT_MS,
+          () => new Error('llm timeout'),
+        );
+        return (retry.tool_calls ?? []).length > 0 ? (retry as AIMessage) : undefined;
+      } catch {
+        return undefined;
+      }
+    };
     // Уточнение разворачивает прошлый ответ: «данных о причинах нет» в нём —
     // законная часть, а не отказ показать данные (REFUSAL при этом действует).
     const answeredByText =
@@ -634,6 +667,12 @@ export const createAgentNode =
       }
       if (report) {
         return { messages: [new AIMessage(report)] };
+      }
+      // Отказ показать данные, хотя инструменты доступны: один повтор с прямой
+      // инструкцией вызвать инструмент (Anthropic: агент не отказывает, а идёт за данными).
+      const retry = await retryWithTools();
+      if (retry) {
+        return { messages: [retry] };
       }
     }
 
