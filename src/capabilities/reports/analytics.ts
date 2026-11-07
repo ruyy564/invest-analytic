@@ -493,11 +493,12 @@ export const driverLines = (input: DriverInput): string[] => {
     const change =
       factor.changePct === undefined ? '' : `, за период ${formatChangePct(factor.changePct)}`;
     if (/ставка/i.test(factor.title)) {
+      // `positive` — рост ставки в плюс (банки), `negative` — в минус (застройщики, ритейл).
       const sensitivityWord =
         input.rate === 'positive'
-          ? 'снижение ставки — в плюс'
+          ? 'рост ставки — в плюс'
           : input.rate === 'negative'
-            ? 'высокая ставка — в минус'
+            ? 'рост ставки — в минус'
             : 'влияние ставки слабое';
       lines.push(
         `${factor.title}: ${value}${factor.note ? ` (${factor.note})` : ''} — ` +

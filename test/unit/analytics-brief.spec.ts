@@ -201,7 +201,7 @@ describe('расчёты аналитики', () => {
     // Рубль укрепился, а экспортёр от этого проигрывает.
     expect(lines[2]).toContain('Доллар/рубль: 82,18 RUB');
     expect(lines[2]).toContain('минус (оценка)');
-    expect(lines[3]).toContain('высокая ставка — в минус');
+    expect(lines[3]).toContain('рост ставки — в минус');
   });
 
   it('разбирает заседания ЦБ из текста инструмента', () => {
@@ -280,7 +280,7 @@ describe('секции аналитической записки', () => {
     expect(markdown).toContain('Факторы для SBER (финансы)');
     expect(markdown).toContain('Драйверы сектора: ставка, кредитование');
     expect(markdown).toContain('Ключевая ставка ЦБ: 14,00 % годовых');
-    expect(markdown).toContain('высокая ставка — в минус (оценка)');
+    expect(markdown).toContain('рост ставки — в минус (оценка)');
     // Нефть к финансовому сектору не относится — в блок не попадает.
     expect(markdown).not.toContain('Нефть Brent');
   });

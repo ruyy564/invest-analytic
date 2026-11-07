@@ -227,6 +227,8 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
     add({ tool: 'market__news_digest', args: { days: 7 }, group: 'market_news', priority: 'optional' });
   }
   if (wants('securities.opinions')) {
+    // Окно календаря отчётности: два года назад и полгода вперёд от «сейчас».
+    const calendarNow = new Date();
     for (const id of analysable) {
       const target = baseTicker(id);
       add({
@@ -252,9 +254,16 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
         target,
       });
       // Календарь отчётности: даты публикаций — катализатор, а не догадка модели.
+      // Окно ограничено: брокер на полной истории отдаёт события с типами периода,
+      // которых нет в его же схеме, и инструмент падает целиком (проверено на живом
+      // MCP: ошибка валидации `/events/N/periodType`). Двух лет хватает календарю.
       add({
         tool: 'invest_get_instrument_reports',
-        args: { instrumentId: id },
+        args: {
+          instrumentId: id,
+          from: new Date(calendarNow.getTime() - 730 * 24 * 60 * 60 * 1000).toISOString(),
+          to: new Date(calendarNow.getTime() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+        },
         group: 'reports_calendar',
         priority: 'optional',
         target,
