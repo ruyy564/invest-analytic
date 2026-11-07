@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { toZodV3 } from '../../../transports/mcp/tool-schema.js';
 import { mapMarketValues } from '../../../shared/parsing/mappers/market-values.mapper.js';
-import { invokeTool, resolveInstrumentId, summarizeFields, type ToolLookup } from './facade.js';
+import { invokeTool, pickBestInstrument, resolveInstrumentId, summarizeFields, type ToolLookup } from './facade.js';
 
 /** Фасады инструментов: шесть доменных операций вместо десятков вызовов брокера. */
 export const INSTRUMENT_TOOLS = {
@@ -37,8 +37,17 @@ export const createInstrumentTools = (options: InstrumentToolsOptions): DynamicS
     schema: schemaOf({ query: { type: 'string', description: 'Тикер или название' } }, ['query']),
     func: async (input: unknown) => {
       const args = (input ?? {}) as { query?: string };
-      const raw = await invokeTool(lookup, 'invest_find_instrument', { query: args.query ?? '' }, timeoutMs);
-      return summarizeFields(raw, ['ticker', 'classCode', 'name', 'instrumentType', 'currency'], 600);
+      // `STATIC_DATA` обязателен: без него в ответе нет вида инструмента,
+      // и поиск «Сегежа» возвращал облигацию вместо акции SGZH.
+      const raw = await invokeTool(
+        lookup,
+        'invest_find_instrument',
+        { query: args.query ?? '', responseView: ['BASE', 'IDENTIFIERS', 'STATIC_DATA'] },
+        timeoutMs,
+      );
+      // Первым идёт лучший инструмент: акция важнее облигации с тем же названием.
+      const best = pickBestInstrument(raw, args.query ?? '') ?? raw;
+      return summarizeFields(best, ['ticker', 'classCode', 'name', 'instrumentType', 'currency'], 600);
     },
   } as never);
 

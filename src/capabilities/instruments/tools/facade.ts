@@ -66,6 +66,38 @@ export const summarizeFields = (
 };
 
 /**
+ * Лучший инструмент из ответа поиска: точное совпадение тикера важнее вида,
+ * вид важнее режима торгов, имя — последний признак. «Сегежа» должна находить
+ * акцию SGZH, а не одну из её облигаций.
+ */
+export const pickBestInstrument = (raw: unknown, query: string): unknown => {
+  const root = asJson(raw) as { instruments?: unknown[] } | undefined;
+  const list = Array.isArray(root?.instruments) ? root.instruments : [];
+  if (list.length === 0) {
+    return undefined;
+  }
+  const wanted = query.trim().toUpperCase();
+  const kindRank: Record<string, number> = {
+    INSTRUMENT_TYPE_SHARE: 0,
+    INSTRUMENT_TYPE_ETF: 1,
+    INSTRUMENT_TYPE_BOND: 2,
+    INSTRUMENT_TYPE_FUTURES: 3,
+  };
+  const classRankOf = (classCode: unknown): number =>
+    PREFERRED_CLASSES.has(String(classCode)) ? 0 : 1;
+  const score = (record: Record<string, unknown>): number => {
+    const tickerMatch = String(record.ticker ?? '').toUpperCase() === wanted ? 0 : 1;
+    const kind = kindRank[String(record.instrumentKind)] ?? 4;
+    const classRank = classRankOf(record.classCode);
+    const nameMatch = String(record.name ?? '').toUpperCase().includes(wanted) ? 0 : 1;
+    return tickerMatch * 1000 + kind * 100 + classRank * 10 + nameMatch;
+  };
+  return list
+    .map((item) => item as Record<string, unknown>)
+    .sort((left, right) => score(left) - score(right))[0];
+};
+
+/**
  * Порядок выбора при совпадении тикера: акция важнее фьючерса с тем же тикером,
  * а основной режим торгов MOEX — важнее внебиржевых (`SBER_37M`, `SBER_SMAL`).
  */

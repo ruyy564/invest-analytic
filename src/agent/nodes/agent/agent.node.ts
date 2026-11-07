@@ -10,6 +10,7 @@ import type { StructuredToolInterface } from '@langchain/core/tools';
 import { bindToolsCompat } from '../../../platform/llm/bind-tools.js';
 import { buildAgentSystemPrompt } from './prompt.js';
 import { toolsForQuestion } from './tool-scope.js';
+import { discoveryCallFor, tickersFromFind } from './discovery.js';
 import {
   MARKET_DYNAMICS_TOOL,
   PORTFOLIO_SNAPSHOT_TOOL,
@@ -469,7 +470,21 @@ export const createAgentNode =
     const report = reportOfState(state)?.payload ?? reportFromTools(run);
     const question = lastQuestion(history);
     // Бумаги, названные в вопросе: нужны и для причин, и для «что с <бумагой>».
-    const tickers = detectInstruments(question, options.aliases ?? {});
+    const tickers = [
+      ...new Set([
+        ...detectInstruments(question, options.aliases ?? {}),
+        // Тикер мог найти инструмент по названию в падеже («сегежей» → SGZH).
+        ...tickersFromFind(run),
+      ]),
+    ];
+    // Бумага не распознана, но вопрос про эмитента: ищем через инструмент, а не
+    // переспрашиваем «о каком самолёте речь». Уточнение тему уже унаследовало.
+    if (!state.followUp) {
+      const discovery = discoveryCallFor(question, tickers, run, tools);
+      if (discovery) {
+        return { messages: [discovery] };
+      }
+    }
     // «Почему упал/вырос X» — вопрос о причине: у брокера причин нет, они берутся
     // из публикаций. «Что с бумагой?» — тоже про движение, но не «что с ценой».
     const causeQuestion = asksForCause(question) || (asksWhatWith(question) && tickers.length > 0);
