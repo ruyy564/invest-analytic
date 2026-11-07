@@ -99,7 +99,7 @@ describe('модуль знаний (Nest)', () => {
 
     expect(files.length).toBeGreaterThanOrEqual(17);
     expect(files[0].endsWith('01-cycles.yaml')).toBe(true);
-    expect(files.at(-1)?.endsWith('20-impact-map.yaml')).toBe(true);
+    expect(files.at(-1)?.endsWith('23-stock-selection.yaml')).toBe(true);
     expect(repository.files(files[0])).toEqual([files[0]]);
     expect(repository.files(join(tmpdir(), 'нет-такого-каталога'))).toEqual([]);
   });
