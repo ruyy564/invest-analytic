@@ -355,6 +355,69 @@ curl -s "http://localhost:3000/api/v1/reports/<reportId>?format=html"  # для 
 
 ---
 
+## Логи, прогоны и трассировка
+
+### Логи приложения
+
+Пишутся структурным JSON (pino) в stdout — при `npm start` это консоль, при запуске
+в фоне (`Start-Process`, systemd, Docker) — файл, который вы указали.
+
+| Что смотреть | Где |
+|---|---|
+| Уровень логов | `LOG_LEVEL=debug|info|warn|error` |
+| Текст вопросов пользователя | `LOG_QUESTION_TEXT=true` (по умолчанию скрыт) |
+| Один прогон в логах | общие поля `runId`, `requestId`, `sessionId` во всех строках |
+| Ошибки LLM/MCP | строки `level=error`, коды `mcp_unavailable`, `mcp_unauthorized`, `mcp_rate_limited` |
+| Старт и конец прогона | `msg: "Прогон начат"` / `"Прогон завершён"` с `intent`, `partial`, `durationMs` |
+
+Секреты в логах маскируются; полный текст вопроса включается только флагом.
+
+Пример фонового запуска с логами в файл (Windows PowerShell):
+
+```powershell
+$p = Start-Process node -ArgumentList 'dist/main.js' -PassThru `
+  -RedirectStandardOutput svc.log -RedirectStandardError svc.err.log
+$p.Id | Set-Content svc.pid
+Get-Content svc.log -Tail 50 -Wait
+```
+
+### Журнал прогона и replay
+
+Каждый прогон пишет JSONL в `.state/runs/<runId>.jsonl` (`STATE_RUNS_DIR`):
+вопрос, решение маршрутизатора, вызовы инструментов, ответ, покрытие источников.
+`runId` есть в каждом ответе API и в логах.
+
+```bash
+npm run replay -- <runId>        # текстовый транскрипт прогона, без сети
+```
+
+### LangSmith (трассировка)
+
+Включается переменными; без ключа сервис работает как обычно, `traceUrl` в ответе — `—`.
+
+```dotenv
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=<ключ smith.langchain.com>
+LANGSMITH_PROJECT=invest-analytic
+LANGSMITH_ORG_ID=<id организации>       # нужен для ссылки на трейс
+LANGSMITH_HIDE_INPUTS=false             # true — не отправлять тексты в трейсы
+LANGSMITH_TRACE_URL_TEMPLATE=https://smith.langchain.com/o/{orgId}/projects/p/{project}/r/{runId}
+```
+
+Где смотреть:
+
+1. Каждый ответ API содержит `traceUrl` — прямая ссылка на прогон в LangSmith.
+2. `smith.langchain.com` → проект `LANGSMITH_PROJECT` → раздел Runs: видны узлы графа,
+   вызовы инструментов, время и ошибки.
+3. Найти прогон по `runId`: `npm run trace -- <runId>` — скрипт печатает ссылку
+   (ищет по метаданным, если SDK создал собственный root-id).
+4. Список последних прогонов: `node scripts/ls-runs.mjs`.
+
+Если трейсы не появляются: проверьте `LANGSMITH_TRACING=true`, ключ и что проект
+существует; при `403` в логах — ключ без прав на запись в этот проект.
+
+---
+
 ## API
 
 | Метод | Путь | Ответ |
@@ -436,10 +499,147 @@ src/
 | Сменить модель или провайдера | `LLM_PROVIDER` + `docs/llm-providers.md` |
 | Разобраться с подтверждениями | `src/agent/approvals/`, `docs/approvals.md` |
 | Понять правила разработки агента | `.agents/skills/agent-engineering/SKILL.md` |
+| Инструменты под текущий вопрос | `src/agent/nodes/agent/tool-scope.ts` |
+| Поиск эмитента по названию | `src/agent/nodes/agent/discovery.ts` |
+| Журнал прогона | `.state/runs/<runId>.jsonl` (+ `npm run replay -- <runId>`) |
+| Живые проверки вопросов | `node scripts/ask.mjs "вопрос" --full --approve` |
+
+Ещё несколько мест, которые часто ищут:
+
+- `data/knowledge/` — 44 темы базы знаний (конспекты с источниками), формат в `docs/knowledge.md`;
+- `reports/portfolio-review.yaml` — структура отчёта; `reports/prompts/interpretation.md` — промпт разделов;
+- `data/` — алиасы тикеров, профили компаний, планы ЦБ, налоговые термины, дополнительные ленты;
+- `scripts/` — `ask.mjs` (вопрос в сессии), `replay-run.mjs`, `trace-report.mjs`, `ls-runs.mjs`, `eval*.mjs`, `fetch-mcp-ca.mjs`;
+- `.agents/skills/` — правила разработки агента и базы знаний для будущих изменений;
+- `certs/` — цепочка сертификатов MCP (не версионируется); `.state/` — SQLite, сессии, отчёты, журналы.
 
 Что **не** версионируется: `.env`, `.state/`, `certs/`, `dist/`, `node_modules/`.
 `data/` версионируется: это справочники и знания, а не состояние.
 
+
+---
+
+## Инструменты агента
+
+Модели не отдаются все инструменты сразу: `tool-scope.ts` собирает набор под вопрос
+(база + расширения по теме).
+
+### Локальные инструменты (приложение)
+
+| Инструмент | Что делает | Когда используется |
+|---|---|---|
+| `instruments__find` | поиск бумаги по тикеру или названию | бумага названа словами, новый эмитент |
+| `instruments__prices` | текущая цена и изменение за день | «сколько стоит», «что с ценой» |
+| `instruments__candles` | свечи за период | графики, динамика |
+| `instruments__forecast` | цель и мнение аналитиков | «стоит ли», «перспективы» |
+| `instruments__dividends` | дивиденды, доходность, даты отсечки | дивидендные вопросы |
+| `instruments__meta` | карточка: сектор, тип, купон, погашение, НКД | «что за бумага», облигации |
+| `news__search` | публикации по бумаге или общей повестке, факторы | причины движения, «что нового» |
+| `market__factors` | числа по рынку: нефть, курсы, ставка ЦБ | аргументы к причинам |
+| `market__price_dynamics` | готовый отчёт «динамика цены за N дней» | «почему упал», «что с бумагой» |
+| `market__news_digest` | сводка новостей по периодам | общая повестка |
+| `macro__key_rate` | ключевая ставка и история решений | макро-вопросы |
+| `market__tax_watch` | налоговые изменения | налоговый контекст |
+| `portfolio__snapshot` | сводка по всем открытым счетам | «что у меня в портфеле» |
+| `portfolio__review` | сбор данных под разбор портфеля | «проанализируй портфель» |
+| `security__brief` | сбор данных под разбор бумаги | «разбери бумагу» |
+| `knowledge__explain` | ответ по теме из базы знаний | «что такое …» |
+
+### MCP Тинькофф (данные брокера)
+
+Разрешены только read-only инструменты (`MCP_TINKOFF_ALLOWED_TOOLS`, 54 штуки):
+
+| Группа | Инструменты | Что дают |
+|---|---|---|
+| Счета и доступ | `invest_list_accounts`, `invest_list_broker_accounts`, `invest_get_user_info` | список счетов, тариф, статус |
+| Портфель | `invest_get_portfolio`, `invest_get_positions`, `invest_get_operations` | состав, количество, стоимость, доходность, операции и налоги |
+| Маржа и заявки | `invest_get_broker_account_margin`, `invest_get_broker_account_values`, `invest_get_orders`, `invest_get_order_state`, `invest_get_stoporders`, `invest_get_blocked_guarantee` | обеспечение, активные заявки (чтение) |
+| Справочники | `invest_find_instrument`, `invest_list_shares/bonds/etfs/futures/options/dfas`, `invest_get_share/bond/etf/future/option/dfa/currency`, `invest_get_asset`, `invest_get_brand` | поиск, карточки, сектор |
+| Рынок | `invest_get_candles`, `invest_get_last_trades`, `invest_get_market_values`, `invest_get_orderbook`, `invest_get_tech_analysis`, `invest_get_trading_schedule`, `invest_get_trading_statuses` | цены, свечи, стакан, тех. анализ, расписание |
+| Аналитика | `invest_get_forecast`, `invest_list_consensus_forecasts`, `invest_get_asset_fundamentals`, `invest_get_insider_deals`, `invest_get_instrument_reports`, `invest_list_signals`, `invest_list_strategies`, `invest_get_risk_rates` | цели аналитиков, консенсус, инсайдеры, отчётность, сигналы |
+| Облигации | `invest_get_bond_events`, `invest_get_bond_accrued`, `invest_list_bonds` | купоны, оферты, НКД |
+| Новости | `invest_get_news` | публикации по тикеру |
+
+### Расширения по теме вопроса
+
+| Тема в вопросе | Что добавляется |
+|---|---|
+| облигации, купон, оферта | `invest_list_bonds`, `invest_get_bond_events`, `invest_get_bond_accrued` |
+| фьючерсы, опционы, срочный рынок | `invest_list_futures`, `invest_get_future`, `invest_list_options`, `invest_get_option` |
+| фонды, ETF | `invest_list_etfs`, `invest_get_etf` |
+| ЦФА, цифровые активы | `invest_list_dfas`, `invest_get_dfa` |
+| валюта, курс | `invest_get_currency`, `invest_list_currencies` |
+| график, свечи, тех. анализ | `invest_get_candles`, `invest_get_last_trades`, `invest_get_tech_analysis` |
+| риск, маржа, плечо | `invest_get_risk_rates`, `invest_get_broker_account_margin` |
+| заявки, стопы | `invest_get_orders`, `invest_get_order_state`, `invest_get_stoporders` |
+| каталог бумаг | `invest_list_shares/bonds/etfs/assets/brands` |
+
+Если нужной операции нет в наборе, агент использует фасады `instruments__*`.
+
+---
+
+## Новости: откуда берутся и как добавить источник
+
+Новости собираются из деловых RSS и HTML-страниц; Telegram не используется.
+Включение — `SOURCES` (данные) и `NEWS_SOURCES` (ленты).
+
+| id | Что даёт | Адрес | Формат |
+|---|---|---|---|
+| `tinkoff` | новости по тикерам, портфель, аналитика | T-Invest MCP | MCP (JSON) |
+| `cbr` | ключевая ставка и история | `cbr.ru/DailyInfoWebServ` | SOAP → XML |
+| `interfax` | общие новости | `interfax.ru/rss.asp` | RSS |
+| `rbc` | экономика и рынки | `rssexport.rbc.ru/…/full.rss` | RSS |
+| `smartlab` | мнения сообщества | `smart-lab.ru/rss/` | RSS |
+| `smartlab_tag` | разборы по тикеру | `smart-lab.ru/rss/tag/<TICKER>` | RSS |
+| `rbc_quote` | новости рынка с тикерами | `rbc.ru/quote` | HTML + `__NEXT_DATA__` |
+| `tbank_research` | идеи Т-Инвестиций | `tbank.ru/invest/research` | HTML + SSR |
+| `vedomosti` | деловые новости | `vedomosti.ru/rss/news` | RSS |
+| `kommersant` | финансы | `kommersant.ru/RSS/section-finance.xml` | RSS |
+| `tass` | экономика | `tass.ru/rss/v2.xml?category=ekonomika` | RSS |
+| `finam` | компании и рынок | `finam.ru/analysis/conews/rsspoint/` | RSS |
+| `news_extra` | ваши дополнительные ленты | `data/news-sources.yaml` | RSS |
+
+### Как добавить источник
+
+1. Добавьте запись в `data/news-sources.yaml` (файл указан в `NEWS_EXTRA_FEEDS_FILE`):
+
+   ```yaml
+   feeds:
+     - id: my_feed
+       url: https://example.com/rss
+       format: rss          # rss | html
+       topics: [news]       # news | macro | tax
+   ```
+
+2. Включите источник: `SOURCES=...,news_extra` и `NEWS_SOURCES=...,news_extra`.
+3. Перезапустите сервис — код менять не нужно.
+4. Для ленты по конкретному тикеру используйте источник с фильтром по названию
+   (заголовки проверяются по алиасам) или `smartlab_tag`.
+
+Подробности формата, фильтров (дайджесты, офтоп, омонимы компаний) и разбора HTML —
+в [`docs/sources.md`](docs/sources.md).
+
+---
+
+## Что берётся через Тинькофф
+
+| Данные | Источник (MCP) | Где видно в ответе |
+|---|---|---|
+| Состав портфеля, количество, стоимость | `invest_get_portfolio`, `invest_get_positions` | таблица портфеля, разбор |
+| Доходность портфеля и за день | `invest_get_portfolio` (`expectedYield`, `dailyYieldRelative`) | итог таблицы |
+| Операции и удержанные налоги | `invest_get_operations` | налоговый контекст |
+| Цена и изменение | `invest_get_market_values` | карточка бумаги |
+| История цен | `invest_get_candles` | график, динамика 1/7/30/180 |
+| Дивиденды | `invest_get_share_dividends` | дивидендный блок |
+| Прогноз и цель аналитиков | `invest_get_forecast`, `invest_list_consensus_forecasts` | «аналитики», вывод |
+| Фундаментал | `invest_get_asset_fundamentals` | часто пусто — честно «данных нет» |
+| Инсайдеры | `invest_get_insider_deals` | блок «инсайдеры» |
+| Облигации | `invest_get_bond`, `invest_get_bond_events`, `invest_get_bond_accrued` | купон, оферта, НКД |
+| Новости по тикеру | `invest_get_news` | публикации по бумаге |
+| Сектор и тип бумаги | `invest_get_share` → `invest_get_asset` → `invest_get_brand` | «сектор: финансы» |
+
+Ключевая ставка ЦБ берётся не у брокера, а из ЦБ (`SOURCES=cbr`); новости — из лент
+и брокера; знания — из `data/knowledge`.
 
 ---
 
@@ -449,6 +649,49 @@ src/
 (`src/platform/config/env/`). Некорректная конфигурация — падение с перечнем **всех** проблемных
 переменных; значения секретов в вывод не попадают. Полный список — в
 [`.env.example`](.env.example).
+
+### Минимальный `.env` для запуска
+
+```dotenv
+# 1. Брокер: данные портфеля и рынка
+MCP_SERVERS=tinkoff
+MCP_TINKOFF_URL=https://invest-public-api.tinkoff.ru/mcp
+MCP_TINKOFF_TOKEN=<токен T-Invest, только чтение>
+MCP_TINKOFF_TLS_MODE=extra-ca
+MCP_TINKOFF_CA_FILE=certs/mcp-chain.pem
+# allowlist можно не заполнять: в .env.example лежит полный read-only каталог
+MCP_TINKOFF_ALLOWED_TOOLS=<см. .env.example>
+
+# 2. Модель (пример GigaChat; для OpenAI — LLM_PROVIDER=openai)
+LLM_PROVIDER=gigachat
+LLM_MODEL=GigaChat-2-Max
+GIGACHAT_CREDENTIALS=<base64 от client_id:client_secret>
+GIGACHAT_SCOPE=GIGACHAT_API_PERS
+GIGACHAT_STREAMING=false
+
+# 3. Необязательно: трассировка
+LANGSMITH_TRACING=false
+LANGSMITH_API_KEY=
+LANGSMITH_PROJECT=invest-analytic
+```
+
+Всё остальное имеет рабочие значения по умолчанию: шаблон отчёта, каталог знаний,
+источники новостей, лимиты прогона, SQLite-состояние.
+
+### Обязательные и необязательные переменные
+
+| Переменная | Обязательна | Откуда взять |
+|---|---|---|
+| `MCP_TINKOFF_URL` | да | фиксированный адрес MCP-сервера брокера |
+| `MCP_TINKOFF_TOKEN` | да | T-Invest → Настройки → Токены для API (read-only) |
+| `MCP_TINKOFF_ALLOWED_TOOLS` | да | список из `.env.example` (read-only каталог) |
+| `MCP_TINKOFF_CA_FILE` | при `extra-ca` | `node scripts/fetch-mcp-ca.mjs` |
+| `LLM_PROVIDER`, `LLM_MODEL` | да | `gigachat`, `openai` или `openai-compatible` |
+| `GIGACHAT_CREDENTIALS` | для GigaChat | developers.sber.ru → GigaChat API → base64(client_id:client_secret) |
+| `LLM_API_KEY` | для OpenAI | platform.openai.com → API keys |
+| `LLM_BASE_URL` | для openai-compatible | адрес вашего шлюза |
+| `LANGSMITH_*` | нет | smith.langchain.com → Settings → API Keys |
+| `TINKOFF_ACCOUNT_ID` | нет | номер счёта; если пусто — агент найдёт сам |
 
 ### Ключевые группы
 
