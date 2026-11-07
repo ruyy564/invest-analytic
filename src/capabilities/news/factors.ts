@@ -22,14 +22,21 @@ export interface FactorQuery {
   weight: number;
 }
 
-/** Факторы вопроса о причинах: драйверы сектора бумаги и общие рыночные. */
+/**
+ * Факторы вопроса о причинах: драйверы сектора бумаги и общие рыночные.
+ *
+ * Сектор берётся из профиля компании, а если профиля нет — из аргумента
+ * `sector` (его отдаёт брокер: `instruments__meta`/`invest_get_share`). Так новая
+ * бумага получает отраслевые факторы без правки файла профилей.
+ */
 export const factorsFor = (
   ticker: string | undefined,
   profiles: CompanyProfiles = EMPTY_PROFILES,
+  sectorHint?: string,
 ): FactorQuery[] => {
   const queries: FactorQuery[] = [];
   const company = companyProfileOf(profiles, ticker);
-  const sector = sectorProfileOf(profiles, company?.sector);
+  const sector = sectorProfileOf(profiles, company?.sector ?? sectorHint);
   if (sector && sector.factors.length > 0) {
     queries.push({
       title: `драйверы сектора «${sectorLabel(sector.key)}»`,

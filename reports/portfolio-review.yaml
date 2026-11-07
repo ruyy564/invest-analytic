@@ -23,7 +23,7 @@ sections:
     render: text
     interpret: true
     # Тема цикла обязательна: без неё модель трактует ставку без контекста фаз.
-    knowledge: [cycles]
+    knowledge: [cycles, impact-map, leaders-laggards]
   # Фон рынка: общая сводка новостей за неделю (ветка новостей).
   - id: marketnews
     title: Фон рынка: новости
@@ -40,8 +40,8 @@ sections:
     provider: securities.opinions
     render: text
     interpret: true
-    # Оценка опирается на отчётность и мультипликаторы — обе темы обязательны.
-    knowledge: [reporting, multiples]
+    # Оценка опирается на отчётность, мультипликаторы и сравнение с сектором.
+    knowledge: [reporting, multiples, news-reaction, leaders-laggards]
   # Аналитика бумаги: блоки собирает код из собранных чисел, модель их трактует.
   # Только разбор бумаги: в разборе портфеля это шум.
   - id: drivers
@@ -72,7 +72,7 @@ sections:
     interpret: true
     scopes: [instrument]
     optional: true
-    knowledge: [reporting, multiples, strategies, sector-dependencies]
+    knowledge: [reporting, multiples, strategies, sector-dependencies, news-reaction, leaders-laggards, impact-map]
   - id: structure
     title: Структура портфеля
     provider: portfolio.structure

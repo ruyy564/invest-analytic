@@ -71,6 +71,49 @@ const createInstrumentResolver = (
 };
 
 /**
+ * Сектор бумаги от брокера: `invest_get_share` → `sector`. Нужен бумагам, которых
+ * нет в файле профилей: без сектора не подобрать отраслевые драйверы и факторы.
+ * Ответ кэшируется: сектор не меняется в рамках прогона.
+ */
+const createSectorResolver = (
+  byName: Map<string, DynamicStructuredTool>,
+  resolveInstrumentId: (ticker: string) => Promise<string | undefined>,
+  timeoutMs: number,
+): ((ticker: string) => Promise<string | undefined>) => {
+  const cache = new Map<string, string | undefined>();
+
+  return async (requested: string): Promise<string | undefined> => {
+    const key = requested.trim().toUpperCase();
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
+    const tool = byName.get('invest_get_share');
+    const id = await resolveInstrumentId(key);
+    if (!tool || !id) {
+      return undefined;
+    }
+    try {
+      const raw = await withTimeout(
+        tool.invoke({
+          instrumentId: id,
+          idType: 'INSTRUMENT_ID_TYPE_ID',
+          responseView: ['BASE', 'STATIC_DATA'],
+        } as never),
+        timeoutMs,
+        () => new Error('таймаут карточки бумаги'),
+      );
+      const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+      const sector = /"sector"\s*:\s*"([^"]+)"/.exec(text)?.[1];
+      cache.set(key, sector);
+      return sector;
+    } catch {
+      // Карточка недоступна — факторы останутся общими рыночными.
+      return undefined;
+    }
+  };
+};
+
+/**
  * Сборка тематических тулов из их папок. Сами тулы живут в `tools/<tool>/`,
  * здесь только подключение: реестр новостей, источник ставки и лимиты.
  */
@@ -93,24 +136,29 @@ export const createThematicTools = (options: {
 
   // Новостные тулы требуют лент; макро-тулы работают и без них.
   const news = newsRegistry
-    ? [
-        createNewsDigestTool({ ...shared, newsRegistry }),
-        // Фасад: параметры запроса вместо фиксированной сводки по периодам.
-        createNewsSearchTool({
-          registry: newsRegistry,
-          scanPages: config.scanPages,
-          maxItems: config.maxItems,
-          aliasesFile: config.tickerAliasesFile,
-          resolveInstrumentId: createInstrumentResolver(byName, config.timeoutMs),
-          // Дочитывание статей целиком: причины обычно в тексте, не в заголовке.
-          fetchText: config.fetchText ?? defaultFetchText,
-          // Факторы поиска причин: драйверы сектора бумаги и общие рыночные.
-          profilesFile: config.profilesFile,
-          // Индекс: история публикаций шире сетевого окна и кэш текстов статей.
-          index: config.index,
-        }),
-        createTaxWatchTool({ ...shared, newsRegistry }),
-      ]
+    ? (() => {
+        const resolveInstrumentId = createInstrumentResolver(byName, config.timeoutMs);
+        return [
+          createNewsDigestTool({ ...shared, newsRegistry }),
+          // Фасад: параметры запроса вместо фиксированной сводки по периодам.
+          createNewsSearchTool({
+            registry: newsRegistry,
+            scanPages: config.scanPages,
+            maxItems: config.maxItems,
+            aliasesFile: config.tickerAliasesFile,
+            resolveInstrumentId,
+            // Сектор для бумаг вне файла профилей: отраслевые драйверы из карточки.
+            sectorOf: createSectorResolver(byName, resolveInstrumentId, config.timeoutMs),
+            // Дочитывание статей целиком: причины обычно в тексте, не в заголовке.
+            fetchText: config.fetchText ?? defaultFetchText,
+            // Факторы поиска причин: драйверы сектора бумаги и общие рыночные.
+            profilesFile: config.profilesFile,
+            // Индекс: история публикаций шире сетевого окна и кэш текстов статей.
+            index: config.index,
+          }),
+          createTaxWatchTool({ ...shared, newsRegistry }),
+        ];
+      })()
     : [];
   return [
     ...news,

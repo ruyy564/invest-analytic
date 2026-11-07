@@ -2,9 +2,40 @@ import {
   factsFallback,
   interpretSection,
   isRefusalFallback,
+  neutralizeBrief,
+  stripSensitive,
 } from '../../src/agent/nodes/review/report.node.js';
 
 const BRIEF = 'SBER (финансы) | цена 292,32 RUB | потенциал +30,63 %';
+
+describe('нейтрализация брифинга для модели', () => {
+  it('убирает слова-рекомендации, сохраняя смысл оценки', () => {
+    // «покупать» в брифинге GigaChat читал как инвестиционную рекомендацию и отказывался.
+    const brief = 'аналитики: покупать, цель 383,80 | цена 293,98 RUB';
+
+    const neutral = neutralizeBrief(brief);
+
+    expect(neutral).toContain('позитивный взгляд аналитиков');
+    expect(neutral).not.toContain('покупать');
+    expect(neutral).toContain('293,98');
+  });
+
+  it('вторая попытка выбрасывает политические сюжеты, но не факты бумаги', () => {
+    const brief = [
+      'SBER (финансы) | цена 293,98 RUB',
+      'фон рынка: Во Франции 146 тыс. человек вышли на демонстрации против роста стоимости жизни',
+      'влияет: санкции — давление на сектор',
+      'дивиденды: доходность 13,49 %',
+    ].join(' | ');
+
+    const clean = stripSensitive(brief);
+
+    expect(clean).toContain('цена 293,98 RUB');
+    expect(clean).toContain('доходность 13,49');
+    expect(clean).not.toContain('демонстрации');
+    expect(clean).not.toContain('санкции');
+  });
+});
 
 describe('трактовка раздела отчёта', () => {
   it('отказ модели заменяется фактами брифинга, а не дисклеймером провайдера', () => {

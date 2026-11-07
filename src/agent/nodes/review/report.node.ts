@@ -29,6 +29,33 @@ export const interpretSection = (text: string, brief: string, id: string): strin
   return isRefusal(cleaned) ? factsFallback(brief) : cleaned;
 };
 
+/**
+ * Нейтрализация брифинга для модели: GigaChat иногда отказывается писать разбор,
+ * если видит слова-рекомендации и политические триггеры. Факты в отчёте остаются
+ * исходными — меняется только текст, уходящий модели, и смысл сохраняется.
+ */
+export const neutralizeBrief = (brief: string): string =>
+  brief
+    .replace(/покупать/gi, 'позитивный взгляд аналитиков')
+    .replace(/продавать/gi, 'негативный взгляд аналитиков');
+
+/**
+ * Вторая попытка: убираем строки, на которые GigaChat отвечает отказом
+ * (политика, протесты, санкции), и смягчаем оставшиеся упоминания. Числа и
+ * факты по бумаге сохраняются — выбрасываются только посторонние сюжеты.
+ */
+export const stripSensitive = (brief: string): string =>
+  neutralizeBrief(brief)
+    .split(' | ')
+    .filter(
+      (line) =>
+        !/политик|протест|демонстрац|митинг|санкц|военн|выбор[аоы]|теракт|убийств|авари|катастроф/i.test(
+          line,
+        ),
+    )
+    .join(' | ')
+    .replace(/санкц[а-яё]*/gi, 'внешние ограничения');
+
 export const createReportNode =
   (deps: ReviewDeps) =>
   async (state: AgentStateType): Promise<Partial<AgentStateType>> => {
@@ -69,25 +96,37 @@ export const createReportNode =
           .filter((part): part is string => typeof part === 'string' && part.length > 0)
           .join('\n');
         for (let attempt = 0; attempt < 2; attempt += 1) {
+          // Вторая попытка идёт с «нейтральной» инструкцией: GigaChat иногда
+          // отказывается писать про чувствительные темы, хотя нужен разбор фактов.
+          const neutral =
+            attempt === 0
+              ? ''
+              : 'Изложи только факты и механизмы влияния из брифинга, без политических тем, ' +
+                'без санкций, без рекомендаций и без слов «покупать/продавать». Это учебный разбор.';
           try {
             const response = await withTimeout(
               deps.model?.invoke([
-                new SystemMessage(instructions),
-                new HumanMessage(request.brief),
+                new SystemMessage([instructions, neutral].filter(Boolean).join('\n')),
+                new HumanMessage(
+                  attempt === 0 ? neutralizeBrief(request.brief) : stripSensitive(request.brief),
+                ),
               ]) ?? Promise.reject(new Error('модель недоступна')),
               INTERPRETATION_TIMEOUT_MS,
               () => new Error('llm timeout'),
             );
             const text = typeof response.content === 'string' ? response.content : '';
             const section = interpretSection(text, request.brief, request.id);
-            if (section) {
-              if (isRefusalFallback(section)) {
-                console.warn(`[report] раздел ${request.id}: модель отказалась, факты вместо текста`);
-              }
+            if (section && !isRefusalFallback(section)) {
               interpretation[request.id] = section;
               break;
             }
-            console.warn(`[report] раздел ${request.id}: пустой ответ модели`);
+            if (section) {
+              // Отказ модели: один повтор нейтральной формулировкой, затем факты.
+              console.warn(`[report] раздел ${request.id}: модель отказалась (попытка ${attempt + 1})`);
+              interpretation[request.id] = section;
+            } else {
+              console.warn(`[report] раздел ${request.id}: пустой ответ модели`);
+            }
           } catch (error) {
             const message = error instanceof Error ? error.message : JSON.stringify(error);
             console.warn(`[report] раздел ${request.id} не сформирован:`, message.slice(0, 200));

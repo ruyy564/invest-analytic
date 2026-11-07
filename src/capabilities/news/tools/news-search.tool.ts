@@ -21,6 +21,11 @@ export interface NewsSearchToolOptions {
   aliasesFile?: string;
   /** Класс торгов для брокера: `LKOH` → `LKOH_TQBR` (иначе «Instrument not found»). */
   resolveInstrumentId?: (ticker: string) => Promise<string | undefined>;
+  /**
+   * Сектор бумаги от брокера. Нужен бумагам, которых нет в файле профилей:
+   * без сектора отраслевые драйверы (нефть, ставка, ипотека) не подбираются.
+   */
+  sectorOf?: (ticker: string) => Promise<string | undefined>;
   /** Сколько символов аннотации показывать модели: заголовка для разбора мало. */
   summaryLimit?: number;
   /** Загрузчик статей: нужен для дочитывания текста по ссылке. */
@@ -217,7 +222,13 @@ export const createNewsSearchTool = (options: NewsSearchToolOptions): DynamicStr
         const profiles = loadCompanyProfiles(
           options.profilesFile ?? 'data/company-profiles.yaml',
         );
-        const queries = factorsFor(ticker || undefined, profiles);
+        // Новая бумага: профиля в файле нет, сектор спросим у брокера — иначе
+        // отраслевые драйверы (нефть, ставка, ипотека) не подберутся.
+        const sectorHint =
+          ticker && !companyProfileOf(profiles, ticker)?.sector
+            ? await options.sectorOf?.(ticker).catch(() => undefined)
+            : undefined;
+        const queries = factorsFor(ticker || undefined, profiles, sectorHint);
         if (queries.length > 0) {
           // Ищем публикации сразу по факторам: поиск по подстрокам поддерживают ленты,
           // поэтому «нефть», «Brent», «санкц» достают отраслевые новости из всей ленты,

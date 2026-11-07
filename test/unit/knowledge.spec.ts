@@ -99,7 +99,7 @@ describe('модуль знаний (Nest)', () => {
 
     expect(files.length).toBeGreaterThanOrEqual(17);
     expect(files[0].endsWith('01-cycles.yaml')).toBe(true);
-    expect(files.at(-1)?.endsWith('17-trade-balance.yaml')).toBe(true);
+    expect(files.at(-1)?.endsWith('20-impact-map.yaml')).toBe(true);
     expect(repository.files(files[0])).toEqual([files[0]]);
     expect(repository.files(join(tmpdir(), 'нет-такого-каталога'))).toEqual([]);
   });
@@ -197,7 +197,11 @@ describe('представления знаний', () => {
     const prompt = readFileSync('reports/prompts/interpretation.md', 'utf8');
 
     expect(prompt).toContain('справочный контекст');
-    expect(prompt).toContain('числа, ставки и даты бери исключительно из брифинга');
+    expect(prompt).toContain('только из брифинга');
+    // Аналитика вместо пересказа: без этого модель повторяла строки брифинга.
+    expect(prompt).toContain('не пересказываешь брифинг');
+    expect(prompt).toContain('лидер');
+    expect(prompt).toContain('инвалидаторы');
   });
 });
 
