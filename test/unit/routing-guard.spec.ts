@@ -38,6 +38,43 @@ describe('guard до модели', () => {
   });
 });
 
+describe('денежные вопросы вне бумаг', () => {
+  it('квартира, ипотека и гараж — работа эксперта, а не отказ', async () => {
+    // «Вне моей компетенции» на вопрос о квартире — потерянный клиент:
+    // это денежное решение, где нужен разбор критериев и рисков.
+    const route = await routeQuestion({ question: 'стоит ли покупать квартиру в ипотеку сейчас?' });
+
+    expect(route.intent).not.toBe('off_topic');
+    expect(route.intent).toBe('data_lookup');
+  });
+
+  it('вклады и ИПС тоже не посторонняя тема', async () => {
+    const route = await routeQuestion({ question: 'что выгоднее — вклад или ИПС?' });
+
+    expect(route.intent).toBe('data_lookup');
+  });
+
+  it('погода остаётся посторонней темой', async () => {
+    const route = await routeQuestion({ question: 'какая завтра погода в Москве?' });
+
+    expect(route.intent).toBe('off_topic');
+  });
+
+  it('незнакомая бумага — вопрос к агенту, а не отказ', async () => {
+    // Новых эмитентов нет в алиасах: тикер должен найти инструмент
+    // (invest_find_instrument), а не захардкоженный список и не отказ.
+    const route = await routeQuestion({ question: 'что за бумага хэдхантер?' });
+
+    expect(route.intent).toBe('security_analysis');
+  });
+
+  it('«стоит ли брать акции X» тоже не посторонняя тема', async () => {
+    const route = await routeQuestion({ question: 'стоит ли брать акции Циана?' });
+
+    expect(route.intent).toBe('security_analysis');
+  });
+});
+
 describe('маршрутизация вопроса', () => {
   it('справку о возможностях решает правилом', async () => {
     const route = await routeQuestion({ question: 'что ты умеешь?' });

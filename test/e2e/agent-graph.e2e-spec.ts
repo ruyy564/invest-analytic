@@ -53,7 +53,10 @@ describe('граф агента с подтверждением', () => {
   });
 
   it('справочный вопрос о понятии отвечает из базы знаний без данных', async () => {
-    const { runner, toolCalls } = await createHarness(['ответ модели не используется']);
+    // Ответ формирует модель-эксперт по теме из базы знаний, а не заготовка из файла.
+    const { runner, toolCalls } = await createHarness([
+      'Диверсификация снижает риск: активы падают не одновременно.',
+    ]);
 
     const result = await runner.run('что такое диверсификация?', 's-knowledge');
 
@@ -61,7 +64,6 @@ describe('граф агента с подтверждением', () => {
     expect(result.intent).toBe('knowledge_question');
     expect(result.approval).toBeUndefined();
     expect(result.answer).toContain('Диверсификация');
-    expect(result.answer).toContain('Источник:');
     // Данные брокера для справочного ответа не нужны, отчёт не создаётся.
     expect(result.report).toBeUndefined();
     expect(result.partial).toBe(false);

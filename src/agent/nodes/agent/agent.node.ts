@@ -16,6 +16,7 @@ import {
 import { reportOfState } from '../../results/index.js';
 import { isDataRefusal, isRefusal } from '../../services/respond.service.js';
 import { DECISION_PATTERN } from '../classify/prompt.js';
+import type { KnowledgeProvider } from '../../../capabilities/knowledge/index.js';
 import { detectInstruments } from '../../scope.js';
 import { FACTORS_TOOL } from '../../../capabilities/market/tools/factors/factors.service.js';
 import {
@@ -443,7 +444,13 @@ export const createAgentNode =
     tools: StructuredToolInterface[],
     options: {
       accountId?: string;
-      knowledge?: string;
+      /**
+       * База знаний: темы отбираются под текущий вопрос, а не подаются один раз.
+       * Один чек-лист в промпте делал из эксперта справочное бюро.
+       */
+      knowledge?: KnowledgeProvider;
+      /** Сколько символов знаний подавать модели: контекст GigaChat не бесконечен. */
+      knowledgeMaxChars?: number;
       /** Алиасы эмитентов: по ним находятся все бумаги, названные в вопросе. */
       aliases?: Record<string, string[]>;
     } = {},
@@ -505,8 +512,24 @@ export const createAgentNode =
               'придумывай: если данных не хватает — так и скажи.',
           ].join('\n')
         : '';
-    const systemText = [buildAgentSystemPrompt(options), followUpNote]
-      .filter((part) => part.length > 0)
+    const systemText = [
+      buildAgentSystemPrompt({
+        accountId: options.accountId,
+        // Знания подбираются под вопрос: эксперт применяет принципы, а не общий чек-лист.
+        knowledge:
+          options.knowledge && !options.knowledge.isEmpty
+            ? options.knowledge.promptBlock({
+                question,
+                limit: 4,
+                maxChars: options.knowledgeMaxChars ?? 6_000,
+                // Решение по бумаге или портфелю — вместе с чек-листом.
+                ...(DECISION_PATTERN.test(question) ? { required: ['decision-checklist'] } : {}),
+              })
+            : undefined,
+      }),
+      followUpNote,
+    ]
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
       .join('\n\n');
     const response = await withTimeout(
       // Провайдеру уходит урезанная история: полные тексты публикаций переполняли

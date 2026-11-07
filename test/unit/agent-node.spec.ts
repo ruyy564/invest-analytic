@@ -141,7 +141,7 @@ describe('принципы принятия решений в промпте а�
     const prompt = buildAgentSystemPrompt({ knowledge: knowledge() });
 
     expect(prompt).toContain('Чек-лист принятия решений');
-    expect(prompt).toContain('принципы трактовки, а не данные');
+    expect(prompt).toContain('принципы и критерии, а не данные рынка');
     expect(prompt).toContain('помечай (оценка)');
     // Роль и запрет торговли остаются на месте.
     expect(prompt).toContain('Не совершай торговых операций');
@@ -151,10 +151,57 @@ describe('принципы принятия решений в промпте а�
     const prompt = buildAgentSystemPrompt();
 
     expect(prompt).not.toContain('Чек-лист принятия решений');
-    expect(prompt).not.toContain('принципы трактовки');
+    expect(prompt).not.toContain('принципы и критерии');
     expect(prompt).toContain('Не совершай торговых операций');
   });
 });
+describe('база знаний в промпте агента', () => {
+  it('подаёт знания, отобранные под текущий вопрос, а не один чек-лист', async () => {
+    // Справочное бюро вместо эксперта: раньше в промпт шёл только чек-лист решений,
+    // и на «что такое диверсификация» модель не получала саму тему.
+    const recorded: unknown[][] = [];
+    const model = {
+      bindTools: () => model,
+      invoke: async (messages: unknown[]) => {
+        recorded.push(messages);
+        return new AIMessage('ответ эксперта');
+      },
+    } as never;
+    const knowledge = {
+      isEmpty: false,
+      promptBlock: (query: { question?: string }) => `ЗНАНИЯ ПО ВОПРОСУ: ${query.question ?? ''}`,
+    } as never;
+
+    await createAgentNode(model, [], { knowledge })({
+      messages: [new HumanMessage('что такое диверсификация?')],
+      intent: 'data_lookup',
+    } as never);
+
+    const system = String((recorded[0]?.[0] as { content?: unknown })?.content ?? '');
+    expect(system).toContain('ЗНАНИЯ ПО ВОПРОСУ: что такое диверсификация?');
+    expect(system).toContain('инвестиционный эксперт');
+  });
+
+  it('без базы знаний промпт не содержит справочный блок', async () => {
+    const recorded: unknown[][] = [];
+    const model = {
+      bindTools: () => model,
+      invoke: async (messages: unknown[]) => {
+        recorded.push(messages);
+        return new AIMessage('ответ');
+      },
+    } as never;
+
+    await createAgentNode(model, [])({
+      messages: [new HumanMessage('что у меня в портфеле?')],
+      intent: 'data_lookup',
+    } as never);
+
+    const system = String((recorded[0]?.[0] as { content?: unknown })?.content ?? '');
+    expect(system).not.toContain('ЗНАНИЯ ПО ВОПРОСУ');
+  });
+});
+
 describe('ответ по данным текущего прогона', () => {
   const DYNAMICS = [
     'Динамика SBER (Сбербанк) за 180 дней:',

@@ -13,6 +13,8 @@ import {
   CLASSIFIER_SYSTEM_PROMPT,
   heuristicIntent,
   heuristicNewsIntent,
+  isMoneyQuestion,
+  isSecurityQuestion,
   parseIntentText,
 } from '../nodes/classify/prompt.js';
 import { PORTFOLIO_SCOPE_PROMPT } from '../nodes/off-topic/prompt.js';
@@ -102,8 +104,11 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
   const dataNeedFields = needsPortfolioData(question) ? { dataNeed: 'portfolio' as const } : {};
 
   /**
-   * Единый выход маршрутизатора: если в вопросе названа бумага, «вне компетенции»
-   * не ставим — классификатор ошибается на коротких вопросах вроде «что с самолётом».
+   * Единый выход маршрутизатора: «вне компетенции» не ставим, если в вопросе
+   * названа бумага (классификатор ошибается на коротких вопросах вроде «что с
+   * самолётом»), спрашивают про бумагу или эмитента (даже незнакомого — тикер
+   * найдёт инструмент) или про личные деньги (квартира, ипотека, вклад, гараж):
+   * это работа эксперта, а не отказ.
    */
   const decide = (
     intent: RouteDecision['intent'],
@@ -111,7 +116,16 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
     extra: { guard?: RouteDecision['guard']; followUp?: boolean } = {},
   ): RouteDecision => {
     const named = scoped.scope === 'instrument';
-    const resolved = intent === 'off_topic' && named ? 'security_analysis' : intent;
+    const money = isMoneyQuestion(question);
+    const security = isSecurityQuestion(question);
+    const resolved =
+      intent === 'off_topic'
+        ? named || security
+          ? 'security_analysis'
+          : money
+            ? 'data_lookup'
+            : intent
+        : intent;
     return {
       intent: resolved,
       ...scoped,

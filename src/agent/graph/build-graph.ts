@@ -45,13 +45,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
   // Знания приходят сервисом: ветка активна, если каталог тем загрузился.
   const knowledge = deps.review.knowledge;
   const knowledgeEnabled = !knowledge.isEmpty;
-  // Чек-лист решений для системного промпта агента: только он, без остальных тем.
-  const knowledgeText = knowledge.promptBlock({
-    section: 'verdict',
-    required: ['decision-checklist'],
-    limit: 1,
-    maxChars: deps.review.config.value.run.knowledgeMaxChars,
-  });
+  const knowledgeMaxChars = deps.review.config.value.run.knowledgeMaxChars;
 
   const base = new StateGraph(AgentState)
     .addNode(
@@ -64,7 +58,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
     )
     .addNode('offTopic', offTopicNode)
     .addNode('help', createHelpNode({ config: deps.review.config }))
-    .addNode('knowledge', createKnowledgeNode({ knowledge }))
+    .addNode('knowledge', createKnowledgeNode({ knowledge, model: deps.answerModel }))
     .addNode(
       'news',
       createNewsNode({ config: deps.review.config, registry: deps.review.registry }),
@@ -73,7 +67,8 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
       'agent',
       createAgentNode(deps.answerModel, deps.tools, {
         accountId: deps.accountId,
-        knowledge: knowledgeText,
+        knowledge,
+        knowledgeMaxChars,
         // Алиасы нужны вопросам о причинах: по ним находятся все названные бумаги.
         aliases: loadTickerAliases(
           deps.review.config.value.sources?.tickerAliasesFile ?? 'data/ticker-aliases.yaml',
