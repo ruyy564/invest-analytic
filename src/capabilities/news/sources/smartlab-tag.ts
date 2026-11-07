@@ -1,4 +1,4 @@
-import { parseFeed } from './feed.js';
+import { parseFeed, absoluteUrl } from './feed.js';
 import { isDigestTitle } from '../news.filters.js';
 import type { NewsQuery, NewsSourceAdapter, SourceItem } from '../news.types.js';
 import type { NewsPolicy } from '../index.js';
@@ -47,7 +47,8 @@ export const createSmartLabTagSource = (options: SmartLabTagOptions): NewsSource
 
     for (const ticker of tickers) {
       try {
-        const raw = await options.fetchText(template.replace('{ticker}', ticker));
+        const tagUrl = template.replace('{ticker}', ticker);
+        const raw = await options.fetchText(tagUrl);
         const parsed = parseFeed(raw, {
           format: 'rss',
           source: 'smartlab',
@@ -63,7 +64,12 @@ export const createSmartLabTagSource = (options: SmartLabTagOptions): NewsSource
             matchers.length === 0 || matchers.some((matcher) => haystack.includes(matcher));
           if (relevant) {
             // Лента тега уже привязана к бумаге: это привязка от источника.
-            items.push({ ...item, instrumentTags: [ticker] });
+            // Ссылка может быть относительной — достраиваем от адреса ленты.
+            items.push({
+              ...item,
+              url: absoluteUrl(item.url, tagUrl),
+              instrumentTags: [ticker],
+            });
           }
         }
       } catch (error) {

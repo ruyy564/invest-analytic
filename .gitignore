@@ -25,3 +25,10 @@ tmp/
 .langgraph_api
 # Временные файлы проб MCP
 .probe/
+
+# Живые транскрипты оценки — снимок реального портфеля: не версионируются.
+# Записываются локально: npm run record:transcripts
+test/eval/transcripts/*.txt
+# Исключение: разбор на фикстурах — данных пользователя в нём нет.
+!test/eval/transcripts/analytics-brief-sber.txt
+

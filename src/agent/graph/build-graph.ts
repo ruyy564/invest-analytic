@@ -5,6 +5,7 @@ import { ToolNode } from '@langchain/langgraph/prebuilt';
 import type { ApprovalFlowService } from '../approval-flow.service.js';
 import type { ApprovalPolicyService } from '../approvals/approval-policy.service.js';
 import { createAgentNode } from '../nodes/agent/index.js';
+import { loadTickerAliases } from '../../capabilities/news/news.aliases.js';
 import { createApproveNode } from '../nodes/approve/index.js';
 import { createClassifyNode } from '../nodes/classify/index.js';
 import { offTopicNode } from '../nodes/off-topic/index.js';
@@ -73,6 +74,10 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
       createAgentNode(deps.answerModel, deps.tools, {
         accountId: deps.accountId,
         knowledge: knowledgeText,
+        // Алиасы нужны вопросам о причинах: по ним находятся все названные бумаги.
+        aliases: loadTickerAliases(
+          deps.review.config.value.sources?.tickerAliasesFile ?? 'data/ticker-aliases.yaml',
+        ),
       }),
     )
     .addNode('approve', createApproveNode(deps), {

@@ -18,6 +18,17 @@ export const PORTFOLIO_SCOPE: ScopeTarget = { scope: 'portfolio', label: 'пор
 /** Тикер в тексте: SBER, PLZL, X5. */
 const TICKER_TOKEN = /\b([A-Z][A-Z0-9]{1,4})\b/;
 
+/** Все тикеры в тексте — для вопросов о нескольких бумагах сразу. */
+const TICKER_ALL = /\b([A-Z][A-Z0-9]{1,4})\b/g;
+
+/**
+ * Разговорные короткие названия: в подстроки новостных лент они не годятся
+ * («ВК» ловится внутри «вклад»), но в вопросе означают конкретную бумагу.
+ */
+const SHORT_NAMES: Record<string, readonly string[]> = {
+  VKCO: ['ВК'],
+};
+
 /** Слова про счёт и номер/название сразу после них. */
 const ACCOUNT_WORDS =
   /(?:счёт|счет|счёту|счету|счёта|счета|счетам|счётам)\s*([A-Za-zА-Яа-я0-9*_-]{4,})/i;
@@ -65,4 +76,57 @@ export const detectScope = (
   }
 
   return PORTFOLIO_SCOPE;
+};
+
+/**
+ * Регулярка алиаса: длинные имена ищем с окончаниями («о Лукойле»), короткие —
+ * только отдельным словом, иначе «ВК» находится внутри «вклад».
+ */
+const aliasMatcher = (alias: string): RegExp => {
+  const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const onlyWord = alias.length <= 2;
+  return new RegExp(
+    `(?<![\\p{L}\\p{N}])${escaped}${onlyWord ? '(?![\\p{L}\\p{N}])' : ''}`,
+    'iu',
+  );
+};
+
+/**
+ * Все бумаги, названные в тексте.
+ *
+ * Нужно вопросам о нескольких бумагах сразу: «почему упал Яндекс, а ВК вырос» —
+ * без этого вторая бумага теряется, и ответ строится по одной.
+ */
+export const detectInstruments = (
+  text: string,
+  aliases: Record<string, readonly string[]> = {},
+): string[] => {
+  const found: string[] = [];
+  const known = new Set(Object.keys(aliases));
+
+  for (const match of text.matchAll(TICKER_ALL)) {
+    const ticker = match[1].toUpperCase();
+    if (known.has(ticker) && !found.includes(ticker)) {
+      found.push(ticker);
+    }
+  }
+
+  const entries: [string, readonly string[]][] = [
+    ...Object.entries(aliases),
+    ...Object.entries(SHORT_NAMES),
+  ];
+  for (const [ticker, values] of entries) {
+    if (found.includes(ticker)) {
+      continue;
+    }
+    const hit = values.some((alias) => {
+      const trimmed = alias.trim();
+      return trimmed.length > 1 && aliasMatcher(trimmed).test(text);
+    });
+    if (hit) {
+      found.push(ticker);
+    }
+  }
+
+  return found;
 };

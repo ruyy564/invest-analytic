@@ -3,6 +3,7 @@ import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 import type { AppConfigService } from '../../../platform/config/app-config.service.js';
 import type { McpRegistryService } from '../../../transports/mcp/mcp-registry.service.js';
 import { collectNewsFeed, formatNewsFeed } from '../../../capabilities/news/tools/news-digest/news-digest.service.js';
+import { topicOf } from '../../../capabilities/news/topics.js';
 import type { AgentStateType } from '../../graph/state.js';
 
 export interface NewsDeps {
@@ -35,10 +36,19 @@ export const feedPeriodTitle = (days: number): string => {
 export const createNewsNode =
   (deps: NewsDeps) =>
   async (
-    _state: AgentStateType,
+    state: AgentStateType,
     config?: LangGraphRunnableConfig,
   ): Promise<Partial<AgentStateType>> => {
     const sessionId = String(config?.configurable?.thread_id ?? '');
+    // Тема вопроса («новости по криптовалютам») превращается в фильтр сбора:
+    // общая повестка на такой вопрос отвечает спортом и криминалом.
+    const question = [...state.messages]
+      .reverse()
+      .find(
+        (message) =>
+          (message as unknown as { _getType?: () => string })._getType?.() === 'human',
+      );
+    const topic = topicOf(typeof question?.content === 'string' ? question.content : '');
     // Брокерский источник внутри дергает MCP-инструмент: бюджет прогона нужен,
     // хотя подтверждение для публичных новостей не запрашивается.
     deps.registry.beginRun(sessionId);
@@ -65,10 +75,11 @@ export const createNewsNode =
           days,
         })),
         maxPerPeriod: newsFeed.maxPerPeriod,
+        ...(topic ? { topic: topic.matchers } : {}),
       });
 
       return {
-        messages: [new AIMessage(formatNewsFeed(feed))],
+        messages: [new AIMessage(formatNewsFeed(feed, topic?.title))],
         reportType: 'market_news',
         dataAsOf: feed.asOf,
         // Покрытие источников попадает в метаданные ответа тем же полем, что и у отчёта.

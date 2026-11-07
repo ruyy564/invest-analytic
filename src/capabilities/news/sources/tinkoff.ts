@@ -129,15 +129,18 @@ export const createTinkoffNewsSource = (options: TinkoffNewsSourceOptions): News
 
   const fetchNews = async (query: NewsQuery): Promise<SourceItem[]> => {
     const tickers = (query.tickers ?? []).filter((ticker) => ticker.length > 0).slice(0, 5);
+    // Брокер ищет новости по `TICKER_CLASSCODE`: по одному тикеру отвечает
+    // «Instrument not found», и новости эмитента терялись целиком.
+    const ids = (query.instrumentIds ?? []).filter((id) => id.trim().length > 0).slice(0, 5);
     const batches: SourceItem[] = [];
 
-    if (tickers.length > 0) {
+    if (ids.length > 0 || tickers.length > 0) {
       // Только новости по бумагам портфеля: общая лента не влияет на решения
       // и забивает отчёт спортом/политикой.
-      for (const ticker of tickers) {
+      for (const instrumentId of ids.length > 0 ? ids : tickers) {
         try {
           batches.push(
-            ...(await collect(ticker, {
+            ...(await collect(instrumentId, {
               ...query,
               pages: 1,
               maxItems: Math.min(3, query.maxItems),

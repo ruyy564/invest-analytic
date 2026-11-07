@@ -70,6 +70,13 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
       maxItems: env.NEWS_DIGEST_MAX_ITEMS,
       policyV2: env.NEWS_POLICY_V2,
       policyFile: env.NEWS_POLICY_FILE,
+      extraFeedsFile: env.NEWS_EXTRA_FEEDS_FILE,
+      indexEnabled: env.NEWS_INDEX_ENABLED,
+      indexTtlDays: env.NEWS_INDEX_TTL_DAYS,
+      crawlerEnabled: env.NEWS_CRAWLER_ENABLED,
+      crawlerIntervalMin: env.NEWS_CRAWLER_INTERVAL_MIN,
+      crawlerMaxItems: env.NEWS_CRAWLER_MAX_ITEMS,
+      watchlistFile: env.NEWS_WATCHLIST_FILE,
     },
     newsFeed: {
       enabled: env.NEWS_FEED_ENABLED,
@@ -79,6 +86,7 @@ const toAppConfig = (env: ScalarEnv, servers: McpServerConfig[]): AppConfig => (
     taxKeywordsFile: env.TAX_KEYWORDS_FILE,
     tickerAliasesFile: env.TICKER_ALIASES_FILE,
     companyProfilesFile: env.COMPANY_PROFILES_FILE,
+    cbMeetingsFile: env.CB_MEETINGS_FILE,
   },
   state: {
     backend: env.STATE_BACKEND,

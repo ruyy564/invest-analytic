@@ -64,6 +64,20 @@ export const APPROVAL_RULES: ApprovalRule[] = [
     requiresApproval: true,
   },
   {
+    tool: 'market__factors',
+    label: 'Рыночные факторы (нефть, курс, ставка)',
+    // Публичные рыночные значения: бумаги и суммы пользователя не читаются.
+    question: 'Прочитать рыночные факторы: нефть, курсы валют и ключевую ставку?',
+    requiresApproval: false,
+  },
+  {
+    tool: 'macro__cb_meetings',
+    label: 'Календарь заседаний ЦБ',
+    // План регулятора из файла-данных: ни бумаг, ни сумм пользователя.
+    question: 'Прочитать план заседаний ЦБ по ключевой ставке?',
+    requiresApproval: false,
+  },
+  {
     tool: 'tinkoff__invest_get_portfolio',
     label: 'Состав и стоимость портфеля',
     question: 'Прочитать данные портфеля у брокера?',
@@ -115,6 +129,12 @@ export const APPROVAL_RULES: ApprovalRule[] = [
     tool: 'tinkoff__invest_get_news',
     label: 'Новости по бумаге',
     question: 'Прочитать новости по бумаге у брокера?',
+    requiresApproval: true,
+  },
+  {
+    tool: 'tinkoff__invest_get_instrument_reports',
+    label: 'Календарь отчётности эмитента',
+    question: 'Прочитать даты публикации отчётности эмитента у брокера?',
     requiresApproval: true,
   },
   {

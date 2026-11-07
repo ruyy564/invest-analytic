@@ -40,6 +40,8 @@ export interface RouteDecision {
 
 export interface RouteOptions {
   question: string;
+  /** Предыдущий вопрос диалога: по нему находится бумага, названная местоимением. */
+  previousQuestion?: string;
   aliases?: Record<string, string[]>;
   knowledge?: KnowledgeProvider;
   model?: BaseChatModel;
@@ -48,13 +50,28 @@ export interface RouteOptions {
   timeoutMs?: number;
 }
 
-const scopeOf = (question: string, aliases: Record<string, string[]>) => {
+/** Ссылка на бумагу местоимением: «стоит ли её покупать» после вопроса о Сбере. */
+const ANAPHORA_PATTERN =
+  /(?:^|[^а-яё])(?:её|ее|его|им|ней|неё|нему|этой|эту|эти|этих|данной|данную|такую|такой)(?![а-яё])/i;
+
+/**
+ * Область вопроса с учётом диалога: если бумага названа в предыдущем вопросе,
+ * а текущий ссылается на неё местоимением, разбор идёт по этой бумаге.
+ * Без предыдущего вопроса область остаётся портфельной: угадывать тикер нельзя.
+ */
+const scopeOf = (
+  question: string,
+  aliases: Record<string, string[]>,
+  previousQuestion?: string,
+) => {
   const scoped = detectScope(question, aliases);
-  return {
-    scope: scoped.scope,
-    scopeTarget: scoped.target,
-    scopeLabel: scoped.label,
-  };
+  if (scoped.scope !== 'portfolio' || !previousQuestion || !ANAPHORA_PATTERN.test(question)) {
+    return { scope: scoped.scope, scopeTarget: scoped.target, scopeLabel: scoped.label };
+  }
+  const previous = detectScope(previousQuestion, aliases);
+  return previous.scope === 'instrument'
+    ? { scope: previous.scope, scopeTarget: previous.target, scopeLabel: previous.label }
+    : { scope: scoped.scope, scopeTarget: scoped.target, scopeLabel: scoped.label };
 };
 
 /**
@@ -65,7 +82,7 @@ const scopeOf = (question: string, aliases: Record<string, string[]>) => {
 export const routeQuestion = async (options: RouteOptions): Promise<RouteDecision> => {
   const { question } = options;
   const aliases = options.aliases ?? loadTickerAliases('data/ticker-aliases.yaml');
-  const scoped = scopeOf(question, aliases);
+  const scoped = scopeOf(question, aliases, options.previousQuestion);
 
   // Правило: некоторым вопросам данные портфеля нужны без решения модели.
   const dataNeedFields = needsPortfolioData(question) ? { dataNeed: 'portfolio' as const } : {};

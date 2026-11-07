@@ -1,0 +1,72 @@
+# Дополнительные новостные ленты: подключаются данными, без правки кода.
+#
+# Формат записи: id, url, format (rss | atom | json), topics (news, market, macro, tax)
+# и необязательные fallbackUrl / summaryLimit. Файл читается из NEWS_EXTRA_FEEDS_FILE;
+# файла нет или список пуст — дополнительных источников нет.
+#
+# Ниже — проверенные 07.11.2026 адреса (HTTP 200 и разбор ленты): ЦБ, «Прайм»,
+# БФМ, Banki.ru, РИА «Экономика», «Коммерсантъ» (бизнес). Биржевые страницы,
+# которые отдают 403/404 (finmarket, forbes, angi, oilcapital), не подключены —
+# у них берём RSS только при появлении рабочего адреса.
+
+- id: cbr
+  url: https://www.cbr.ru/rss/eventrss
+  format: rss
+  topics: [news, macro]
+
+- id: prime
+  url: https://1prime.ru/export/rss2/index.xml
+  format: rss
+  topics: [news, macro]
+
+- id: bfm
+  url: https://www.bfm.ru/news.rss
+  format: rss
+  topics: [news]
+
+- id: banki
+  url: https://www.banki.ru/xml/news.rss
+  format: rss
+  topics: [news]
+
+- id: ria_economy
+  url: https://ria.ru/export/rss2/archive/index.xml
+  format: rss
+  topics: [news]
+
+- id: kommersant_business
+  url: https://www.kommersant.ru/RSS/section-business.xml
+  format: rss
+  topics: [news]
+
+# Криптовалюты: общая повестка о них не пишет, нужна тематическая лента.
+- id: crypto_forklog
+  url: https://forklog.com/feed/
+  format: rss
+  topics: [news]
+
+- id: crypto_incrypted
+  url: https://incrypted.com/feed/
+  format: rss
+  topics: [news]
+
+- id: crypto_investing
+  url: https://ru.investing.com/rss/news_301.rss
+  format: rss
+  topics: [news]
+
+- id: crypto_tech
+  url: https://cryptocurrency.tech/feed/
+  format: rss
+  topics: [news]
+
+- id: crypto_cointelegraph
+  url: https://cointelegraph.com/rss
+  format: rss
+  topics: [news]
+
+- id: crypto_coindesk
+  url: https://www.coindesk.com/arc/outboundfeeds/rss/
+  format: rss
+  topics: [news]
+

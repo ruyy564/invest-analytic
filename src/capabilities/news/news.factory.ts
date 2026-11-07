@@ -7,6 +7,7 @@ import { createTinkoffNewsSource } from './sources/tinkoff.js';
 import { createSmartLabTagSource } from './sources/smartlab-tag.js';
 import { createRbcQuoteSource } from './sources/rbc-quote.js';
 import { createTbankResearchSource } from './sources/tbank-research.js';
+import { loadExtraFeeds } from './sources/extra.js';
 import { loadNewsPolicy, type NewsPolicy } from './index.js';
 import type { NewsSourceAdapter } from './news.types.js';
 
@@ -101,6 +102,25 @@ export const buildNewsRegistry = (deps: NewsFactoryDeps): NewsRegistry => {
         policy,
       }),
     );
+  }
+
+  // Дополнительные ленты из файла: новый источник подключается данными, а не кодом.
+  // Файла нет или сбор не включён в `SOURCES` — список пуст, поведение не меняется.
+  if (enabled.has('news_extra')) {
+    for (const feed of loadExtraFeeds(config.sources.news.extraFeedsFile)) {
+      news.push(
+        createFeedSource({
+          id: feed.id,
+          url: feed.url,
+          fallbackUrl: feed.fallbackUrl,
+          format: feed.format,
+          topics: feed.topics,
+          summaryLimit: feed.summaryLimit,
+          fetchText: deps.fetchText,
+          policy,
+        }),
+      );
+    }
   }
 
   return new NewsRegistry(news);

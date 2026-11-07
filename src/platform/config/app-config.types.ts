@@ -79,6 +79,20 @@ export interface AppConfig {
       policyV2: boolean;
       /** Файл политики: правила отбраковки и привязки к бумаге. */
       policyFile: string;
+      /** Дополнительные ленты: файл со списком источников (id, url, формат). */
+      extraFeedsFile: string;
+      /** Индекс собранных публикаций включён. */
+      indexEnabled: boolean;
+      /** Сколько дней хранить публикации и тексты статей в индексе. */
+      indexTtlDays: number;
+      /** Фоновый сбор новостей включён. */
+      crawlerEnabled: boolean;
+      /** Интервал фонового сбора в минутах. */
+      crawlerIntervalMin: number;
+      /** Сколько публикаций собирать за один проход фона. */
+      crawlerMaxItems: number;
+      /** Файл со списком бумаг для фонового сбора. */
+      watchlistFile: string;
     };
     /** Сводка новостей рынка по периодам (ветка `news`). */
     newsFeed: {
@@ -91,6 +105,8 @@ export interface AppConfig {
     tickerAliasesFile: string;
     /** Профили секторов и компаний: драйверы и внешнеэкономический профиль. */
     companyProfilesFile: string;
+    /** План заседаний ЦБ: даты решений по ключевой ставке. */
+    cbMeetingsFile: string;
   };
   state: {
     backend: StateBackend;

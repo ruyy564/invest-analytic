@@ -40,10 +40,16 @@ export const unescapeEntities = (value: string): string =>
     return ENTITIES[key] ?? match;
   });
 
-/** Убирает теги и CDATA: в отчёт попадает только текст. */
+/**
+ * Убирает теги и CDATA: в отчёт попадает только текст.
+ *
+ * Сущности раскрываются ДО удаления тегов: ленты отдают разметку дважды
+ * закодированной (`&lt;a href=…&gt;`), и при обратном порядке она превращалась
+ * в готовые теги уже после чистки — в аннотациях оставался HTML.
+ */
 export const stripMarkup = (value: string): string =>
   unescapeEntities(
-    value
+    unescapeEntities(value)
       .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')

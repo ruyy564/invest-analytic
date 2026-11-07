@@ -6,177 +6,240 @@ version: 1
 sectors:
   - key: energy
     drivers: [цена нефти Brent и Urals, курс рубля, налоговый режим (НДПИ, демпфер), объёмы добычи и экспорта]
+    factors: [Brent, Urals, ОПЕК, нефть, НПЗ, демпфер, НДПИ, добыч]
     currency: positive
     rate: negative
   - key: materials
     drivers: [мировые цены на металлы и сырьё, курс рубля, экспортные пошлины, спрос Китая]
+    factors: [металл, золот, алюмини, никел, сталь, медь, медн, пошлин, Кита, руда]
     currency: positive
     rate: negative
   - key: financial
     drivers: [ключевая ставка, качество кредитного портфеля, инфляция, регулирование и достаточность капитала]
+    factors: [ключевая ставка, инфляц, ЦБ, кредит, достаточность капитала, банковский сектор]
     currency: neutral
     rate: positive
   - key: consumer
     drivers: [реальные доходы населения, инфляция издержек, потребительский спрос, импортная составляющая]
+    factors: [доходы, потребительский спрос, инфляц, розниц]
     currency: negative
     rate: negative
   - key: consumer_goods
     drivers: [реальные доходы, трафик и средний чек, инфляция издержек и логистики, доля импортного ассортимента]
+    factors: [трафик, средний чек, издержк, импорт, логистик, ритейл]
     currency: negative
     rate: negative
   - key: consumer_services
     drivers: [реальные доходы, занятость, ставка по потребительским кредитам, уверенность потребителя]
+    factors: [занятост, потребительский кредит, спрос, доходы]
     currency: negative
     rate: negative
   - key: it
     drivers: [экспортная выручка и курс, господдержка, доступность оборудования и софта, стоимость капитала]
+    factors: [оборудован, софт, господдержк, рекламн, выручк, курс]
     currency: positive
     rate: negative
   - key: telecom
     drivers: [тарифное регулирование, капитальные затраты на инфраструктуру, курс на оборудование]
+    factors: [тариф, инфраструктур, оборудован, абонент]
     currency: negative
     rate: neutral
   - key: utilities
     drivers: [тарифы, цены на топливо, износ сетей, стоимость обслуживания долга]
+    factors: [тариф, топлив, сетев, электросет, обслуживание долга]
     currency: negative
     rate: negative
   - key: green_energy
     drivers: [стоимость капитала, господдержка и тарифы, цены на оборудование и комплектующие]
+    factors: [тариф, оборудован, стоимость капитала, господдержк]
     currency: negative
     rate: negative
   - key: real_estate
     drivers: [ипотечная ставка и льготные программы, реальные доходы, стоимость проектного финансирования]
+    factors: [ипотек, льготн, проектное финансирование, доходы, ставк]
     currency: negative
     rate: negative
   - key: transport
     drivers: [грузооборот и пассажиропоток, тарифы, стоимость топлива, доступность лизинга]
+    factors: [грузооборот, пассажиропоток, тариф, лизинг, топлив]
     currency: negative
     rate: negative
   - key: healthcare
     drivers: [госзакупки, регулирование цен на препараты, импорт оборудования, курс]
+    factors: [госзакупк, препарат, импорт оборудован, курс]
     currency: negative
     rate: neutral
   - key: electronics
     drivers: [госзаказ и инвестиционный спрос, доступность комплектующих, курс, ставка]
+    factors: [госзаказ, комплектующ, курс, ставк]
     currency: negative
     rate: negative
   - key: industrials
     drivers: [инвестиционный спрос, госзаказ, стоимость кредита, логистика]
+    factors: [инвестиционный спрос, госзаказ, кредит, логистик]
     currency: negative
     rate: negative
   - key: other
     drivers: []
+    factors: []
     currency: neutral
     rate: neutral
+# Общие рыночные факторы: ищутся для любой бумаги — причины часто отраслевые.
+marketFactors:
+  - id: currency
+    title: курс рубля
+    keywords: [доллар, юан, курс рубля, рубль укрепился, рубль ослабел, USD/RUB]
+  - id: rate
+    title: ключевая ставка и инфляция
+    keywords: [ключевая ставка, ставка ЦБ, инфляц]
+  - id: sanctions
+    title: санкции и регулирование
+    keywords: [санкц, ограничени, SDN, минфин США, регулятор]
 companies:
   # Экспортёры: выручка привязана к мировым ценам и валюте.
   - ticker: LKOH
+    sector: energy
     exposure: export
     currencyShare: 0.45
   - ticker: ROSN
+    sector: energy
     exposure: export
     currencyShare: 0.5
   - ticker: GAZP
+    sector: energy
     exposure: export
     currencyShare: 0.55
   - ticker: TATN
+    sector: energy
     exposure: export
     currencyShare: 0.45
   - ticker: SNGS
+    sector: energy
     exposure: export
     currencyShare: 0.5
   - ticker: SNGSP
+    sector: energy
     exposure: export
     currencyShare: 0.5
   - ticker: PLZL
+    sector: materials
     exposure: export
     currencyShare: 0.85
   - ticker: GMKN
+    sector: materials
     exposure: export
     currencyShare: 0.8
   - ticker: NLMK
+    sector: materials
     exposure: export
     currencyShare: 0.6
   - ticker: CHMF
+    sector: materials
     exposure: export
     currencyShare: 0.5
   - ticker: MAGN
+    sector: materials
     exposure: export
     currencyShare: 0.45
   - ticker: ALRS
+    sector: materials
     exposure: export
     currencyShare: 0.7
   - ticker: RUAL
+    sector: materials
     exposure: export
     currencyShare: 0.75
   - ticker: PHOR
+    sector: materials
     exposure: export
     currencyShare: 0.8
   - ticker: FESH
+    sector: transport
     exposure: export
     currencyShare: 0.6
   - ticker: AGRO
+    sector: consumer_goods
     exposure: export
     currencyShare: 0.6
   # Внутренний рынок: выручка в рублях, спрос зависит от доходов и ставки.
   - ticker: SBER
+    sector: financial
     exposure: domestic
     currencyShare: 0
   - ticker: VTBR
+    sector: financial
     exposure: domestic
     currencyShare: 0
   - ticker: MOEX
+    sector: financial
     exposure: domestic
     currencyShare: 0
   - ticker: T
+    sector: financial
     exposure: domestic
     currencyShare: 0
   - ticker: MTSS
+    sector: telecom
     exposure: domestic
     currencyShare: 0.05
   - ticker: MGTS
+    sector: telecom
     exposure: domestic
     currencyShare: 0
   - ticker: AFLT
+    sector: transport
     exposure: domestic
     currencyShare: 0.1
   - ticker: YDEX
+    sector: it
     exposure: domestic
     currencyShare: 0.15
   - ticker: VKCO
+    sector: it
     exposure: domestic
     currencyShare: 0.1
   - ticker: POSI
+    sector: real_estate
     exposure: domestic
     currencyShare: 0
   - ticker: LSR
+    sector: real_estate
     exposure: domestic
     currencyShare: 0
   - ticker: PIKK
+    sector: real_estate
     exposure: domestic
     currencyShare: 0
   - ticker: SMLT
+    sector: real_estate
     exposure: domestic
     currencyShare: 0
   # Импортёры: себестоимость зависит от валюты и логистики.
   - ticker: OZON
+    sector: consumer_goods
     exposure: import
     currencyShare: 0
   - ticker: FIVE
+    sector: consumer_goods
     exposure: import
     currencyShare: 0
   - ticker: LENT
+    sector: consumer_goods
     exposure: import
     currencyShare: 0
   - ticker: MGNT
+    sector: consumer_goods
     exposure: import
     currencyShare: 0
   - ticker: DSKY
+    sector: consumer_goods
     exposure: import
     currencyShare: 0
   - ticker: MVID
+    sector: consumer_goods
     exposure: import
     currencyShare: 0
   - ticker: RSTI
+    sector: consumer_goods
     exposure: import
     currencyShare: 0

@@ -1,7 +1,12 @@
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 import { executePlan, type CollectionResult } from '../../../capabilities/reports/collection/executor.js';
 import { buildCollectionPlan, instrumentKey, planKey, type CollectionPlan, type PlanEntry } from '../../../capabilities/reports/collection/plan.js';
-import { assetEntries, brandEntries, shareEntries } from '../../../capabilities/reports/collection/reference.js';
+import {
+  assetEntries,
+  brandEntries,
+  fundamentalEntries,
+  shareEntries,
+} from '../../../capabilities/reports/collection/reference.js';
 import { loadTickerAliases, matchersFor } from '../../../capabilities/news/news.aliases.js';
 import type { AgentStateType } from '../../graph/state.js';
 import type { ReviewDeps } from './deps.js';
@@ -59,7 +64,20 @@ export const createCollectNode =
         ] as const),
       ),
     });
-    const perTickerGroups = new Set(['prices', 'candles', 'analytics', 'dividends', 'news']);
+    const perTickerGroups = new Set([
+      'prices',
+      'candles',
+      'analytics',
+      'dividends',
+      'news',
+      'insiders',
+      'bonds',
+      'bond_events',
+      'bond_accrued',
+      'reports_calendar',
+      'market_factors',
+      'cb_meetings',
+    ]);
     const seen = new Set(first.results.keys());
     const entries = perTicker.entries.filter(
       (entry) => perTickerGroups.has(entry.group) && !seen.has(planKey(entry)),
@@ -102,6 +120,8 @@ export const createCollectNode =
 
     const shares = await round(shareEntries(selectedInstruments));
     const assets = await round(assetEntries(shares, texts, planKey));
+    // Фундаментал требует uid актива: запрашиваем после первого круга справочника.
+    await round(fundamentalEntries(shares, texts, planKey));
     await round(brandEntries(assets, texts, planKey));
 
     return {

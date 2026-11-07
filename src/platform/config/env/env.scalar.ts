@@ -96,6 +96,17 @@ export const scalarEnvObject = z
     /** Политика релевантности новостей: правила в YAML вместо кода источников. */
     NEWS_POLICY_V2: flag(true),
     NEWS_POLICY_FILE: z.string().trim().min(1).default('data/policy/news.yaml'),
+    /** Дополнительные ленты: файл со списком источников (id, url, формат). */
+    NEWS_EXTRA_FEEDS_FILE: z.string().trim().min(1).default('data/news-sources.yaml'),
+    /** Индекс собранных публикаций: история шире сетевого окна лент. */
+    NEWS_INDEX_ENABLED: flag(true),
+    NEWS_INDEX_TTL_DAYS: z.coerce.number().int().positive().max(365).default(30),
+    /** Фоновый сбор новостей: данные есть к моменту вопроса, а не в момент ответа. */
+    NEWS_CRAWLER_ENABLED: flag(true),
+    NEWS_CRAWLER_INTERVAL_MIN: z.coerce.number().int().positive().max(1440).default(15),
+    NEWS_CRAWLER_MAX_ITEMS: z.coerce.number().int().positive().max(500).default(60),
+    /** Файл со списком бумаг для фонового сбора: `- LKOH` или `tickers: [...]`. */
+    NEWS_WATCHLIST_FILE: z.string().trim().min(1).default('data/watchlist.yaml'),
     /** Сводка новостей рынка отдельной веткой графа. */
     NEWS_FEED_ENABLED: z
       .enum(['true', 'false'])
@@ -123,6 +134,8 @@ export const scalarEnvObject = z
     TICKER_ALIASES_FILE: z.string().trim().min(1).default('data/ticker-aliases.yaml'),
     /** Драйверы секторов и профили компаний: экспортёр / внутренний рынок. */
     COMPANY_PROFILES_FILE: z.string().trim().min(1).default('data/company-profiles.yaml'),
+    /** План заседаний ЦБ: даты решений по ставке для блока «чего ждём». */
+    CB_MEETINGS_FILE: z.string().trim().min(1).default('data/cb-meetings.yaml'),
 
     STATE_BACKEND: z
       .enum(SUPPORTED_STATE_BACKENDS, {

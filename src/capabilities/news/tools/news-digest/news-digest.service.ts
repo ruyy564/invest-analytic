@@ -1,5 +1,6 @@
 import { type SourceCoverageEntry, type NewsRegistry } from '../../news.registry.js';
 import { isDigestTitle, isOffTopicTitle, hasInvestmentMarker } from '../../news.filters.js';
+import { matchesMatchers } from '../../topics.js';
 import type { SourceItem } from '../../news.types.js';
 
 export const NEWS_DIGEST_TOOL = 'market__news_digest';
@@ -33,13 +34,22 @@ const PERIOD_MS = (days: number): number => days * 24 * 60 * 60 * 1000;
  */
 export const collectNewsDigest = async (
   registry: NewsRegistry,
-  params: { tickers?: string[]; names?: string[]; pages: number; maxItems: number; now?: Date },
+  params: {
+    tickers?: string[];
+    /** `TICKER_CLASSCODE` для брокера: по одному тикеру новости не находятся. */
+    instrumentIds?: string[];
+    names?: string[];
+    pages: number;
+    maxItems: number;
+    now?: Date;
+  },
 ): Promise<NewsDigestResult> => {
   const now = params.now ?? new Date();
   const tickers = params.tickers ?? [];
   const matchers = [...tickers, ...(params.names ?? [])].filter((value) => value.trim().length > 1);
   const { items, coverage } = await registry.newsDigest({
     tickers,
+    instrumentIds: params.instrumentIds ?? [],
     matchers,
     pages: params.pages,
     maxItems: Math.max(params.maxItems, 20),
@@ -140,6 +150,8 @@ export const collectNewsFeed = async (
     maxItems: number;
     periods?: readonly { id: string; title: string; days: number }[];
     maxPerPeriod?: number;
+    /** Тема вопроса: фильтр по подстрокам («крипт», «нефт»). */
+    topic?: readonly string[];
     now?: Date;
   },
 ): Promise<NewsFeedResult> => {
@@ -160,9 +172,12 @@ export const collectNewsFeed = async (
   const relevant = items
     .filter((entry) => !isDigestTitle(entry.title))
     .filter((entry) => !isOffTopicTitle(entry.title, entry.summary))
-    // Общая лента приносит и некрологи, и политику: в сводку берём только
+    // Тематический запрос («новости по криптовалютам») — фильтр по словам темы:
+    // иначе сводка отвечает общей повесткой с фигурным катанием и криминалом.
+    .filter((entry) => !params.topic?.length || matchesMatchers(entry, params.topic))
+    // Общая лента приносит и некрологи, и политику: без темы в сводку берём только
     // заголовки с инвестиционным маркером (рынок, бумаги, ставка, эмитент…).
-    .filter((entry) => hasInvestmentMarker(entry.title))
+    .filter((entry) => Boolean(params.topic?.length) || hasInvestmentMarker(entry.title))
     .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
 
   const used = new Set<string>();
@@ -204,13 +219,23 @@ export const collectNewsFeed = async (
 };
 
 /** Ответ пользователю: периоды с датами и источниками, покрытие и время данных. */
-export const formatNewsFeed = (result: NewsFeedResult): string => {
-  const lines: string[] = [`Новости инвестиционного рынка (данные на ${result.asOf})`, ''];
+export const formatNewsFeed = (result: NewsFeedResult, topicTitle?: string): string => {
+  const lines: string[] = [
+    topicTitle
+      ? `Новости: ${topicTitle} (данные на ${result.asOf})`
+      : `Новости инвестиционного рынка (данные на ${result.asOf})`,
+    '',
+  ];
   const filled = result.periods.filter((period) => period.items.length > 0);
 
   // Пустые окна не занимают экран: если новостей нет вовсе — одна строка.
   if (filled.length === 0) {
-    lines.push('За выбранный период инвестиционных новостей нет.', '');
+    lines.push(
+      topicTitle
+        ? `За выбранный период публикаций по теме «${topicTitle}» нет.`
+        : 'За выбранный период инвестиционных новостей нет.',
+      '',
+    );
   }
 
   for (const period of filled) {

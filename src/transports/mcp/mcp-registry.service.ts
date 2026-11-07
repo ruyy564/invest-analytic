@@ -5,6 +5,7 @@ import type { McpServerConfig } from '../../platform/config/env.schema.js';
 import { isForbiddenTool } from '../../platform/config/env.schema.js';
 import { missingAllowedTools, selectAllowedTools, wrapTool } from './mcp-tool.adapter.js';
 import { buildNewsRegistry } from '../../capabilities/news/news.factory.js';
+import { NewsIndex } from '../../capabilities/news/store/news-index.js';
 import type { NewsRegistry } from '../../capabilities/news/news.registry.js';
 import { buildKeyRateSource } from '../../capabilities/market/key-rate/key-rate.factory.js';
 import type { KeyRateSource } from '../../capabilities/market/key-rate/key-rate.types.js';
@@ -149,13 +150,21 @@ export class McpRegistryService {
     });
     this.keyRate = buildKeyRateSource({ config: this.config.value });
     this.commodity = buildCommoditySource({ config: this.config.value });
+    // Индекс публикаций: долгая история с ограничением TTL, чтобы новости были к вопросу.
+    this.newsIndex = this.config.value.sources.news.indexEnabled
+      ? new NewsIndex(
+          this.config.value.state.backend === 'sqlite'
+            ? this.config.value.state.sqlitePath
+            : ':memory:',
+        )
+      : undefined;
 
     this.toolsCache = [
       ...tools,
       // Тематические имена (см. data-sources) и алиасы старых имён на время миграции.
       createAllAccountsTool(tools, PORTFOLIO_SNAPSHOT_TOOL, this.config.value.run.mcpToolTimeoutMs),
       createPriceDynamicsTool(tools, MARKET_DYNAMICS_TOOL, this.config.value.run.mcpToolTimeoutMs),
-      ...createThematicTools({ newsRegistry: this.newsRegistry, keyRate: this.keyRate, commodity: this.commodity, byName, config: { timeoutMs: this.config.value.run.mcpToolTimeoutMs, scanPages: this.config.value.sources.news.scanPages, maxItems: this.config.value.sources.news.maxItems, taxKeywordsFile: this.config.value.sources.taxKeywordsFile } }),
+      ...createThematicTools({ newsRegistry: this.newsRegistry, keyRate: this.keyRate, commodity: this.commodity, byName, config: { timeoutMs: this.config.value.run.mcpToolTimeoutMs, scanPages: this.config.value.sources.news.scanPages, maxItems: this.config.value.sources.news.maxItems, taxKeywordsFile: this.config.value.sources.taxKeywordsFile, tickerAliasesFile: this.config.value.sources.tickerAliasesFile, profilesFile: this.config.value.sources.companyProfilesFile, cbMeetingsFile: this.config.value.sources.cbMeetingsFile, index: this.newsIndex } }),
       ...(this.knowledgeTool ? [this.knowledgeTool] : []),
     ];
   }
@@ -166,9 +175,20 @@ export class McpRegistryService {
   private keyRate?: KeyRateSource;
   /** Учётные цены металлов ЦБ: сырьевой фактор для бумаг вроде PLZL. */
   private commodity?: CommoditySource;
+  /** Индекс собранных публикаций: история новостей и кэш текстов статей. */
+  private newsIndex?: NewsIndex;
 
   get news(): NewsRegistry | undefined {
     return this.newsRegistry;
+  }
+
+  get index(): NewsIndex | undefined {
+    return this.newsIndex;
+  }
+
+  /** Закрываем базу индекса вместе с приложением. */
+  onModuleDestroy(): void {
+    this.newsIndex?.close();
   }
 
   get tools(): DynamicStructuredTool[] {

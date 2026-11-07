@@ -3,6 +3,7 @@ import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { MultiServerMcpFactory } from './mcp-client.factory.js';
 import { McpProxyService } from './mcp-proxy.service.js';
 import { MCP_CLIENT_FACTORY, McpRegistryService } from './mcp-registry.service.js';
+import { NewsCrawlerService } from './news-crawler.service.js';
 
 /** Набор инструментов агента: `() => Promise<DynamicStructuredTool[]>`, ленивая инициализация. */
 export const MCP_TOOLS = Symbol('MCP_TOOLS');
@@ -32,6 +33,8 @@ const needsProxy = (server: { url: string }): boolean => !server.url.includes('1
       inject: [MultiServerMcpFactory],
     },
     McpRegistryService,
+    // Фоновый сбор новостей в индекс: данные есть к моменту вопроса.
+    NewsCrawlerService,
     { provide: MCP_REGISTRY, useExisting: McpRegistryService },
     {
       provide: MCP_TOOLS,

@@ -1,1 +1,28 @@
-﻿export { ANSWER_TIMEOUT_MS, createAgentNode, withToolResults } from './agent.node.js';
+﻿export {
+  ANSWER_TIMEOUT_MS,
+  answeredCalls,
+  asksForCause,
+  asksForInterpretation,
+  callSignature,
+  clipToolResults,
+  createAgentNode,
+  currentRun,
+  lastQuestion,
+  TOOL_CONTEXT_MAX_CHARS,
+  TOOL_RESULT_MAX_CHARS,
+  withToolResults,
+} from './agent.node.js';
+export {
+  CAUSE_UNKNOWN,
+  causeFactsAnswer,
+  foreignTickers,
+  isGroundedCauseAnswer,
+  knownTickers,
+  newsFailures,
+  newsItems,
+  newsTickersRequested,
+  NEWS_SEARCH_TOOL,
+  NEWS_TOOLS,
+  toolResults,
+  type NewsItem,
+} from './cause.js';

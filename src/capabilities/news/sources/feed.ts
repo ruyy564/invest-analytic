@@ -50,6 +50,23 @@ export const defaultFetchText = async (url: string): Promise<string> => {
   return response.text();
 };
 
+/**
+ * Абсолютная ссылка публикации.
+ *
+ * Ленты отдают путь без домена (smart-lab: `/blog/tradesignals/1367782.php`),
+ * и такой адрес нельзя ни открыть, ни дочитать — достраиваем от адреса ленты.
+ */
+export const absoluteUrl = (url: string | undefined, base: string): string | undefined => {
+  if (!url) {
+    return undefined;
+  }
+  try {
+    return new URL(url, base).toString();
+  } catch {
+    return undefined;
+  }
+};
+
 /** Элемент ленты → канонический вид: проверка схемы и отдельная привязка к бумаге. */
 const toCanonical = (item: SourceItem): CanonicalItem | undefined => {
   const parsed = parseCanonicalItem({
@@ -125,7 +142,8 @@ export const createFeedSource = (options: FeedSourceOptions): NewsSourceAdapter 
       .filter((item) => (options.policy ? true : legacy(item)))
       .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
       .slice(0, query.maxItems)
-      .map((item) => ({ ...item }));
+      // Ссылки в лентах бывают относительными: дочитывание статьи требует домена.
+      .map((item) => ({ ...item, url: absoluteUrl(item.url, urls[0]) }));
 
     return { items, ...(governed.report ? { dropped: governed.report.dropped } : {}) };
   };

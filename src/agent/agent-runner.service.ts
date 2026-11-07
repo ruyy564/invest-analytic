@@ -27,6 +27,7 @@ import { newsReportOf, reportOf } from './runner/report-builder.js';
 import { RunJournal } from '../platform/runs/index.js';
 import { stopReasonOf, toolsOf, usageOf } from './runner/journal-summary.js';
 import {
+  describeError,
   extractInterrupt,
   lastAnswer,
 } from './runner/runner.helpers.js';
@@ -108,7 +109,7 @@ export class AgentRunnerService {
         await this.appendFinished(journal, graph, config, mapped, startedAt, sessionId);
         return { ...mapped, traceUrl: await this.traceUrlFor(runId) };
       } catch (error) {
-        const message = (error as Error)?.message ?? String(error);
+        const message = describeError(error);
         log.warn({ err: message }, 'Прогон прерван');
         journal?.append({ type: 'run_finished', status: 'failed', stopReason: 'error', error: message });
         if (process.env.AGENT_DEBUG_ERRORS === '1') {
@@ -225,7 +226,7 @@ export class AgentRunnerService {
         yield { type: 'cancelled' };
         return;
       }
-      const text = (error as Error)?.message ?? String(error);
+      const text = describeError(error);
       log.warn({ err: text }, 'Прогон (поток) прерван');
       yield { type: 'failed', error: text };
     } finally {

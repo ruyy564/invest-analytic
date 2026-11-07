@@ -21,6 +21,7 @@ export const LOCAL_TOOLS: readonly string[] = [
   'market__news_digest',
   'market__tax_watch',
   'macro__key_rate',
+  'market__factors',
 ];
 
 export interface LoadedRules {

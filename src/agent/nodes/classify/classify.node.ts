@@ -30,19 +30,22 @@ export const createClassifyNode = (
   const logger = new Logger('ClassifyNode');
 
   return async (state: AgentStateType): Promise<Partial<AgentStateType>> => {
-    const lastHuman = [...state.messages]
-      .reverse()
-      .find(
-        (message) =>
-          (message as unknown as { _getType?: () => string })._getType?.() === 'human',
-      );
-    const question =
-      typeof lastHuman?.content === 'string'
-        ? lastHuman.content
-        : JSON.stringify(lastHuman?.content ?? '');
+    const typeOf = (message: unknown): string =>
+      (message as { _getType?: () => string })._getType?.() ?? '';
+    const humans = state.messages.filter((message) => typeOf(message) === 'human');
+    const lastHuman = humans.at(-1);
+    // Бумага могла быть названа в предыдущем вопросе: «стоит ли её покупать?».
+    const previousHuman = humans.length > 1 ? humans[humans.length - 2] : undefined;
+    const contentOf = (message: (typeof humans)[number] | undefined): string =>
+      typeof message?.content === 'string'
+        ? message.content
+        : JSON.stringify(message?.content ?? '');
+
+    const question = contentOf(lastHuman);
 
     const route = await routeQuestion({
       question,
+      previousQuestion: contentOf(previousHuman),
       aliases: loadTickerAliases(
         options.aliasesPath ?? process.env.TICKER_ALIASES_FILE?.trim() ?? 'data/ticker-aliases.yaml',
       ),
