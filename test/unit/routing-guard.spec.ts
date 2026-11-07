@@ -91,6 +91,49 @@ describe('денежные вопросы вне бумаг', () => {
   });
 });
 
+describe('короткая реплика продолжает тему', () => {
+  it('«акции» после вопроса о бумаге наследует бумагу, а не спрашивает заново', async () => {
+    // Пользователь: «что случилось с самолетом?» → «акции». Второй ответ не должен
+    // быть «уточните, какие акции»: тема уже названа.
+    const route = await routeQuestion({
+      question: 'акции',
+      previousQuestion: 'что случилось с самолетом?',
+      previousIntent: 'security_analysis',
+    });
+
+    expect(route).toMatchObject({
+      intent: 'security_analysis',
+      scope: 'instrument',
+      scopeTarget: 'SMLT',
+      followUp: true,
+      source: 'rule',
+    });
+  });
+
+  it('короткие слова наследуют тему, новые вопросы — нет', async () => {
+    const followUp = await routeQuestion({
+      question: 'дивиденды',
+      previousQuestion: 'разбери Сбер',
+      previousIntent: 'portfolio_review',
+    });
+    const fresh = await routeQuestion({
+      question: 'покажи мои акции',
+      previousQuestion: 'разбери Сбер',
+      previousIntent: 'portfolio_review',
+    });
+    // «Мой портфель» — самостоятельный запрос, даже если предыдущий был о бумаге.
+    const portfolio = await routeQuestion({
+      question: 'мой портфель',
+      previousQuestion: 'разбери Сбер',
+      previousIntent: 'security_analysis',
+    });
+
+    expect(followUp).toMatchObject({ scopeTarget: 'SBER', followUp: true });
+    expect(fresh.followUp).toBeUndefined();
+    expect(portfolio.followUp).toBeUndefined();
+  });
+});
+
 describe('маршрутизация вопроса', () => {
   it('справку о возможностях решает правилом', async () => {
     const route = await routeQuestion({ question: 'что ты умеешь?' });

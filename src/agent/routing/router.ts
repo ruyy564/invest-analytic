@@ -72,6 +72,34 @@ const FOLLOW_UP_PATTERN =
 export const isFollowUpQuestion = (question: string): boolean => FOLLOW_UP_PATTERN.test(question);
 
 /**
+ * Короткая реплика-продолжение: «акции», «самолет», «а дивиденды».
+ *
+ * Пользователь уточняет тему одним-двумя словами, а не задаёт новый вопрос.
+ * Без наследования такие реплики получают ответ «уточните, какие акции» — при
+ * том что тема уже названа в предыдущем сообщении.
+ */
+export const isShortFollowUp = (question: string): boolean => {
+  const text = question.trim().replace(/[?!.,…]+$/u, '');
+  if (text.length === 0 || text.length > 24) {
+    return false;
+  }
+  const words = text.split(/\s+/);
+  if (words.length > 2) {
+    return false;
+  }
+  // Новый вопрос начинается с вопросительного или повелительного слова.
+  if (
+    /^(что|кто|как|почему|зачем|какие|какой|какая|каких|когда|где|сколько|стоит|можно|нужно|дай|покажи|расскажи|сравни|найди|посчитай)/i.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+  // Только слова: цифры, тикеры и перечисления — это уже новый запрос.
+  return /^[а-яё]+(?:[ -][а-яё]+)?$/i.test(text);
+};
+
+/**
  * Область вопроса с учётом диалога: если бумага названа в предыдущем вопросе,
  * а текущий ссылается на неё местоимением, разбор идёт по этой бумаге.
  * Без предыдущего вопроса область остаётся портфельной: угадывать тикер нельзя.
@@ -138,26 +166,37 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
     };
   };
 
-  // Уточнение без своей темы: «расскажи детальней», «подробнее», «а почему».
+  // Уточнение без своей темы: «расскажи детальней», «подробнее», «а почему»,
+  // а также короткая реплика «акции» / «самолет» после вопроса о бумаге.
   // Тему и область берём у предыдущего вопроса — иначе такой вопрос уходит в отказ.
+  const previous = options.previousQuestion
+    ? scopeOf(options.previousQuestion, aliases)
+    : undefined;
+  // «Мой портфель», «новости», «налоги» — самостоятельные запросы, а не продолжение.
+  const ownTopic = /портфел|счёт|счет|счета|рынок|новост|справк|налог|бюджет|тариф/i;
+  const shortContinue =
+    isShortFollowUp(question) &&
+    !ownTopic.test(question) &&
+    previous?.scope === 'instrument' &&
+    Boolean(options.previousQuestion);
   if (
-    isFollowUpQuestion(question) &&
+    (isFollowUpQuestion(question) || shortContinue) &&
     scoped.scope === 'portfolio' &&
     !scoped.scopeTarget &&
     options.previousQuestion
   ) {
-    const previous = scopeOf(options.previousQuestion, aliases);
+    const inheritedFrom = previous ?? scopeOf(options.previousQuestion, aliases);
     const inherited =
       options.previousIntent && options.previousIntent !== 'off_topic'
         ? options.previousIntent
-        : previous.scope === 'instrument'
+        : inheritedFrom.scope === 'instrument'
           ? 'security_analysis'
           : 'portfolio_review';
     return {
       intent: inherited,
-      scope: previous.scope,
-      scopeTarget: previous.scopeTarget,
-      scopeLabel: previous.scopeLabel,
+      scope: inheritedFrom.scope,
+      scopeTarget: inheritedFrom.scopeTarget,
+      scopeLabel: inheritedFrom.scopeLabel,
       ...dataNeedFields,
       followUp: true,
       source: 'rule',
