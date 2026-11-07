@@ -8,6 +8,16 @@ import {
   type CompanyProfiles,
 } from '../../company-profiles.js';
 import type { FactContext, FactProvider, SectionFacts } from '../../engine.js';
+import {
+  calendarItems,
+  driverLines,
+  fundamentalsLine,
+  parseCbMeetingLines,
+  parseFactors,
+  parseFundamentals,
+  parseReportCalendar,
+  scoreItems,
+} from '../../analytics.js';
 import { formatChangePct, trendWord } from '../../market-facts.js';
 import { marketHeadlines } from '../market-news.provider.js';
 import { RECOMMENDATIONS } from '../market.js';
@@ -96,9 +106,63 @@ export const createConclusionProvider = (profiles: CompanyProfiles): FactProvide
       lines.push(`ставка: ${rate}`);
     }
 
+    // Аналитические факты те же, что в блоках «что влияет», «хорошо/плохо», «чего ждём»:
+    // модель формулирует по ним, а не придумывает числа.
+    const fundamentalsText = resultsInGroup(ctx.plan, ctx.collected, 'fundamentals').find(
+      (item) => item.entry.target === security.ticker,
+    )?.text;
+    const fundamentals = fundamentalsText ? parseFundamentals(fundamentalsText) : undefined;
+    const fundamentalLine = fundamentalsLine(fundamentals);
+    if (fundamentalLine) {
+      lines.push(fundamentalLine);
+    }
+
+    const factors = parseFactors(
+      resultsInGroup(ctx.plan, ctx.collected, 'market_factors')[0]?.text ?? '',
+    );
+    const drivers = driverLines({
+      sectorDrivers: sectorProfile?.drivers ?? [],
+      currency: sectorProfile?.currency ?? 'neutral',
+      rate: sectorProfile?.rate ?? 'neutral',
+      factors,
+      limit: 3,
+    });
+    if (drivers.length > 0) {
+      lines.push(`влияет: ${drivers.join(' ')}`);
+    }
+
+    const score = scoreItems({
+      upsidePct: security.forecast?.upside,
+      price: security.price,
+      target: security.forecast?.consensus,
+      fundamentals,
+    });
+    lines.push(`оценка по фактам: ${score.map((item) => `${item.label} — ${item.verdict}`).join('; ')}`);
+
+    const reportText = resultsInGroup(ctx.plan, ctx.collected, 'reports_calendar').find(
+      (item) => item.entry.target === security.ticker,
+    )?.text;
+    const calendar = calendarItems({
+      now: ctx.now,
+      report: reportText ? parseReportCalendar(reportText, ctx.now) : undefined,
+      dividendNext: security.dividend?.next,
+      dividendLast: security.dividend?.last,
+      cbMeetings: parseCbMeetingLines(
+        resultsInGroup(ctx.plan, ctx.collected, 'cb_meetings')[0]?.text ?? '',
+      ),
+      bondMaturity: security.bond?.maturityDate,
+    });
+    lines.push(
+      calendar.length > 0
+        ? `календарь: ${calendar
+            .map((item) => `${item.date ?? 'без даты'} ${item.title}`)
+            .join('; ')}`
+        : 'календарь: дат в данных нет',
+    );
+
     return {
       markdown: lines.join('\n'),
-      brief: lines.join(' | ').slice(0, 2_000),
+      brief: lines.join(' | ').slice(0, 3_000),
     };
   },
 });

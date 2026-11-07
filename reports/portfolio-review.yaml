@@ -2,7 +2,7 @@
 # Состав, порядок, пороги и периоды задаются здесь — код отчёта не меняется.
 # Схема и примеры: docs/reports.md
 id: portfolio-review
-version: 2
+version: 3
 periods: [1d, 7d, 30d, 180d]
 thresholds:
   concentration_high: 0.50
@@ -42,6 +42,28 @@ sections:
     interpret: true
     # Оценка опирается на отчётность и мультипликаторы — обе темы обязательны.
     knowledge: [reporting, multiples]
+  # Аналитика бумаги: блоки собирает код из собранных чисел, модель их трактует.
+  # Только разбор бумаги: в разборе портфеля это шум.
+  - id: drivers
+    title: Что влияет на бумагу
+    provider: analytics.drivers
+    render: list
+    scopes: [instrument]
+    optional: true
+    knowledge: [sector-dependencies]
+  - id: scorecard
+    title: Хорошо, нейтрально, плохо
+    provider: analytics.scorecard
+    render: list
+    scopes: [instrument]
+    optional: true
+    # Вердикты и пороги считает код: модель их не пересчитывает.
+  - id: calendar
+    title: Чего ждём
+    provider: analytics.calendar
+    render: list
+    scopes: [instrument]
+    optional: true
   # Вывод по бумаге: разбор «за и против» на основе всех собранных фактов.
   - id: conclusion
     title: Вывод по бумаге

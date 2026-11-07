@@ -27,6 +27,9 @@ export type PlanGroup =
   | 'analytics'
   | 'dividends'
   | 'fundamentals'
+  | 'reports_calendar'
+  | 'market_factors'
+  | 'cb_meetings'
   | 'signals'
   | 'news'
   | 'tax'
@@ -248,7 +251,19 @@ export const buildCollectionPlan = (ctx: PlanContext): CollectionPlan => {
         priority: 'optional',
         target,
       });
+      // Календарь отчётности: даты публикаций — катализатор, а не догадка модели.
+      add({
+        tool: 'invest_get_instrument_reports',
+        args: { instrumentId: id },
+        group: 'reports_calendar',
+        priority: 'optional',
+        target,
+      });
     }
+    // Рыночные факторы числами: без них «что влияет» превращается в общие слова.
+    add({ tool: 'market__factors', args: { days: 30 }, group: 'market_factors', priority: 'optional' });
+    // План заседаний ЦБ: один запрос на прогон, даты — из файла регулятора.
+    add({ tool: 'macro__cb_meetings', args: {}, group: 'cb_meetings', priority: 'optional' });
   }
 
   return { entries, maxInstruments: ctx.maxInstruments };

@@ -69,3 +69,27 @@ export const brandEntries = (
       ? [reference('invest_get_brand', { id: brandUid }, entry.target)]
       : [];
   });
+
+
+/** Шаг 4: uid актива → фундаментал (P/E, P/B, ROE, долг). */
+export const fundamentalEntries = (
+  shares: readonly PlanEntry[],
+  texts: ReadonlyMap<string, string>,
+  keyOf: (entry: PlanEntry) => string,
+): PlanEntry[] =>
+  shares.flatMap((entry) => {
+    const text = texts.get(keyOf(entry));
+    const assetUid = text ? assetUidOf(asJson(text)) : undefined;
+    return assetUid && entry.target
+      ? [
+          {
+            tool: 'invest_get_asset_fundamentals',
+            // Брокер принимает только uid актива: `TICKER_CLASSCODE` он не поймёт.
+            args: { assets: [assetUid] },
+            group: 'fundamentals' as PlanGroup,
+            priority: 'optional' as const,
+            target: entry.target,
+          },
+        ]
+      : [];
+  });

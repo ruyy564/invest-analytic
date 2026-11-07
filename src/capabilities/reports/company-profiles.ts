@@ -19,44 +19,69 @@ export type Exposure = (typeof EXPOSURES)[number];
 const SectorSchema = z.object({
   key: z.string().trim().min(1),
   drivers: z.array(z.string()).default([]),
+  /** Ключи для поиска публикаций по драйверам: «нефть», «Brent», «санкц». */
+  factors: z.array(z.string()).default([]),
   currency: z.enum(SENSITIVITIES).default('neutral'),
   rate: z.enum(SENSITIVITIES).default('neutral'),
 });
 
 const CompanySchema = z.object({
   ticker: z.string().trim().min(1),
+  /** Сектор бумаги: по нему подбираются факторы поиска новостей. */
+  sector: z.string().trim().optional(),
   exposure: z.enum(EXPOSURES),
   currencyShare: z.number().min(0).max(1).optional(),
   note: z.string().trim().optional(),
 });
 
+const MarketFactorSchema = z.object({
+  id: z.string().trim().min(1),
+  title: z.string().trim().min(1),
+  keywords: z.array(z.string()).default([]),
+});
+
 const ProfilesSchema = z.object({
   version: z.number().int().positive().default(1),
   sectors: z.array(SectorSchema).default([]),
+  marketFactors: z.array(MarketFactorSchema).default([]),
   companies: z.array(CompanySchema).default([]),
 });
 
 export interface SectorProfile {
   key: string;
   drivers: string[];
+  factors: string[];
   currency: Sensitivity;
   rate: Sensitivity;
 }
 
 export interface CompanyProfile {
   ticker: string;
+  sector?: string;
   exposure: Exposure;
   /** Доля валютной выручки, 0..1. */
   currencyShare?: number;
   note?: string;
 }
 
+/** Рыночный фактор: ищется по всем бумагам («курс рубля», «санкции»). */
+export interface MarketFactor {
+  id: string;
+  title: string;
+  keywords: string[];
+}
+
 export interface CompanyProfiles {
   sectors: Map<string, SectorProfile>;
+  marketFactors: MarketFactor[];
   companies: Map<string, CompanyProfile>;
 }
 
-export const EMPTY_PROFILES: CompanyProfiles = { sectors: new Map(), companies: new Map() };
+export const EMPTY_PROFILES: CompanyProfiles = {
+  sectors: new Map(),
+  marketFactors: [],
+  companies: new Map(),
+};
 
 /** Эвристика по сектору: если бумаги нет в файле, профиль берём у сектора. */
 const EXPOSURE_BY_SECTOR: Record<string, Exposure> = {
@@ -115,7 +140,7 @@ export const parseCompanyProfiles = (raw: unknown): CompanyProfiles => {
       ticker: company.ticker.toUpperCase(),
     });
   }
-  return { sectors, companies };
+  return { sectors, marketFactors: parsed.data.marketFactors, companies };
 };
 
 const cache = new Map<string, CompanyProfiles>();

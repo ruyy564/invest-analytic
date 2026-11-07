@@ -16,6 +16,7 @@ import {
 import { briefProvider } from './verdict.js';
 import { marketNewsProvider } from './market-news.provider.js';
 import { createConclusionProvider } from './securities/conclusion.provider.js';
+import { createAnalyticsProviders } from './securities/analytics.provider.js';
 /** Настройки реестра: профили компаний и база знаний для справочного блока. */
 export interface ProviderMapOptions {
   profiles?: CompanyProfiles;
@@ -33,6 +34,8 @@ export const createProviderMap = (
       concentrationProvider,
       gapsProvider,
       createExposureProvider(profiles),
+      // Аналитика бумаги: что влияет, что хорошо/плохо, чего ждём — числа считает код.
+      ...createAnalyticsProviders(profiles),
       createSecuritiesProvider(profiles),
       // Вывод по бумаге: брифинг со всеми фактами о ней и её секторе.
       createConclusionProvider(profiles),
