@@ -1,5 +1,11 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from '@langchain/core/messages';
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+  ToolMessage,
+  type BaseMessage,
+} from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import { bindToolsCompat } from '../../../platform/llm/bind-tools.js';
 import { buildAgentSystemPrompt } from './prompt.js';
@@ -8,11 +14,12 @@ import {
   PORTFOLIO_SNAPSHOT_TOOL,
 } from '../../../transports/mcp/mcp-registry.service.js';
 import { reportOfState } from '../../results/index.js';
-import { isDataRefusal } from '../../services/respond.service.js';
+import { isDataRefusal, isRefusal } from '../../services/respond.service.js';
 import { DECISION_PATTERN } from '../classify/prompt.js';
 import { detectInstruments } from '../../scope.js';
 import { FACTORS_TOOL } from '../../../capabilities/market/tools/factors/factors.service.js';
 import {
+  asksWhatWith,
   causeFactsAnswer,
   factsWithoutInterpretation,
   isGroundedCauseAnswer,
@@ -26,6 +33,7 @@ import {
 } from './cause.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { withTimeout } from '../../../transports/mcp/mcp-tool.adapter.js';
+import { lastAnswer } from '../../runner/runner.helpers.js';
 
 /** Готовый вызов сводки: тот же инструмент, что выбирает модель. */
 const snapshotCall = (): AIMessage =>
@@ -58,6 +66,40 @@ const marketCallFor = (
   return new AIMessage({
     content: '',
     tool_calls: [{ id: `factors-${Date.now()}`, name: FACTORS_TOOL, args: { days: 30 } }],
+  });
+};
+
+/**
+ * Готовый вызов истории цен: у вопроса о причине динамика должна быть всегда.
+ * Модель может промолчать и не вызвать инструмент — тогда «что с бумагой»
+ * останется без чисел, поэтому динамику запрашивает сам узел.
+ */
+const dynamicsCallFor = (
+  tickers: string[],
+  messages: BaseMessage[],
+  tools: StructuredToolInterface[],
+): AIMessage | undefined => {
+  if (!tools.some((tool) => tool.name === MARKET_DYNAMICS_TOOL)) {
+    return undefined;
+  }
+  const asked = messages.some(
+    (message) =>
+      messageType(message) === 'ai' &&
+      ((message as AIMessage).tool_calls ?? []).some((call) => call.name === MARKET_DYNAMICS_TOOL),
+  );
+  const ticker = tickers[0];
+  if (asked || !ticker) {
+    return undefined;
+  }
+  return new AIMessage({
+    content: '',
+    tool_calls: [
+      {
+        id: `dynamics-${Date.now()}`,
+        name: MARKET_DYNAMICS_TOOL,
+        args: { ticker, days: 180 },
+      },
+    ],
   });
 };
 
@@ -299,6 +341,20 @@ export const currentRun = (messages: BaseMessage[]): BaseMessage[] => {
   return index === -1 ? messages : messages.slice(index + 1);
 };
 
+/**
+ * Сообщения предыдущего прогона: между предпоследним и последним вопросом.
+ * Нужны уточняющему вопросу («расскажи детальней»): у него нет своих данных,
+ * а ответ строится по прошлому прогону.
+ */
+export const previousRun = (messages: BaseMessage[]): BaseMessage[] => {
+  const last = lastHumanIndex(messages);
+  if (last <= 0) {
+    return [];
+  }
+  const previous = lastHumanIndex(messages.slice(0, last));
+  return messages.slice(previous + 1, last);
+};
+
 /** Текст последнего вопроса: по нему отличаем вопрос-оценку от вопроса по данным. */
 export const lastQuestion = (messages: BaseMessage[]): string => {
   const index = lastHumanIndex(messages);
@@ -397,22 +453,30 @@ export const createAgentNode =
     // кроме одного признака — нужна ли трактовка, а не пересказ цифр.
     const history = withToolResults(state.messages);
     // Только текущий прогон: прошлые ответы в треде в расчёт не идут.
-    const run = currentRun(history);
+    // Уточнение: данных у вопроса нет, поэтому берём прошлый прогон целиком —
+    // его ответ и результаты инструментов. Новый вопрос по-прежнему с чистого листа.
+    const run = state.followUp ? previousRun(history) : currentRun(history);
     const answered = answeredCalls(run);
     // Сначала типизированный результат (review-ветка), затем отчёт инструмента-агрегатора.
     const report = reportOfState(state)?.payload ?? reportFromTools(run);
     const question = lastQuestion(history);
+    // Бумаги, названные в вопросе: нужны и для причин, и для «что с <бумагой>».
+    const tickers = detectInstruments(question, options.aliases ?? {});
     // «Почему упал/вырос X» — вопрос о причине: у брокера причин нет, они берутся
-    // из публикаций. Сначала собираем новости, иначе модель их придумает.
-    const causeQuestion = asksForCause(question);
+    // из публикаций. «Что с бумагой?» — тоже про движение, но не «что с ценой».
+    const causeQuestion = asksForCause(question) || (asksWhatWith(question) && tickers.length > 0);
     // Вопрос требует трактовки («почему», «стоит ли»): сырой отчёт инструмента
     // на такой вопрос не отвечает — это легаси-ответ, его здесь не отдаём.
     const interpretationRequired = asksForInterpretation(state.intent, question);
-    const tickers = causeQuestion ? detectInstruments(question, options.aliases ?? {}) : [];
     // Числа по рынку (нефть, курс, ставка) — аргументы, а не догадки.
     const marketRequest = causeQuestion ? marketCallFor(run, tools) : undefined;
     if (marketRequest) {
       return { messages: [marketRequest] };
+    }
+    // Динамика цены: без неё ответ «что с бумагой» пуст, и модель может промолчать.
+    const dynamicsRequest = causeQuestion ? dynamicsCallFor(tickers, run, tools) : undefined;
+    if (dynamicsRequest) {
+      return { messages: [dynamicsRequest] };
     }
     const newsRequest = causeQuestion ? newsCallFor(tickers, run, tools, question) : undefined;
     if (newsRequest) {
@@ -426,16 +490,58 @@ export const createAgentNode =
     }
 
     const bound = bindToolsCompat(model, tools) as unknown as BoundModel;
+    // Уточнение: модели нужен сам предыдущий ответ, иначе она отказывается
+    // «показывать данные». Инструкция идёт в тот же system-промпт: GigaChat
+    // требует, чтобы system-сообщение было первым, второго он не принимает (422).
+    const previousAnswer = state.followUp ? (lastAnswer(run) ?? '').slice(0, 2_000) : '';
+    const followUpNote =
+      state.followUp && previousAnswer.length > 0
+        ? [
+            'Пользователь просит подробнее по предыдущему ответу. Предыдущий ответ:',
+            previousAnswer,
+            '',
+            'Разверни его детали на данных прогона (динамика, мнение аналитиков, дивиденды, ' +
+              'рыночные факторы, публикации с датой и источником). Новых чисел и событий не ' +
+              'придумывай: если данных не хватает — так и скажи.',
+          ].join('\n')
+        : '';
+    const systemText = [buildAgentSystemPrompt(options), followUpNote]
+      .filter((part) => part.length > 0)
+      .join('\n\n');
     const response = await withTimeout(
       // Провайдеру уходит урезанная история: полные тексты публикаций переполняли
       // контекст, и модель отвечала ошибкой вместо причин.
-      bound.invoke([new SystemMessage(buildAgentSystemPrompt(options)), ...clipToolResults(history)]),
+      bound.invoke([new SystemMessage(systemText), ...clipToolResults(history)]),
       ANSWER_TIMEOUT_MS,
       () => new Error('llm timeout'),
     );
 
-    const text = textOf(response.content).trim();
-    const answeredByText = text !== '' && !isDataRefusal(text);
+    // GigaChat иногда отдаёт пустой ответ на «расскажи детальней». Один короткий
+    // повтор без инструментов: развернуть прошлый ответ по пунктам.
+    let reply = response;
+    if (state.followUp && textOf(response.content).trim() === '' && previousAnswer.length > 0) {
+      try {
+        reply = await withTimeout(
+          model.invoke([
+            new SystemMessage(
+              'Разверни предыдущий ответ агента по пунктам: только факты из него, ' +
+                'без новых чисел и событий. Если фактов мало — скажи, чего не хватает.',
+            ),
+            new HumanMessage(`Вопрос: ${question}\n\nПредыдущий ответ:\n${previousAnswer}`),
+          ]),
+          ANSWER_TIMEOUT_MS,
+          () => new Error('llm timeout'),
+        );
+      } catch {
+        // Повтор не удался — ниже сработает ответ по фактам.
+      }
+    }
+
+    const text = textOf(reply.content).trim();
+    // Уточнение разворачивает прошлый ответ: «данных о причинах нет» в нём —
+    // законная часть, а не отказ показать данные (REFUSAL при этом действует).
+    const answeredByText =
+      text !== '' && !isRefusal(text) && (state.followUp || !isDataRefusal(text));
     const useless = !answeredByText;
     // Вопрос о причинах: ответ принимается только со ссылкой на публикацию.
     const news = causeQuestion ? newsItems(run) : [];
@@ -458,11 +564,11 @@ export const createAgentNode =
     // Правило живёт в маршрутизации (`dataNeed`), узел не разбирает текст вопроса.
     const askedPortfolio = state.dataNeed === 'portfolio';
     const hasToolResult = run.some((message) => messageType(message) === 'tool');
-    if (askedPortfolio && !hasToolResult && (useless || (response.tool_calls ?? []).length === 0)) {
+    if (askedPortfolio && !hasToolResult && (useless || (reply.tool_calls ?? []).length === 0)) {
       return { messages: [snapshotCall()] };
     }
 
-    const calls = response.tool_calls ?? [];
+    const calls = reply.tool_calls ?? [];
     // Вызовы, данные по которым в этом прогоне уже есть, повторять незачем.
     const fresh = calls.filter((call) => !answered.has(callSignature(call.name, call.args)));
 
@@ -474,7 +580,7 @@ export const createAgentNode =
           return { messages: [new AIMessage(grounded ? text : factsAnswer())] };
         }
         if (answeredByText) {
-          return { messages: [withoutToolCalls(response)] };
+          return { messages: [withoutToolCalls(reply)] };
         }
         // Отчёт как ответ — только для точечного вопроса по данным.
         if (report && !interpretationRequired) {
@@ -484,10 +590,10 @@ export const createAgentNode =
           return { messages: [new AIMessage(withoutInterpretation())] };
         }
         // Ни текста, ни отчёта: повтор вызова лучше пустого ответа.
-        return { messages: [response] };
+        return { messages: [reply] };
       }
       return {
-        messages: [fresh.length === calls.length ? response : withToolCalls(response, fresh)],
+        messages: [fresh.length === calls.length ? reply : withToolCalls(reply, fresh)],
       };
     }
 
@@ -508,5 +614,5 @@ export const createAgentNode =
       }
     }
 
-    return { messages: [response] };
+    return { messages: [reply] };
   };

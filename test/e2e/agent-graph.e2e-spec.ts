@@ -222,11 +222,9 @@ describe('граф агента с подтверждением', () => {
       'Причина не установлена: по Яндексу публикаций с объяснением движения нет.',
     ]);
 
-    const awaiting = await runner.run('что с ценой сбер за полгода?', 's-dynamics');
-    expect(awaiting.status).toBe('awaiting_approval');
-    expect(awaiting.approval?.actions[0]).toMatchObject({ tool: 'market__price_dynamics' });
-
-    const first = await runner.resume('s-dynamics', { approved: true });
+    // Динамика цены — публичные котировки: подтверждение для неё не требуется.
+    const first = await runner.run('что с ценой сбер за полгода?', 's-dynamics');
+    expect(first.status).toBe('completed');
     expect(first.answer).toContain('Динамика SBER');
     expect(newsCalls()).toBe(0);
 

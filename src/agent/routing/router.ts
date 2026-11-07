@@ -33,6 +33,8 @@ export interface RouteDecision {
   scopeLabel?: string;
   /** Для вопроса нужны данные состава портфеля (решает правило, не модель). */
   dataNeed?: 'portfolio';
+  /** Уточняющий вопрос: тема и область взяты у предыдущего вопроса. */
+  followUp?: boolean;
   source: RouteSource;
   /** Заполнено, если вопрос заблокирован до модели. */
   guard?: GuardDecision & { blocked: true };
@@ -42,6 +44,8 @@ export interface RouteOptions {
   question: string;
   /** Предыдущий вопрос диалога: по нему находится бумага, названная местоимением. */
   previousQuestion?: string;
+  /** Сценарий предыдущего вопроса: уточнение наследует тему. */
+  previousIntent?: AgentStateType['intent'];
   aliases?: Record<string, string[]>;
   knowledge?: KnowledgeProvider;
   model?: BaseChatModel;
@@ -53,6 +57,16 @@ export interface RouteOptions {
 /** Ссылка на бумагу местоимением: «стоит ли её покупать» после вопроса о Сбере. */
 const ANAPHORA_PATTERN =
   /(?:^|[^а-яё])(?:её|ее|его|им|ней|неё|нему|этой|эту|эти|этих|данной|данную|такую|такой)(?![а-яё])/i;
+
+/**
+ * Уточняющий вопрос: «расскажи детальней», «подробнее», «а почему», «что ещё».
+ * Своей темы у него нет — она берётся из предыдущего вопроса.
+ */
+const FOLLOW_UP_PATTERN =
+  /(?:^|[^а-яё])(?:расскажи|расскажите|поясни|поясните|уточни|уточните|подробн|детальн|разверни|раскрой|что\s+ещ[её]|а\s+почему|и\s+почему|а\s+как|и\s+как)(?![а-яё])/i;
+
+/** Вопрос — уточнение к предыдущему ответу, а не новая тема. */
+export const isFollowUpQuestion = (question: string): boolean => FOLLOW_UP_PATTERN.test(question);
 
 /**
  * Область вопроса с учётом диалога: если бумага названа в предыдущем вопросе,
@@ -87,13 +101,60 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
   // Правило: некоторым вопросам данные портфеля нужны без решения модели.
   const dataNeedFields = needsPortfolioData(question) ? { dataNeed: 'portfolio' as const } : {};
 
+  /**
+   * Единый выход маршрутизатора: если в вопросе названа бумага, «вне компетенции»
+   * не ставим — классификатор ошибается на коротких вопросах вроде «что с самолётом».
+   */
+  const decide = (
+    intent: RouteDecision['intent'],
+    source: RouteSource,
+    extra: { guard?: RouteDecision['guard']; followUp?: boolean } = {},
+  ): RouteDecision => {
+    const named = scoped.scope === 'instrument';
+    const resolved = intent === 'off_topic' && named ? 'security_analysis' : intent;
+    return {
+      intent: resolved,
+      ...scoped,
+      ...dataNeedFields,
+      ...(extra.followUp ? { followUp: true } : {}),
+      source,
+      ...(extra.guard ? { guard: extra.guard } : {}),
+    };
+  };
+
+  // Уточнение без своей темы: «расскажи детальней», «подробнее», «а почему».
+  // Тему и область берём у предыдущего вопроса — иначе такой вопрос уходит в отказ.
+  if (
+    isFollowUpQuestion(question) &&
+    scoped.scope === 'portfolio' &&
+    !scoped.scopeTarget &&
+    options.previousQuestion
+  ) {
+    const previous = scopeOf(options.previousQuestion, aliases);
+    const inherited =
+      options.previousIntent && options.previousIntent !== 'off_topic'
+        ? options.previousIntent
+        : previous.scope === 'instrument'
+          ? 'security_analysis'
+          : 'portfolio_review';
+    return {
+      intent: inherited,
+      scope: previous.scope,
+      scopeTarget: previous.scopeTarget,
+      scopeLabel: previous.scopeLabel,
+      ...dataNeedFields,
+      followUp: true,
+      source: 'rule',
+    };
+  }
+
   const guard = guardQuestion(question);
   if (guard.blocked) {
     return { intent: 'off_topic', ...scoped, ...dataNeedFields, source: 'guard', guard };
   }
 
   if ((options.helpEnabled ?? true) && CAPABILITIES_PATTERN.test(question)) {
-    return { intent: 'agent_help', ...scoped, ...dataNeedFields, source: 'rule' };
+    return decide('agent_help', 'rule');
   }
 
   if (
@@ -102,21 +163,21 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
     KNOWLEDGE_QUESTION_PATTERN.test(question) &&
     options.knowledge.topicFor(question)
   ) {
-    return { intent: 'knowledge_question', ...scoped, ...dataNeedFields, source: 'rule' };
+    return decide('knowledge_question', 'rule');
   }
 
   const heuristic = heuristicIntent(question, scoped.scope);
   if (heuristic) {
-    return { intent: heuristic.intent, ...scoped, ...dataNeedFields, source: 'rule' };
+    return decide(heuristic.intent, 'rule');
   }
 
   const newsEnabled = options.newsEnabled ?? true;
   if (newsEnabled && heuristicNewsIntent(question, scoped.scope)) {
-    return { intent: 'market_news', ...scoped, ...dataNeedFields, source: 'rule' };
+    return decide('market_news', 'rule');
   }
 
   if (!options.model) {
-    return { intent: 'data_lookup', ...scoped, ...dataNeedFields, source: 'fallback' };
+    return decide('data_lookup', 'fallback');
   }
 
   try {
@@ -137,9 +198,9 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
       intent === 'market_news' && (!newsEnabled || scoped.scope !== 'portfolio')
         ? 'data_lookup'
         : intent;
-    return { intent: normalized, ...scoped, ...dataNeedFields, source: 'model' };
+    return decide(normalized, 'model');
   } catch {
     // Недоступность классификатора не должна ломать прогон: безопасный вариант.
-    return { intent: 'data_lookup', ...scoped, ...dataNeedFields, source: 'fallback' };
+    return decide('data_lookup', 'fallback');
   }
 };

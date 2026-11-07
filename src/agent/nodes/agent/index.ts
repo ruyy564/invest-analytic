@@ -27,6 +27,7 @@ export {
   NO_CAUSE_INTRO,
   NO_INTERPRETATION_INTRO,
   toolResults,
+  WHAT_WITH_PATTERN,
   type CauseFactsInput,
   type NewsItem,
 } from './cause.js';

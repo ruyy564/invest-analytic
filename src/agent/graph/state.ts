@@ -50,6 +50,8 @@ export const AgentState = new StateSchema({
   scopeLabel: z.string().nullable().optional(),
   /** Откуда взят сценарий: правило, модель, безопасный вариант или guard. */
   routeSource: z.enum(['rule', 'model', 'fallback', 'guard']).optional(),
+  /** Уточняющий вопрос: тема и область наследуются у предыдущего вопроса. */
+  followUp: z.boolean().default(false),
   /** Ответ guardrail: текст возвращается без обращения к модели. */
   guardAnswer: z.string().nullable().optional(),
   /** Нужны данные состава портфеля: решает правило маршрутизации. */

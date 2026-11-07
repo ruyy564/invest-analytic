@@ -28,8 +28,9 @@ export const APPROVAL_RULES: ApprovalRule[] = [
   {
     tool: 'market__price_dynamics',
     label: 'Динамика цены бумаги',
+    // Публичные котировки: бумаги и суммы пользователя инструмент не читает.
     question: 'Прочитать историю цен бумаги за период у брокера?',
-    requiresApproval: true,
+    requiresApproval: false,
   },
   {
     tool: 'market__news_digest',

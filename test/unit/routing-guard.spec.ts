@@ -129,3 +129,49 @@ describe('маршрутизация вопроса', () => {
     expect(route).toMatchObject({ intent: 'data_lookup', source: 'fallback' });
   });
 });
+
+describe('уточняющий вопрос', () => {
+  /** Алиасы как в проекте: без файла, но с нужными бумагами. */
+  const aliases = { LKOH: ['ЛУКОЙЛ', 'Лукойл'], SMLT: ['Самолет', 'Самолёт'], SBER: ['Сбер', 'Сбербанк'] };
+
+  it('наследует тему и область у предыдущего вопроса', async () => {
+    // Без наследования «расскажи детальней» отвечал «это вне моей компетенции».
+    const decision = await routeQuestion({
+      question: 'расскажи детальней',
+      previousQuestion: 'почему вырос лукойл?',
+      previousIntent: 'security_analysis',
+      aliases,
+    });
+
+    expect(decision.intent).toBe('security_analysis');
+    expect(decision.scope).toBe('instrument');
+    expect(decision.scopeTarget).toBe('LKOH');
+    expect(decision.followUp).toBe(true);
+  });
+
+  it('без предыдущего вопроса уточнение остаётся портфельным', async () => {
+    const decision = await routeQuestion({ question: 'расскажи детальней', aliases });
+
+    expect(decision.followUp).toBeUndefined();
+    expect(decision.scope).toBe('portfolio');
+  });
+
+  it('«расскажи о Сбере» — новая тема, а не уточнение', async () => {
+    const decision = await routeQuestion({ question: 'расскажи о Сбере', aliases });
+
+    expect(decision.followUp).toBeUndefined();
+    expect(decision.scope).toBe('instrument');
+    expect(decision.scopeTarget).toBe('SBER');
+  });
+
+  it('названная бумага не считается посторонней темой', async () => {
+    // Классификатор ставил off_topic на короткое «что с самолетом?».
+    const model = new ScriptedChatModel(['off_topic']);
+    const decision = await routeQuestion({ question: 'что с самолетом?', aliases, model });
+
+    expect(decision.intent).toBe('security_analysis');
+    expect(decision.scope).toBe('instrument');
+    expect(decision.scopeTarget).toBe('SMLT');
+  });
+});
+

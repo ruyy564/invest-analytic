@@ -299,31 +299,47 @@ describe('вопрос о причинах движения цены', () => {
 
   it('запрашивает новости по названным бумагам по одной за круг', async () => {
     // Причин у брокера нет: без публикаций модель объясняет движение домыслами.
+    // Первым кругом идёт динамика цены: без неё ответ «что с бумагой» пуст.
     const model = new ScriptedChatModel(['ответ модели не используется']);
     const tools = [fakeTool('market__price_dynamics'), fakeTool('news__search')];
+    const question = 'почему упал яндекс и вырос вк?';
 
     const first = await createAgentNode(model, tools, { aliases: ALIASES })({
-      messages: [new HumanMessage('почему упал яндекс и вырос вк?')],
+      messages: [new HumanMessage(question)],
       intent: 'data_lookup',
     } as never);
 
-    // Один вызов за круг: несколько function results в одном assistant message
-    // GigaChat отклоняет (422).
-    const calls = (first.messages[0] as AIMessage).tool_calls ?? [];
-    expect(calls.map((call) => call.name)).toEqual(['news__search']);
-    expect((calls[0].args as { ticker?: string }).ticker).toBe('YDEX');
+    const firstCalls = (first.messages[0] as AIMessage).tool_calls ?? [];
+    expect(firstCalls.map((call) => call.name)).toEqual(['market__price_dynamics']);
+    expect((firstCalls[0].args as { ticker?: string }).ticker).toBe('YDEX');
+
+    // Дальше — новости: один вызов за круг (несколько function results GigaChat
+    // отклоняет с 422).
+    const history = [
+      new HumanMessage(question),
+      new AIMessage({ content: '', tool_calls: firstCalls }),
+      new ToolMessage({ tool_call_id: firstCalls[0].id ?? '', content: DYNAMICS }),
+    ];
+    const second = await createAgentNode(model, tools, { aliases: ALIASES })({
+      messages: history,
+      intent: 'data_lookup',
+    } as never);
+
+    const secondCalls = (second.messages[0] as AIMessage).tool_calls ?? [];
+    expect(secondCalls.map((call) => call.name)).toEqual(['news__search']);
+    expect((secondCalls[0].args as { ticker?: string }).ticker).toBe('YDEX');
 
     // Второй круг добирает вторую бумагу из вопроса.
-    const second = await createAgentNode(model, tools, { aliases: ALIASES })({
+    const third = await createAgentNode(model, tools, { aliases: ALIASES })({
       messages: [
-        new HumanMessage('почему упал яндекс и вырос вк?'),
-        new AIMessage({ content: '', tool_calls: calls }),
-        new ToolMessage({ tool_call_id: calls[0].id ?? '', content: 'публикаций нет' }),
+        ...history,
+        new AIMessage({ content: '', tool_calls: secondCalls }),
+        new ToolMessage({ tool_call_id: secondCalls[0].id ?? '', content: 'публикаций нет' }),
       ],
       intent: 'data_lookup',
     } as never);
 
-    const next = (second.messages[0] as AIMessage).tool_calls ?? [];
+    const next = (third.messages[0] as AIMessage).tool_calls ?? [];
     expect((next[0]?.args as { ticker?: string }).ticker).toBe('VKCO');
   });
 
@@ -368,7 +384,7 @@ describe('вопрос о причинах движения цены', () => {
   it('если по бумаге новостей нет, запрашивает общую повестку', async () => {
     // Причины бывают отраслевыми (нефть, курс, санкции) — они в общей ленте.
     const model = new ScriptedChatModel(['ответ модели не используется']);
-    const tools = [fakeTool('market__price_dynamics'), fakeTool('news__search')];
+    const tools = [fakeTool('news__search')];
 
     const result = await createAgentNode(model, tools, { aliases: ALIASES })({
       messages: [
@@ -392,7 +408,7 @@ describe('вопрос о причинах движения цены', () => {
     const model = new ScriptedChatModel([
       'Яндекс отчитался хуже ожиданий по выручке (2026-11-06, interfax).',
     ]);
-    const tools = [fakeTool('market__price_dynamics'), fakeTool('news__search')];
+    const tools = [fakeTool('news__search')];
 
     const result = await createAgentNode(model, tools, { aliases: ALIASES })({
       messages: [
@@ -432,6 +448,38 @@ describe('вопрос о причинах движения цены', () => {
     expect(answer).not.toContain('успешнее');
   });
 });
+describe('вопрос «что с бумагой»', () => {
+  const ALIASES = { SBER: ['Сбер', 'Сбербанк'] };
+
+  it('считается вопросом о движении: сначала собирает публикации', async () => {
+    // «Что со сбером?» — это про движение бумаги, а не только про цену.
+    const model = new ScriptedChatModel(['']);
+    const tools = [fakeTool('news__search')];
+
+    const result = await createAgentNode(model, tools, { aliases: ALIASES })({
+      messages: [new HumanMessage('что со сбером')],
+      intent: 'security_analysis',
+    } as never);
+
+    const calls = (result.messages[0] as AIMessage).tool_calls ?? [];
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.name).toBe('news__search');
+    expect(calls[0]?.args).toMatchObject({ ticker: 'SBER' });
+  });
+
+  it('«что с портфелем» причиной не считается: бумага не названа', async () => {
+    const model = new ScriptedChatModel(['ответ модели']);
+    const tools = [fakeTool('news__search')];
+
+    const result = await createAgentNode(model, tools, { aliases: ALIASES })({
+      messages: [new HumanMessage('что с портфелем')],
+      intent: 'data_lookup',
+    } as never);
+
+    expect((result.messages[0] as AIMessage).tool_calls ?? []).toEqual([]);
+  });
+});
+
 describe('повтор вызова на вопрос о причине', () => {
   const ALIASES = { LKOH: ['ЛУКОЙЛ', 'Лукойл'] };
   const DYNAMICS = 'Динамика LKOH (ЛУКОЙЛ) за 180 дней:\n• изменение: +888,00 RUB (+17,08%), рост';

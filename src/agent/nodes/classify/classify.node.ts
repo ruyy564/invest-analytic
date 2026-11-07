@@ -46,6 +46,8 @@ export const createClassifyNode = (
     const route = await routeQuestion({
       question,
       previousQuestion: contentOf(previousHuman),
+      // Сценарий прошлого вопроса: уточнение («расскажи детальней») его наследует.
+      previousIntent: state.intent,
       aliases: loadTickerAliases(
         options.aliasesPath ?? process.env.TICKER_ALIASES_FILE?.trim() ?? 'data/ticker-aliases.yaml',
       ),
@@ -67,6 +69,7 @@ export const createClassifyNode = (
       scopeLabel: route.scopeLabel,
       ...(route.dataNeed ? { dataNeed: route.dataNeed } : { dataNeed: null }),
       routeSource: route.source,
+      followUp: route.followUp === true,
       ...(route.guard ? { guardAnswer: route.guard.answer } : { guardAnswer: null }),
       // Новый вопрос — новое согласие: в рамках одного прогона подтверждение одно.
       dataApproved: false,

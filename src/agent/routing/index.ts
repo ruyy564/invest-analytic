@@ -8,6 +8,7 @@ export {
 export { PORTFOLIO_DATA_PATTERN, needsPortfolioData } from './rules.js';
 export {
   ROUTE_TIMEOUT_MS,
+  isFollowUpQuestion,
   routeQuestion,
   type RouteDecision,
   type RouteOptions,

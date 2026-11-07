@@ -11,6 +11,10 @@ const { values, positionals } = parseArgs({
     approve: { type: 'boolean', default: false },
     /** Показать ответ целиком, а не первые строки. */
     full: { type: 'boolean', default: false },
+    /** Продолжить существующую сессию (для уточняющих вопросов). */
+    session: { type: 'string' },
+    /** Дослать ещё вопрос(ы) в той же сессии: --then "рассказать детальней". */
+    then: { type: 'string', multiple: true, default: [] },
     /** Сохранить весь вывод в файл (UTF-8): удобно для чтения без консольных кодировок. */
     save: { type: 'string' },
     timeout: { type: 'string', default: '240000' },
@@ -41,44 +45,67 @@ const post = async (path, body) => {
   }
 };
 
-const sessionId = crypto.randomUUID();
-let result = await post('/agent/chat', { message: question, sessionId });
-const approvals = [];
-while (result.status === 202 && values.approve) {
-  approvals.push(result.payload?.approval?.label ?? 'подтверждение');
-  result = await post('/agent/chat/approve', { sessionId, approved: true });
+const sessionId = values.session ?? crypto.randomUUID();
+
+/** Один вопрос в сессии: подтверждения проходятся, если включён --approve. */
+const askOnce = async (message, label) => {
+  let result = await post('/agent/chat', { message, sessionId });
+  const approvals = [];
+  while (result.status === 202 && values.approve) {
+    approvals.push(result.payload?.approval?.label ?? 'подтверждение');
+    result = await post('/agent/chat/approve', { sessionId, approved: true });
+  }
+  return { result, approvals, message, label };
+};
+
+const turns = [{ message: question, label: 'вопрос' }];
+for (const followUp of values.then) {
+  turns.push({ message: followUp, label: 'уточнение' });
 }
 
-const payload = result.payload ?? {};
-const answer = String(payload.answer ?? '');
-const lines = [
-  `вопрос: ${question}`,
-  `HTTP: ${result.status}, статус: ${payload.status ?? '—'}, сценарий: ${payload.intent ?? '—'}` +
-    (payload.scope ? `, область: ${payload.scope}${payload.scopeTarget ? `/${payload.scopeTarget}` : ''}` : ''),
-  `частичный ответ: ${payload.partial ?? '—'}` +
-    (approvals.length > 0 ? `, подтверждений: ${approvals.length} (${approvals.join('; ')})` : ''),
-  `runId: ${payload.runId ?? '—'}   (журнал: .state/runs/<runId>.jsonl → npm run replay -- <runId>)`,
-  `traceUrl: ${payload.traceUrl ?? '—'}`,
-];
-if (payload.report) {
+const reports = [];
+for (const turn of turns) {
+  reports.push(await askOnce(turn.message, turn.label));
+}
+
+const lines = [`сессия: ${sessionId}`];
+for (const { result, approvals, message, label } of reports) {
+  const payload = result.payload ?? {};
+  const answer = String(payload.answer ?? '');
+  lines.push('');
+  lines.push(`${label}: ${message}`);
   lines.push(
-    `отчёт: id=${payload.report.reportId ?? '—'} тип=${payload.report.type ?? '—'}` +
-      ` (выгрузка: ${base}/reports/${payload.report.reportId}?format=json)`,
+    `HTTP: ${result.status}, статус: ${payload.status ?? '—'}, сценарий: ${payload.intent ?? '—'}` +
+      (payload.scope
+        ? `, область: ${payload.scope}${payload.scopeTarget ? `/${payload.scopeTarget}` : ''}`
+        : ''),
   );
-  const coverage = Array.isArray(payload.report.coverage) ? payload.report.coverage : [];
-  const missing = coverage.filter((entry) => entry.status !== 'ok');
-  lines.push(`покрытие: ${coverage.length} источников, недоступно ${missing.length}`);
-  for (const entry of missing.slice(0, 12)) {
-    lines.push(`  · ${entry.source}: ${entry.reason ?? 'нет данных'}`);
+  lines.push(
+    `частичный ответ: ${payload.partial ?? '—'}` +
+      (approvals.length > 0 ? `, подтверждений: ${approvals.length} (${approvals.join('; ')})` : ''),
+  );
+  lines.push(`runId: ${payload.runId ?? '—'}   (журнал: .state/runs/<runId>.jsonl → npm run replay -- <runId>)`);
+  lines.push(`traceUrl: ${payload.traceUrl ?? '—'}`);
+  if (payload.report) {
+    lines.push(
+      `отчёт: id=${payload.report.reportId ?? '—'} тип=${payload.report.type ?? '—'}` +
+        ` (выгрузка: ${base}/reports/${payload.report.reportId}?format=json)`,
+    );
+    const coverage = Array.isArray(payload.report.coverage) ? payload.report.coverage : [];
+    const missing = coverage.filter((entry) => entry.status !== 'ok');
+    lines.push(`покрытие: ${coverage.length} источников, недоступно ${missing.length}`);
+    for (const entry of missing.slice(0, 12)) {
+      lines.push(`  · ${entry.source}: ${entry.reason ?? 'нет данных'}`);
+    }
   }
-}
-if (payload.approval && result.status === 202) {
-  lines.push(`ожидает подтверждения: ${payload.approval.label ?? 'да'} (запусти с --approve)`);
-}
-lines.push('--- ответ ---');
-lines.push(values.full ? answer : answer.split('\n').slice(0, 14).join('\n'));
-if (!values.full && answer.split('\n').length > 14) {
-  lines.push(`… (ещё ${answer.split('\n').length - 14} строк, полный текст: --full)`);
+  if (payload.approval && result.status === 202) {
+    lines.push(`ожидает подтверждения: ${payload.approval.label ?? 'да'} (запусти с --approve)`);
+  }
+  lines.push('--- ответ ---');
+  lines.push(values.full ? answer : answer.split('\n').slice(0, 14).join('\n'));
+  if (!values.full && answer.split('\n').length > 14) {
+    lines.push(`… (ещё ${answer.split('\n').length - 14} строк, полный текст: --full)`);
+  }
 }
 console.log(lines.join('\n'));
 if (values.save) {
