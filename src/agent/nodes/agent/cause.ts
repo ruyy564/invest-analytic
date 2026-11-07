@@ -266,8 +266,8 @@ const headlineOf = (title: string): string => {
   return single.length > HEADLINE_LIMIT ? `${single.slice(0, HEADLINE_LIMIT).trimEnd()}…` : single;
 };
 
-/** Ответ по фактам: движения цен, рыночные факторы, публикации и честное «причина не установлена». */
-export const causeFactsAnswer = (options: {
+/** Факты прогона для ответа о причине: динамика, рыночные факторы, публикации. */
+export interface CauseFactsInput {
   dynamics: string[];
   news: NewsItem[];
   tickers: string[];
@@ -275,11 +275,19 @@ export const causeFactsAnswer = (options: {
   macro?: string[];
   /** Источники, которые не удалось прочитать: их видно в ответе, а не в логах. */
   failures?: string[];
-}): string => {
+}
+
+/** Вступление, когда причина не установлена: именно этой фразой отвечает и код. */
+export const NO_CAUSE_INTRO = `${CAUSE_UNKNOWN}: в данных брокера причин движения цены нет, а в доступных публикациях объяснения не нашлось.`;
+
+/** Вступление, когда вопрос требовал трактовки, а модель промолчала. */
+export const NO_INTERPRETATION_INTRO =
+  'Оценку не даю: модель не ответила, а трактовать факты за неё — значит выдумывать.';
+
+/** Факты прогона: движения цен, рыночные факторы, публикации и недоступные источники. */
+const factsLines = (options: CauseFactsInput): string[] => {
   const { dynamics, news, tickers, macro = [], failures = [] } = options;
-  const lines: string[] = [
-    `${CAUSE_UNKNOWN}: в данных брокера причин движения цены нет, а в доступных публикациях объяснения не нашлось.`,
-  ];
+  const lines: string[] = [];
 
   if (dynamics.length > 0) {
     lines.push('', 'Что известно по данным:');
@@ -309,6 +317,25 @@ export const causeFactsAnswer = (options: {
     lines.push(`Не удалось прочитать: ${failures.join(', ')}.`);
   }
 
-  lines.push('', 'Это информационная сводка по данным брокера, а не инвестиционная рекомендация.');
-  return lines.join('\n');
+  return lines;
 };
+
+const DISCLAIMER =
+  'Это информационная сводка по данным брокера, а не инвестиционная рекомендация.';
+
+/** Ответ по фактам: честное «причина не установлена» и данные прогона. */
+export const causeFactsAnswer = (options: CauseFactsInput): string =>
+  [NO_CAUSE_INTRO, ...factsLines(options), '', DISCLAIMER].join('\n');
+
+/**
+ * Факты вместо трактовки: вопрос требовал оценки, а ответа модели нет.
+ * Сырой отчёт инструмента здесь не годится — он не отвечает на вопрос.
+ */
+export const factsWithoutInterpretation = (options: CauseFactsInput): string =>
+  [
+    NO_INTERPRETATION_INTRO,
+    'Вот что показывают данные прогона:',
+    ...factsLines(options),
+    '',
+    DISCLAIMER,
+  ].join('\n');

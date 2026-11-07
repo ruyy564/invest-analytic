@@ -15,6 +15,7 @@
 export {
   CAUSE_UNKNOWN,
   causeFactsAnswer,
+  factsWithoutInterpretation,
   foreignTickers,
   isGroundedCauseAnswer,
   knownTickers,
@@ -23,6 +24,9 @@ export {
   newsTickersRequested,
   NEWS_SEARCH_TOOL,
   NEWS_TOOLS,
+  NO_CAUSE_INTRO,
+  NO_INTERPRETATION_INTRO,
   toolResults,
+  type CauseFactsInput,
   type NewsItem,
 } from './cause.js';

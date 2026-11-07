@@ -1,5 +1,5 @@
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
-import { asksForCause, clipToolResults, createAgentNode } from '../../src/agent/nodes/agent/index.js';
+import { asksForCause, clipToolResults, createAgentNode, NO_INTERPRETATION_INTRO } from '../../src/agent/nodes/agent/index.js';
 import { createHelpNode } from '../../src/agent/nodes/help/index.js';
 import { buildAgentSystemPrompt } from '../../src/agent/nodes/agent/prompt.js';
 import { isApprovedDecision } from '../../src/agent/nodes/approve/index.js';
@@ -208,6 +208,27 @@ describe('ответ по данным текущего прогона', () => {
 
     const answer = String((result.messages[0] as AIMessage).content);
     expect(answer).toContain('оценка');
+    expect(answer).not.toBe(DYNAMICS);
+  });
+
+  it('если модель промолчала на «стоит ли», отдаёт факты, а не сырой отчёт', async () => {
+    // Легаси-ответ: готовый отчёт инструмента вместо ответа на вопрос-оценку.
+    // Здесь вопрос требует трактовки, поэтому при молчании модели — факты и
+    // честное «оценку не даю», но не отчёт как есть.
+    const model = new ScriptedChatModel(['']);
+
+    const result = await createAgentNode(model, [fakeTool('market__price_dynamics')])({
+      messages: [
+        new HumanMessage('стоит ли покупать лукойл'),
+        dynamicsCall('call-3', { ticker: 'LKOH', days: 180 }),
+        new ToolMessage({ tool_call_id: 'call-3', content: DYNAMICS }),
+      ],
+      intent: 'security_analysis',
+    } as never);
+
+    const answer = String((result.messages[0] as AIMessage).content);
+    expect(answer.startsWith(NO_INTERPRETATION_INTRO)).toBe(true);
+    expect(answer).toContain('Что известно по данным');
     expect(answer).not.toBe(DYNAMICS);
   });
 

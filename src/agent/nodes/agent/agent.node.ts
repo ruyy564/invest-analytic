@@ -14,6 +14,7 @@ import { detectInstruments } from '../../scope.js';
 import { FACTORS_TOOL } from '../../../capabilities/market/tools/factors/factors.service.js';
 import {
   causeFactsAnswer,
+  factsWithoutInterpretation,
   isGroundedCauseAnswer,
   knownTickers,
   newsFailures,
@@ -21,6 +22,7 @@ import {
   newsTickersRequested,
   NEWS_SEARCH_TOOL,
   toolResults,
+  type CauseFactsInput,
 } from './cause.js';
 import type { AgentStateType } from '../../graph/state.js';
 import { withTimeout } from '../../../transports/mcp/mcp-tool.adapter.js';
@@ -403,6 +405,9 @@ export const createAgentNode =
     // «Почему упал/вырос X» — вопрос о причине: у брокера причин нет, они берутся
     // из публикаций. Сначала собираем новости, иначе модель их придумает.
     const causeQuestion = asksForCause(question);
+    // Вопрос требует трактовки («почему», «стоит ли»): сырой отчёт инструмента
+    // на такой вопрос не отвечает — это легаси-ответ, его здесь не отдаём.
+    const interpretationRequired = asksForInterpretation(state.intent, question);
     const tickers = causeQuestion ? detectInstruments(question, options.aliases ?? {}) : [];
     // Числа по рынку (нефть, курс, ставка) — аргументы, а не догадки.
     const marketRequest = causeQuestion ? marketCallFor(run, tools) : undefined;
@@ -415,7 +420,8 @@ export const createAgentNode =
     }
 
     // Точечный вопрос по готовым данным: отдаём отчёт как есть, без генерации и таймаутов.
-    if (report && !asksForInterpretation(state.intent, question)) {
+    // Отчёт — ответ только для такого вопроса: «почему/стоит ли» требует трактовки.
+    if (report && !interpretationRequired) {
       return { messages: [new AIMessage(report)] };
     }
 
@@ -437,14 +443,16 @@ export const createAgentNode =
       answeredByText &&
       (!causeQuestion || isGroundedCauseAnswer(text, news, knownTickers(run, options.aliases ?? {})));
     // Факты вместо домыслов: движения цен, публикации и честное «причина не установлена».
-    const factsAnswer = (): string =>
-      causeFactsAnswer({
-        dynamics: toolResults(run, new Set([MARKET_DYNAMICS_TOOL])),
-        macro: toolResults(run, new Set([FACTORS_TOOL])),
-        news,
-        tickers,
-        failures: newsFailures(run),
-      });
+    const facts = (): CauseFactsInput => ({
+      dynamics: toolResults(run, new Set([MARKET_DYNAMICS_TOOL])),
+      macro: toolResults(run, new Set([FACTORS_TOOL])),
+      news,
+      tickers,
+      failures: newsFailures(run),
+    });
+    const factsAnswer = (): string => causeFactsAnswer(facts());
+    /** Вопрос требовал трактовки, а модели нет: факты прогона без вывода. */
+    const withoutInterpretation = (): string => factsWithoutInterpretation(facts());
 
     // «Что в моем портфеле / сколько у меня акций» — данные нужны всегда.
     // Правило живёт в маршрутизации (`dataNeed`), узел не разбирает текст вопроса.
@@ -468,8 +476,12 @@ export const createAgentNode =
         if (answeredByText) {
           return { messages: [withoutToolCalls(response)] };
         }
-        if (report) {
+        // Отчёт как ответ — только для точечного вопроса по данным.
+        if (report && !interpretationRequired) {
           return { messages: [new AIMessage(report)] };
+        }
+        if (interpretationRequired) {
+          return { messages: [new AIMessage(withoutInterpretation())] };
         }
         // Ни текста, ни отчёта: повтор вызова лучше пустого ответа.
         return { messages: [response] };
@@ -486,8 +498,14 @@ export const createAgentNode =
     }
 
     // Вызовов нет: модель либо ответила, либо промолчала при уже собранных данных.
-    if (useless && report) {
-      return { messages: [new AIMessage(report)] };
+    if (useless) {
+      // Вопрос требовал трактовки — сырой отчёт инструмента здесь не ответ.
+      if (interpretationRequired) {
+        return { messages: [new AIMessage(withoutInterpretation())] };
+      }
+      if (report) {
+        return { messages: [new AIMessage(report)] };
+      }
     }
 
     return { messages: [response] };
