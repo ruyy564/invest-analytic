@@ -16,6 +16,8 @@ const LOCAL_TOOLS_EXPECTED = [
   NEWS_DIGEST_TOOL,
   'news__search',
   TAX_WATCH_TOOL,
+  'market__factors',
+  'macro__cb_meetings',
   'instruments__find',
   'instruments__prices',
   'instruments__candles',

@@ -4,11 +4,14 @@ import { join } from 'node:path';
 import { AIMessage } from '@langchain/core/messages';
 import {
   CONCLUSION_RUBRIC,
+  casesBelowRate,
+  formatPassRates,
   judgeAnswer,
   loadEvalCases,
   parseJudgeResponse,
   recordedRunOf,
   runCase,
+  runPassRates,
   summarizeEval,
   type EvalCase,
 } from '../../src/eval/index.js';
@@ -76,6 +79,17 @@ describe('грейдеры ответа', () => {
 
     expect(ok.runs[0].passed).toBe(true);
     expect(failed.runs[0].passed).toBe(false);
+  });
+
+  it('без записанных вызовов инструменты не проверяются', () => {
+    const testCase = caseOf({ expectedTools: ['news__search'] });
+
+    const result = runCase(testCase, [{ transcript: 'ответ' }]);
+    const graders = result.runs[0].graders.map((grader) => grader.grader);
+
+    // Офлайн-транскрипт не содержит вызовов: это отсутствие данных, а не провал.
+    expect(graders).not.toContain('tool:news__search');
+    expect(result.runs[0].passed).toBe(true);
   });
 });
 
@@ -158,3 +172,43 @@ describe('судья по рубрике', () => {
     });
   });
 });
+
+describe('живые прогоны: сколько из скольких', () => {
+  const caseWith = (id: string, passedRuns: number, total: number) => ({
+    id,
+    tags: ['required'],
+    runs: Array.from({ length: total }, (_, index) => ({
+      passed: index < passedRuns,
+      graders: [],
+    })),
+  });
+
+  it('считает «3 из 5» и отличает кейсы ниже порога', () => {
+    const rates = runPassRates([
+      caseWith('три-из-пяти', 3, 5),
+      caseWith('пять-из-пяти', 5, 5),
+      caseWith('один-из-пяти', 1, 5),
+    ]);
+
+    expect(rates.map((rate) => `${rate.passed}/${rate.runs}`)).toEqual(['3/5', '5/5', '1/5']);
+    expect(rates[0].rate).toBeCloseTo(0.6);
+    // Порог 60 %: «3 из 5» — проходит, «1 из 5» — нет.
+    expect(casesBelowRate(rates, 0.6).map((rate) => rate.id)).toEqual(['один-из-пяти']);
+    expect(casesBelowRate(rates, 0.8).map((rate) => rate.id)).toEqual([
+      'три-из-пяти',
+      'один-из-пяти',
+    ]);
+  });
+
+  it('в отчёте видно, какие кейсы ниже порога', () => {
+    const text = formatPassRates(
+      runPassRates([caseWith('три-из-пяти', 3, 5), caseWith('один-из-пяти', 1, 5)]),
+      0.6,
+    );
+
+    expect(text).toContain('✔ три-из-пяти: 3/5');
+    expect(text).toContain('✕ один-из-пяти: 1/5');
+    expect(text).toContain('ниже порога 60%: 1');
+  });
+});
+

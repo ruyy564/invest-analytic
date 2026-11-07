@@ -1,0 +1,92 @@
+[
+  {
+    "id": "analytics-instrument-sber",
+    "question": "Стоит ли брать Сбер?",
+    "resolvedBy": "rule",
+    "intent": "portfolio_review",
+    "scope": "instrument",
+    "target": "SBER",
+    "expectedTools": ["invest_get_forecast", "invest_get_candles"],
+    "forbiddenTools": ["portfolio__snapshot"],
+    "trials": 3,
+    "tags": ["required", "analytics", "instrument"],
+    "answer": {
+      "sections": ["Разбор бумаги SBER", "## Вывод по бумаге"],
+      "mustContain": ["цена за 1 шт.", "потенциал"],
+      "mustNotContain": ["Динамика SBER за", "Состав портфеля"],
+      "minNumbers": 5
+    }
+  },
+  {
+    "id": "analytics-portfolio",
+    "question": "проанализируй мой портфель",
+    "resolvedBy": "rule",
+    "intent": "portfolio_review",
+    "scope": "portfolio",
+    "expectedTools": ["invest_get_portfolio", "invest_get_positions"],
+    "trials": 3,
+    "tags": ["required", "analytics", "portfolio"],
+    "answer": {
+      "sections": ["## Состав портфеля", "## Структура портфеля", "## Концентрация"],
+      "mustNotContain": ["Динамика SBER за"],
+      "minNumbers": 5
+    }
+  },
+  {
+    "id": "analytics-news-crypto",
+    "question": "какие новости по криптовалютам?",
+    "resolvedBy": "rule",
+    "intent": "market_news",
+    "scope": "portfolio",
+    "forbiddenTools": ["portfolio__snapshot", "invest_get_portfolio"],
+    "trials": 2,
+    "tags": ["required", "analytics", "news", "topic"],
+    "answer": {
+      "sections": ["Новости: криптовалюты"],
+      "mustNotContain": ["фигурист", "мошенник", "похит"],
+      "minCitations": 1
+    }
+  },
+  {
+    "id": "analytics-brief-sber",
+    "question": "разбери Сбер: что влияет и чего ждём",
+    "resolvedBy": "rule",
+    "intent": "portfolio_review",
+    "scope": "instrument",
+    "target": "SBER",
+    "expectedTools": ["invest_get_forecast", "invest_get_instrument_reports", "market__factors"],
+    "forbiddenTools": ["portfolio__snapshot"],
+    "trials": 2,
+    "tags": ["required", "analytics", "instrument", "brief"],
+    "answer": {
+      "sections": ["## Что влияет на бумагу", "## Хорошо, нейтрально, плохо", "## Чего ждём"],
+      "mustContain": [
+        "Драйверы сектора",
+        "Ключевая ставка ЦБ: 14,00 % годовых",
+        "(оценка)",
+        "Мнение аналитиков: хорошо",
+        "Заседание ЦБ"
+      ],
+      "mustNotContain": ["YNDX", "Рыночные факторы недоступны"],
+      "minNumbers": 8
+    }
+  },
+  {
+    "id": "analytics-cause-lkoh",
+    "question": "почему вырос лукойл?",
+    "resolvedBy": "rule",
+    "intent": "security_analysis",
+    "scope": "instrument",
+    "target": "LKOH",
+    "expectedTools": ["market__factors", "news__search"],
+    "forbiddenTools": ["portfolio__snapshot"],
+    "trials": 3,
+    "tags": ["required", "analytics", "cause"],
+    "answer": {
+      "mustContain": ["Рыночные факторы"],
+      "mustNotContain": ["успешная", "надёжная", "YNDX"],
+      "minCitations": 2,
+      "minNumbers": 4
+    }
+  }
+]

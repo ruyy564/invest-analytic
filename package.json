@@ -17,6 +17,8 @@
     "trace": "node --env-file=.env scripts/trace-report.mjs",
     "replay": "node --env-file=.env scripts/replay-run.mjs",
     "eval": "node scripts/eval.mjs",
+    "eval:live": "node scripts/eval-live.mjs",
+    "record:transcripts": "node scripts/record-transcripts.mjs",
     "studio": "npm run build && langgraphjs dev --host 127.0.0.1 --port 2024 --no-browser",
     "studio:open": "node scripts/open-studio.mjs",
     "studio:check": "node --env-file=.env scripts/studio-check.mjs",

@@ -2,6 +2,7 @@ import { NewsRegistry } from '../../src/capabilities/news/news.registry.js';
 import type { NewsSourceAdapter, SourceItem } from '../../src/capabilities/news/news.types.js';
 import { isOffTopicTitle } from '../../src/capabilities/news/news.filters.js';
 import { collectNewsFeed, formatNewsFeed } from '../../src/capabilities/news/tools/news-digest/news-digest.service.js';
+import { matchesMatchers, topicOf } from '../../src/capabilities/news/topics.js';
 import { feedPeriodTitle } from '../../src/agent/nodes/news/index.js';
 
 const NOW = new Date('2026-11-04T12:00:00Z');
@@ -25,6 +26,15 @@ const collect = (items: SourceItem[], maxPerPeriod = 5, sources?: NewsSourceAdap
     pages: 1,
     maxItems: 50,
     maxPerPeriod,
+    now: NOW,
+  });
+
+const collectTopic = (items: SourceItem[], topic: readonly string[]) =>
+  collectNewsFeed(new NewsRegistry([adapter('crypto-forklog', items)]), {
+    pages: 1,
+    maxItems: 50,
+    maxPerPeriod: 5,
+    topic,
     now: NOW,
   });
 
@@ -170,4 +180,59 @@ describe('сводка новостей рынка', () => {
     expect(feedPeriodTitle(180)).toBe('За полгода');
     expect(feedPeriodTitle(14)).toBe('За 14 дней');
   });
+
+describe('тематическая сводка', () => {
+  it('определяет тему вопроса', () => {
+    expect(topicOf('какие новости по криптовалютам?')?.id).toBe('crypto');
+    expect(topicOf('что нового по нефти')?.id).toBe('oil');
+    expect(topicOf('какие последние новости в мире инвестиций?')).toBeUndefined();
+  });
+
+  it('латинские слова ищутся целыми', () => {
+    expect(topicOf('новости ETH')?.id).toBe('crypto');
+    // «method» не должна считаться эфириумом по подстроке «eth».
+    expect(topicOf('method')).toBeUndefined();
+  });
+
+  it('оставляет только публикации темы', async () => {
+    const feed = await collectTopic(
+      [
+        item('Биткоин вырос до $76 000', 0),
+        item('Фигуристы выиграли золото', 0),
+        item('Мошенники похитили 450 млн рублей', 0),
+        item('Акции банков выросли', 0),
+      ],
+      ['крипт', 'биткоин', 'btc', 'блокчейн'],
+    );
+
+    expect(feed.periods.flatMap((period) => period.items).map((entry) => entry.title)).toEqual([
+      'Биткоин вырос до $76 000',
+    ]);
+    expect(formatNewsFeed(feed, 'криптовалюты')).toContain('Новости: криптовалюты');
+  });
+
+  it('пустая тема говорит об этом прямо', async () => {
+    const feed = await collectTopic([item('Биткоин вырос', 0)], ['облигации']);
+
+    expect(formatNewsFeed(feed, 'облигации')).toContain(
+      'За выбранный период публикаций по теме «облигации» нет.',
+    );
+  });
+
+  it('спорт и криминал отбрасываются как посторонние', () => {
+    expect(
+      isOffTopicTitle('Мишина и Галлямов завоевали золотые медали в парном катании'),
+    ).toBe(true);
+    expect(isOffTopicTitle('Мошенники похитили у жительницы Москвы 450 млн рублей')).toBe(true);
+    expect(isOffTopicTitle('ЦБ сохранил ключевую ставку')).toBe(false);
+  });
+
+  it('совпадение по теме проверяет заголовок и аннотацию', () => {
+    expect(
+      matchesMatchers({ title: 'Рынок вырос', summary: 'биткоин обновил максимум' }, ['биткоин']),
+    ).toBe(true);
+    expect(matchesMatchers({ title: 'Рынок вырос' }, ['биткоин'])).toBe(false);
+  });
+});
+
 });

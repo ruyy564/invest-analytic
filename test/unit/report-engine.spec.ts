@@ -120,6 +120,9 @@ topics:
       'marketnews',
       'securities',
       'opinions',
+      'drivers',
+      'scorecard',
+      'calendar',
       'conclusion',
       'structure',
       'exposure',
@@ -128,6 +131,7 @@ topics:
       'gaps',
       'verdict',
     ]);
+    expect(template.version).toBe(3);
     expect(template.sections.filter((section) => section.interpret).map((section) => section.id)).toEqual([
       'macro',
       'opinions',
@@ -174,7 +178,7 @@ describe('сборка отчёта движком', () => {
     const table = report.sections.find((section) => section.id === 'table');
 
     expect(report.reportId).toBe('report-1');
-    expect(report.templateVersion).toBe(2);
+    expect(report.templateVersion).toBe(3);
     expect(report.sections).toHaveLength(10);
     expect(table?.markdown).toContain('SBER');
     // 100 × 300 + 10 × 900 = 39 000
@@ -419,6 +423,8 @@ describe('область разбора в отчёте', () => {
       'macro',
       'securities',
       'opinions',
+      'scorecard',
+      'calendar',
       'conclusion',
     ]);
     // Провайдеры тоже считаются по области: налоги в разбор бумаги не идут.
@@ -463,7 +469,7 @@ describe('область разбора в отчёте', () => {
     });
     const text = composeMarkdown(report, {}, 'бумаги SBER');
 
-    expect(text.startsWith('Разбор бумаги SBER (шаблон v2)')).toBe(true);
+    expect(text.startsWith('Разбор бумаги SBER (шаблон v3)')).toBe(true);
   });
 });
 

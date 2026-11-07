@@ -13,8 +13,12 @@ export {
   type RecordedRun,
 } from './run.js';
 export {
+  casesBelowRate,
   formatEvalReport,
+  formatPassRates,
+  runPassRates,
   summarizeEval,
+  type CasePassRate,
   type CaseResult,
   type CaseRun,
   type EvalSummary,

@@ -104,7 +104,27 @@ const DEFAULTS: Record<string, unknown> = {
   invest_get_operations: OPERATIONS_JSON,
   invest_get_share_dividends: { dividends: [] },
   invest_get_insider_deals: { insiderDeals: [] },
-  invest_get_asset_fundamentals: { fundamental: {} },
+  // Фундаментал: нули у брокера означают «нет данных», поэтому в фикстуре только заполненное.
+  invest_get_asset_fundamentals: {
+    fundamentals: [
+      {
+        assetUid: 'asset-sber',
+        peRatioTtm: 3.29,
+        priceToBookTtm: 0.71,
+        roe: 22.88,
+        dividendYieldDailyTtm: 12.8,
+        fiveYearsAverageDividendYield: 9.15,
+        netDebtToEbitda: 0,
+      },
+    ],
+  },
+  // Календарь отчётности: даты публикаций за последние кварталы.
+  invest_get_instrument_reports: {
+    events: [
+      { reportDate: '2026-07-29', periodYear: 2026, periodNum: 2 },
+      { reportDate: '2026-10-28', periodYear: 2026, periodNum: 3 },
+    ],
+  },
   invest_list_signals: { signals: [] },
   invest_list_indicatives: { instruments: [] },
 };

@@ -1,4 +1,4 @@
-import { detectScope, PORTFOLIO_SCOPE } from '../../src/agent/scope.js';
+import { detectInstruments, detectScope, PORTFOLIO_SCOPE } from '../../src/agent/scope.js';
 
 const ALIASES = {
   SBER: ['Сбер', 'Сбербанк'],
@@ -51,5 +51,30 @@ describe('область разбора', () => {
 
   it('не считает бумагой случайное латинское слово без маркера', () => {
     expect(detectScope('привет, как дела')).toEqual(PORTFOLIO_SCOPE);
+  });
+});
+
+describe('бумаги, названные в вопросе', () => {
+  const ALIASES = { YDEX: ['Яндекс'], VKCO: ['VK', 'ВКонтакте'], SBER: ['Сбер'] };
+
+  it('находит несколько бумаг сразу', () => {
+    // Вопрос о двух бумагах: «вк» — разговорная короткая форма.
+    expect(detectInstruments('почему упал яндекс и вырос вк?', ALIASES)).toEqual([
+      'YDEX',
+      'VKCO',
+    ]);
+  });
+
+  it('короткое название ищется только отдельным словом', () => {
+    // «ВК» внутри «вклад» и «включая» бумагой не считается.
+    expect(detectInstruments('куда положить вклад?', ALIASES)).toEqual([]);
+    expect(detectInstruments('включая дивиденды', ALIASES)).toEqual([]);
+  });
+
+  it('узнаёт тикер и имя в любом падеже', () => {
+    expect(
+      detectInstruments('сравни SBER и Лукойл', { SBER: ['Сбер'], LKOH: ['ЛУКОЙЛ'] }),
+    ).toEqual(['SBER', 'LKOH']);
+    expect(detectInstruments('что с Лукойлом?', { LKOH: ['ЛУКОЙЛ'] })).toEqual(['LKOH']);
   });
 });

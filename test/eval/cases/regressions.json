@@ -1,0 +1,59 @@
+[
+  {
+    "id": "regression-stale-report",
+    "question": "почему упал яндекс?",
+    "resolvedBy": "rule",
+    "intent": "security_analysis",
+    "scope": "instrument",
+    "target": "YDEX",
+    "trials": 2,
+    "tags": ["required", "regression"],
+    "answer": {
+      "mustNotContain": ["## Состав портфеля", "Динамика SBER"],
+      "minNumbers": 1
+    }
+  },
+  {
+    "id": "regression-cause-no-fabrication",
+    "question": "почему упал яндекс и вырос вк?",
+    "resolvedBy": "rule",
+    "intent": "security_analysis",
+    "scope": "instrument",
+    "target": "YDEX",
+    "trials": 2,
+    "tags": ["required", "regression", "cause"],
+    "answer": {
+      "mustNotContain": ["YNDX", "успешнее", "нет доступа к новостям", "надёжная"],
+      "minNumbers": 1
+    }
+  },
+  {
+    "id": "regression-news-topic-no-noise",
+    "question": "какие новости по нефти?",
+    "resolvedBy": "rule",
+    "intent": "market_news",
+    "scope": "portfolio",
+    "trials": 2,
+    "tags": ["required", "regression", "news"],
+    "answer": {
+      "sections": ["Новости: нефть и газ"],
+      "mustNotContain": ["фигурист", "мошенник", "криминал"],
+      "minCitations": 1
+    }
+  },
+  {
+    "id": "regression-decision-pronoun",
+    "question": "стоит ли ее покупать?",
+    "history": ["расскажи о Сбере"],
+    "resolvedBy": "rule",
+    "intent": "portfolio_review",
+    "scope": "instrument",
+    "target": "SBER",
+    "trials": 2,
+    "tags": ["required", "regression", "routing"],
+    "answer": {
+      "sections": ["Разбор бумаги SBER"],
+      "mustNotContain": ["Динамика SBER за", "Причина не установлена"]
+    }
+  }
+]

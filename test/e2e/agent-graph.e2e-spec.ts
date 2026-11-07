@@ -1,109 +1,22 @@
 import { AIMessage } from '@langchain/core/messages';
-import { Test } from '@nestjs/testing';
-import { AppModule } from '../../src/app.module.js';
-import { AgentRunnerService } from '../../src/agent/agent-runner.service.js';
-import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../../src/platform/llm/llm.module.js';
-import { MCP_CLIENT_FACTORY } from '../../src/transports/mcp/mcp-registry.service.js';
 import { ReportStoreService } from '../../src/platform/state/report-store.service.js';
-import { ScriptedChatModel, type ScriptedStep } from '../fixtures/fake-chat-model.js';
-import { e2eToolCatalog, E2E_ALLOWED_TOOLS } from '../fixtures/e2e-catalog.js';
-import { ACCOUNTS_FIXTURE, PORTFOLIO_FIXTURE } from '../fixtures/mcp-test-server.js';
+import type { ScriptedStep } from '../fixtures/fake-chat-model.js';
+import {
+  HARNESS_ENV,
+  createHarness as createHarnessBase,
+  toolCall,
+  type Harness,
+} from '../fixtures/agent-harness.js';
 
-const TEST_ENV: NodeJS.ProcessEnv = {
-  LLM_PROVIDER: 'openai',
-  LLM_MODEL: 'gpt-test',
-  LLM_API_KEY: 'test-key',
-  MCP_SERVERS: 'tinkoff',
-  MCP_TINKOFF_URL: 'https://mcp.example.com/mcp',
-  MCP_TINKOFF_ALLOWED_TOOLS: E2E_ALLOWED_TOOLS,
-  STATE_BACKEND: 'memory',
-  LANGSMITH_TRACING: 'false',
-  // Внешние источники выключены: e2e не должен ходить в сеть.
-  SOURCES: 'tinkoff',
-  NEWS_SOURCES: '',
-  KEY_RATE_SOURCE_MODE: 'off',
-};
-
-const toolCall = (id: string) =>
-  new AIMessage({
-    content: '',
-    tool_calls: [{ id, name: 'tinkoff__invest_get_portfolio', args: { accountId: 'acc-1' } }],
-  });
-
-/** Роутер в тесте: метка зависит от вопроса, поэтому число вызовов модели не важно. */
-class IntentAwareModel extends ScriptedChatModel {
-  override async _generate(
-    messages: Parameters<ScriptedChatModel['_generate']>[0],
-  ): ReturnType<ScriptedChatModel['_generate']> {
-    const question =
-      messages
-        .filter((message) => (message as { _getType?: () => string })._getType?.() === 'human')
-        .map((message) => (typeof message.content === 'string' ? message.content : ''))
-        .at(-1) ?? '';
-    const intent = /погода|политик/i.test(question)
-      ? 'off_topic'
-      : /проанализируй|разбер|диверсифик/i.test(question)
-        ? 'portfolio_review'
-        : 'data_lookup';
-    return { generations: [{ text: intent, message: new AIMessage(intent) }] };
-  }
-}
-
-/** Записывает входные сообщения, чтобы проверить, что модели приходят данные инструментов. */
-class RecordingModel extends ScriptedChatModel {
-  readonly inputs: string[] = [];
-
-  override async _generate(
-    messages: Parameters<ScriptedChatModel['_generate']>[0],
-  ): ReturnType<ScriptedChatModel['_generate']> {
-    this.inputs.push(messages.map((message) => JSON.stringify(message.content)).join('\n'));
-    return super._generate(messages);
-  }
-}
-
-interface Harness {
-  runner: AgentRunnerService;
-  toolCalls: () => number;
-  modelInputs: () => string[];
-  moduleRef: Awaited<ReturnType<typeof Test.createTestingModule>['compile']>;
-}
-
-/** Каждый сценарий — своё приложение и свой сценарий ответов модели. */
-const createHarness = async (answerSteps: ScriptedStep[]): Promise<Harness> => {
-  let calls = 0;
-  const answerModel = new RecordingModel(answerSteps);
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(LLM_ROUTER_MODEL)
-    .useValue(new IntentAwareModel([]))
-    .overrideProvider(LLM_ANSWER_MODEL)
-    .useValue(answerModel)
-    .overrideProvider(MCP_CLIENT_FACTORY)
-    .useValue(async () =>
-      e2eToolCatalog({
-        invest_get_portfolio: () => {
-          calls += 1;
-          return PORTFOLIO_FIXTURE;
-        },
-      }),
-    )
-    .compile();
-
-  return {
-    runner: moduleRef.get(AgentRunnerService),
-    toolCalls: () => calls,
-    modelInputs: () => answerModel.inputs,
-    moduleRef,
-  };
-};
-
-void ACCOUNTS_FIXTURE;
-
+/** Стенд берётся из общей фикстуры: корзины графа и поведения используют один. */
+const createHarness = (answerSteps: ScriptedStep[]): Promise<Harness> =>
+  createHarnessBase(answerSteps);
 
 describe('граф агента с подтверждением', () => {
   const originalEnv = { ...process.env };
 
   beforeAll(() => {
-    Object.assign(process.env, TEST_ENV);
+    Object.assign(process.env, HARNESS_ENV);
   });
 
   afterAll(() => {
@@ -249,7 +162,7 @@ describe('граф агента с подтверждением', () => {
       .get(ReportStoreService)
       .get(result.report && 'reportId' in result.report ? result.report.reportId : '', 'default');
     expect(stored?.markdown).toContain('## Итог: диверсификация и стратегия');
-    expect(stored?.templateVersion).toBe(2);
+    expect(stored?.templateVersion).toBe(3);
   });
 
   it('«стоит ли покупать Сбер» — это разбор бумаги, а не динамика цены', async () => {
@@ -280,7 +193,7 @@ describe('граф агента с подтверждением', () => {
   it('новый вопрос в той же сессии не получает прошлый отчёт', async () => {
     const { runner } = await createHarness([
       'macro: ставка 14 % (оценка).\nverdict: совет — добрать облигации.',
-      'Яндекс просел на слабой отчётности, VK вырос на новостях о рекламе.',
+      'Причина не установлена: по Яндексу и VK объяснений в публикациях нет, вот факты.',
     ]);
 
     const awaiting = await runner.run('проанализируй мой портфель', 's-cache');
@@ -296,5 +209,35 @@ describe('граф агента с подтверждением', () => {
     expect(second.answer).toContain('Яндекс');
     expect(second.answer).not.toContain('## Состав портфеля');
     expect(second.answer).not.toBe(report.answer);
+  });
+
+  it('динамика цены прошлого вопроса не отвечает на новый вопрос', async () => {
+    const { runner, newsCalls } = await createHarness([
+      new AIMessage({
+        content: '',
+        tool_calls: [
+          { id: 'call-dyn', name: 'market__price_dynamics', args: { ticker: 'SBER', days: 180 } },
+        ],
+      }),
+      'Причина не установлена: по Яндексу публикаций с объяснением движения нет.',
+    ]);
+
+    const awaiting = await runner.run('что с ценой сбер за полгода?', 's-dynamics');
+    expect(awaiting.status).toBe('awaiting_approval');
+    expect(awaiting.approval?.actions[0]).toMatchObject({ tool: 'market__price_dynamics' });
+
+    const first = await runner.resume('s-dynamics', { approved: true });
+    expect(first.answer).toContain('Динамика SBER');
+    expect(newsCalls()).toBe(0);
+
+    // Отчёт инструмента-агрегатора живёт в истории треда, но к новому вопросу
+    // отношения не имеет: иначе на «почему упал Яндекс» приходит динамика Сбера.
+    const second = await runner.run('почему упал яндекс?', 's-dynamics');
+
+    expect(second.status).toBe('completed');
+    expect(second.answer).toContain('Яндекс');
+    expect(second.answer).not.toContain('Динамика SBER');
+    // Вопрос о причине начинается со сбора публикаций: объяснять больше нечем.
+    expect(newsCalls()).toBeGreaterThan(0);
   });
 });

@@ -11,6 +11,12 @@ export interface GraderResult {
 const REFUSAL =
   /не обладает собственным мнением|как и любая языковая модель|разговоры на некоторые темы временно ограничены|не могу (дать|предоставить|комментировать)/i;
 
+/** Строка-цитата публикации: «• 2026-11-05 [интерфакс] Заголовок». */
+const CITATION_LINE = /^[•*-]\s*\d{4}-\d{2}-\d{2}\s*\[[^\]]+\]\s*\S+/gm;
+
+/** Числа в ответе: целые от 2 знаков или с дробной частью (цены, проценты, суммы). */
+const NUMBER = /-?\d+[.,]\d+|\d{2,}/g;
+
 /** Проверка фрагментов ответа: наличие обязательных и отсутствие запрещённых. */
 export const gradeAnswer = (testCase: EvalCase, transcript: string): GraderResult[] => {
   const results: GraderResult[] = [];
@@ -29,6 +35,35 @@ export const gradeAnswer = (testCase: EvalCase, transcript: string): GraderResul
       grader: `notContains:${fragment}`,
       passed: !transcript.includes(fragment),
       detail: transcript.includes(fragment) ? `лишний фрагмент «${fragment}»` : undefined,
+    });
+  }
+
+  // Структура: аналитика проверяется по разделам, а не по общему впечатлению.
+  for (const section of answer?.sections ?? []) {
+    results.push({
+      grader: `section:${section}`,
+      passed: transcript.includes(section),
+      detail: transcript.includes(section) ? undefined : `нет раздела «${section}»`,
+    });
+  }
+
+  // Цитаты: причина без даты и источника — домысел, грейдер это ловит.
+  if (answer?.minCitations) {
+    const found = (transcript.match(CITATION_LINE) ?? []).length;
+    results.push({
+      grader: `citations:>=${answer.minCitations}`,
+      passed: found >= answer.minCitations,
+      detail: found >= answer.minCitations ? undefined : `цитат ${found}, нужно ${answer.minCitations}`,
+    });
+  }
+
+  // Числа: «бумага выросла» без цифр проверяемо только наличием чисел.
+  if (answer?.minNumbers) {
+    const found = (transcript.match(NUMBER) ?? []).length;
+    results.push({
+      grader: `numbers:>=${answer.minNumbers}`,
+      passed: found >= answer.minNumbers,
+      detail: found >= answer.minNumbers ? undefined : `чисел ${found}, нужно ${answer.minNumbers}`,
     });
   }
 
@@ -77,5 +112,7 @@ export const gradeCase = (
   run: { transcript: string; toolsUsed?: readonly string[] },
 ): GraderResult[] => [
   ...gradeAnswer(testCase, run.transcript),
-  ...gradeTools(testCase, run.toolsUsed ?? []),
+  // Инструменты проверяем только по записанному прогону: в офлайн-транскрипте
+  // вызовов нет, и «ноль вызовов» — отсутствие данных, а не провал.
+  ...(run.toolsUsed ? gradeTools(testCase, run.toolsUsed) : []),
 ];

@@ -5,12 +5,23 @@ import { z } from 'zod';
 export const EvalAnswerSchema = z.object({
   mustContain: z.array(z.string()).default([]),
   mustNotContain: z.array(z.string()).default([]),
+  /** Обязательные разделы ответа (заголовки markdown): структура аналитики. */
+  sections: z.array(z.string()).default([]),
+  /** Минимум строк-цитат вида «• 2026-11-05 [интерфакс] …». */
+  minCitations: z.number().int().nonnegative().default(0),
+  /** Минимум чисел в ответе: аналитика без цифр — не аналитика. */
+  minNumbers: z.number().int().nonnegative().default(0),
 });
 
 /** Кейс оценки: вопрос, ожидаемый маршрут, инструменты и грейдеры. */
 export const EvalCaseSchema = z.object({
   id: z.string().trim().min(1),
   question: z.string().trim().min(1),
+  /**
+   * Предыдущие вопросы той же сессии: нужны диалоговым регрессиям
+   * («стоит ли её покупать» после «расскажи о Сбере»).
+   */
+  history: z.array(z.string().trim().min(1)).default([]),
   /** `rule` — маршрут детерминирован; `llm` — метку выбирает модель. */
   resolvedBy: z.enum(['rule', 'llm']).optional(),
   intent: z.string().optional(),

@@ -152,6 +152,13 @@ describe('конфигурация окружения', () => {
         maxItems: 15,
         policyV2: true,
         policyFile: 'data/policy/news.yaml',
+        extraFeedsFile: 'data/news-sources.yaml',
+        indexEnabled: true,
+        indexTtlDays: 30,
+        crawlerEnabled: true,
+        crawlerIntervalMin: 15,
+        crawlerMaxItems: 60,
+        watchlistFile: 'data/watchlist.yaml',
       },
       newsFeed: {
         enabled: true,
@@ -161,6 +168,7 @@ describe('конфигурация окружения', () => {
       taxKeywordsFile: 'data/tax-keywords.yaml',
       tickerAliasesFile: 'data/ticker-aliases.yaml',
       companyProfilesFile: 'data/company-profiles.yaml',
+      cbMeetingsFile: 'data/cb-meetings.yaml',
     });
   });
 

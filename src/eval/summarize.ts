@@ -100,3 +100,49 @@ export const formatEvalReport = (summary: EvalSummary): string => {
   }
   return lines.join('\n');
 };
+
+/** Доля успешных прогонов по кейсу: «3 из 5» — рабочая метрика живых прогонов. */
+export interface CasePassRate {
+  id: string;
+  tags: string[];
+  passed: number;
+  runs: number;
+  /** Доля успешных прогонов, 0..1. */
+  rate: number;
+}
+
+/** Сколько прогонов из скольких прошло, по каждому кейсу. */
+export const runPassRates = (results: readonly CaseResult[]): CasePassRate[] =>
+  results.map((result) => {
+    const passed = result.runs.filter((run) => run.passed).length;
+    return {
+      id: result.id,
+      tags: result.tags,
+      passed,
+      runs: result.runs.length,
+      rate: share(passed, result.runs.length),
+    };
+  });
+
+/** Кейсы, где доля успешных прогонов ниже порога: их и надо чинить. */
+export const casesBelowRate = (
+  rates: readonly CasePassRate[],
+  minRate: number,
+): CasePassRate[] => rates.filter((rate) => rate.rate < minRate);
+
+/** Отчёт по прогонам: «3/5» рядом с кейсом и итог по порогу. */
+export const formatPassRates = (
+  rates: readonly CasePassRate[],
+  minRate: number,
+): string => {
+  const lines = rates.map((rate) => {
+    const mark = rate.rate < minRate ? '✕' : '✔';
+    return `  ${mark} ${rate.id}: ${rate.passed}/${rate.runs}`;
+  });
+  const below = casesBelowRate(rates, minRate).length;
+  lines.push(
+    `Кейсов: ${rates.length}, прогонов: ${rates.reduce((sum, rate) => sum + rate.runs, 0)}, ` +
+      `ниже порога ${(minRate * 100).toFixed(0)}%: ${below}`,
+  );
+  return lines.join('\n');
+};

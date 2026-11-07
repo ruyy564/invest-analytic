@@ -62,6 +62,32 @@ describe('маршрутизация вопроса', () => {
     });
   });
 
+  it('вопрос-решение продолжает бумагу, названную в предыдущем вопросе', async () => {
+    // «Расскажи о Сбере» → «стоит ли её покупать»: местоимение ссылается на Сбер,
+    // иначе вопрос уходил в свободный агент и отвечал одной динамикой цены.
+    const route = await routeQuestion({
+      question: 'стоит ли ее покупать?',
+      previousQuestion: 'расскажи о сбере',
+    });
+
+    expect(route).toMatchObject({
+      intent: 'portfolio_review',
+      scope: 'instrument',
+      scopeTarget: 'SBER',
+      source: 'rule',
+    });
+  });
+
+  it('без названной ранее бумаги тикер не угадывается', async () => {
+    const route = await routeQuestion({
+      question: 'стоит ли ее покупать?',
+      previousQuestion: 'что у меня в портфеле?',
+    });
+
+    expect(route.scope).toBe('portfolio');
+    expect(route.intent).toBe('data_lookup');
+  });
+
   it('посторонний вопрос отсекает guard с готовым ответом', async () => {
     const route = await routeQuestion({ question: 'какая погода в Москве?' });
 
