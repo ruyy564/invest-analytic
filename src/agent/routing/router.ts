@@ -13,6 +13,7 @@ import {
   CLASSIFIER_SYSTEM_PROMPT,
   heuristicIntent,
   heuristicNewsIntent,
+  isEconomyQuestion,
   isMoneyQuestion,
   isSecurityQuestion,
   parseIntentText,
@@ -118,11 +119,12 @@ export const routeQuestion = async (options: RouteOptions): Promise<RouteDecisio
     const named = scoped.scope === 'instrument';
     const money = isMoneyQuestion(question);
     const security = isSecurityQuestion(question);
+    const economy = isEconomyQuestion(question);
     const resolved =
       intent === 'off_topic'
         ? named || security
           ? 'security_analysis'
-          : money
+          : money || economy
             ? 'data_lookup'
             : intent
         : intent;
