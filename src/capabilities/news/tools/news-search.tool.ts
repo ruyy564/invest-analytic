@@ -5,7 +5,7 @@ import type { NewsRegistry } from '../../../capabilities/news/news.registry.js';
 import { loadTickerAliases } from '../news.aliases.js';
 import { factorsFor, matchFactors } from '../factors.js';
 import { topicOf } from '../topics.js';
-import { loadCompanyProfiles } from '../../reports/index.js';
+import { loadCompanyProfiles, companyProfileOf } from '../../reports/index.js';
 import { createArticleReader } from '../sources/article.js';
 import { storedId, toStored, type NewsIndex } from '../store/news-index.js';
 import { rankByQuery } from '../store/ranking.js';
@@ -145,7 +145,21 @@ export const createNewsSearchTool = (options: NewsSearchToolOptions): DynamicStr
       // Порядок задаёт вопрос: редкие слова запроса поднимают нужные публикации,
       // остальные остаются ниже по свежести — без данных ответ не остаётся.
       const focus = typeof args.focus === 'string' ? args.focus.trim() : '';
-      const recent = (focus ? rankByQuery(pool, focus) : pool).slice(0, limit);
+      // Омонимы компании: «Самолёт» — и застройщик (SMLT), и авиация. Публикации
+      // про рейсы и аэропорты к бумаге не относятся, а у бумаг с омонимом нужен
+      // ещё и обязательный контекст: иначе лента авиации выдаётся за причины.
+      const profiles = loadCompanyProfiles(options.profilesFile ?? 'data/company-profiles.yaml');
+      const profile = ticker ? companyProfileOf(profiles, ticker) : undefined;
+      const exclude = profile?.exclude ?? [];
+      const context = profile?.context ?? [];
+      const relevant = pool.filter((item) => {
+        const haystack = `${item.title} ${item.summary ?? ''}`.toLowerCase();
+        if (exclude.some((word) => haystack.includes(word.toLowerCase()))) {
+          return false;
+        }
+        return context.length === 0 || context.some((word) => haystack.includes(word.toLowerCase()));
+      });
+      const recent = (focus ? rankByQuery(relevant, focus) : relevant).slice(0, limit);
       const title = ticker ? `Новости ${ticker} за ${days} дн.:` : `Новости рынка за ${days} дн.:`;
       const lines = [title];
       const summaryLimit = options.summaryLimit ?? 240;

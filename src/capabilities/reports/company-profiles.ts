@@ -32,6 +32,17 @@ const CompanySchema = z.object({
   exposure: z.enum(EXPOSURES),
   currencyShare: z.number().min(0).max(1).optional(),
   note: z.string().trim().optional(),
+  /**
+   * Слова-омонимы компании: по ним публикации к бумаге не относятся.
+   * «Самолёт» — это и застройщик (SMLT), и авиация: без фильтра динамика
+   * объясняется новостями про аэропорты и рейсы.
+   */
+  exclude: z.array(z.string()).default([]),
+  /**
+   * Обязательный контекст для бумаг с омонимом: без него публикация к компании
+   * не относится («самолёт сел в Бордо» — это авиация, а не застройщик).
+   */
+  context: z.array(z.string()).default([]),
 });
 
 const MarketFactorSchema = z.object({
@@ -62,6 +73,10 @@ export interface CompanyProfile {
   /** Доля валютной выручки, 0..1. */
   currencyShare?: number;
   note?: string;
+  /** Слова-омонимы: публикации с ними к бумаге не относятся. */
+  exclude: string[];
+  /** Обязательный контекст: без этих слов публикация к бумаге не относится. */
+  context: string[];
 }
 
 /** Рыночный фактор: ищется по всем бумагам («курс рубля», «санкции»). */
