@@ -87,7 +87,10 @@ POST /api/v1/agent/chat
 - [`.agents/skills/agent-engineering`](.agents/skills/agent-engineering/SKILL.md) — промпты,
   инструменты, маршрутизация, обработка отказов, evals; главные ошибки и что нельзя делать;
 - [`.agents/skills/knowledge-base`](.agents/skills/knowledge-base/SKILL.md) — как писать темы
-  базы знаний: формат, глубина, источники, подключение к шаблону.
+  базы знаний: формат, глубина, источники, подключение к шаблону;
+- [`.agents/skills/commit-and-push`](.agents/skills/commit-and-push/SKILL.md) — завершение
+  этапа: проверки, очистка временных файлов, формат коммита, push (в том числе после
+  каждого пункта `tasks.md` OpenSpec).
 
 Коротко:
 
@@ -727,13 +730,24 @@ npm run lint              # eslint (src + test)
 npm test                  # unit-тесты: домен, узлы, источники, фасады, контракты
 npm run test:e2e          # e2e: граф, HTTP, MCP, рестарт состояния
 npm run eval              # оценка качества агента на наборе кейсов (офлайн)
+npm run eval:live         # те же кейсы на живом сервисе
 npm run replay -- <runId> # транскрипт прогона из журнала (без сети)
 npm run smoke:mcp         # живое подключение к T-Invest MCP (нужен .env)
 npm run studio:check      # граф виден в LangGraph Studio
 ```
 
+Правила коротко (подробно — [`docs/testing.md`](docs/testing.md)):
+
+- новое поведение — новый тест; регрессия начинается с кейса, воспроизводящего провал;
+- тесты не ходят в сеть и не зависят от времени: брокер — фикстуры, модель — скриптовая;
+- русские регексы — `[а-яё]`, а не `\w` и `\b` (в JS они не работают с кириллицей);
+- правка промпта = кейс в `test/eval/cases` + живой прогон `scripts/ask.mjs`;
+- `pass@k = 100 %` на теге `required`; тест не ослабляется ради зелёного;
+- перед коммитом: `build`, `lint`, `test`, `test:e2e`, `eval` (и живой прогон, если менялось поведение).
+
 Как устроены оценка и отладка:
 
+- [`docs/testing.md`](docs/testing.md) — что и по каким правилам тестируется, кейс eval, что не покрыто;
 - [`docs/evals.md`](docs/evals.md) — кейсы, грейдеры, `pass@k`/`pass^k`, режимы `offline`/`live`/`judge`;
 - [`docs/observability.md`](docs/observability.md) — JSON-логи, `runId`, журнал прогона, метрики;
 - [`docs/structure.md`](docs/structure.md) — куда класть новую ноду, тул, источник, секцию.
@@ -804,6 +818,7 @@ npm run studio:check      # граф виден в LangGraph Studio
 | Документ | О чём |
 |---|---|
 | [`docs/architecture.md`](docs/architecture.md) | модули, правила зависимостей, контракты расширения, чек-лист ревью |
+| [`docs/testing.md`](docs/testing.md) | что и по каким правилам тестируется: unit, e2e, eval, живые прогоны |
 | [`docs/api.md`](docs/api.md) | эндпоинты, `intent`, коды ошибок, примеры |
 | [`docs/mcp.md`](docs/mcp.md) | MCP-серверы, allowlist, прокси, TLS |
 | [`docs/sources.md`](docs/sources.md) | источники данных и новостей, как добавить ленту |
