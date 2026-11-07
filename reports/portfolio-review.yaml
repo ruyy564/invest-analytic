@@ -23,7 +23,7 @@ sections:
     render: text
     interpret: true
     # Тема цикла обязательна: без неё модель трактует ставку без контекста фаз.
-    knowledge: [cycles, impact-map, leaders-laggards, macro-transmission]
+    knowledge: [cycles, impact-map, leaders-laggards, macro-transmission, stagflation, budget-rates, ruble-rate]
   # Фон рынка: общая сводка новостей за неделю (ветка новостей).
   - id: marketnews
     title: Фон рынка: новости
@@ -41,7 +41,7 @@ sections:
     render: text
     interpret: true
     # Оценка опирается на отчётность, мультипликаторы и сравнение с сектором.
-    knowledge: [reporting, multiples, news-reaction, leaders-laggards, stock-selection]
+    knowledge: [reporting, multiples, news-reaction, leaders-laggards, stock-selection, price-drivers, market-gauges]
   # Аналитика бумаги: блоки собирает код из собранных чисел, модель их трактует.
   # Только разбор бумаги: в разборе портфеля это шум.
   - id: drivers
@@ -97,7 +97,7 @@ sections:
     render: text
     scopes: [portfolio, account]
     # Налоги и издержки: доходность считается после них.
-    knowledge: [taxes]
+    knowledge: [taxes, tax-deductions]
   - id: gaps
     title: Пробелы в портфеле
     provider: portfolio.gaps
@@ -112,4 +112,4 @@ sections:
     interpret: true
     scopes: [portfolio, account]
     # Стратегия — главный вывод раздела: тема обязательна, а не по весу.
-    knowledge: [strategies, bond-review, macro-transmission]
+    knowledge: [strategies, bond-review, macro-transmission, bond-prices, coupon-reinvest, strategy-choice]
