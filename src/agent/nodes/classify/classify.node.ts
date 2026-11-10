@@ -1,4 +1,5 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { AIMessage } from '@langchain/core/messages';
 import { Logger } from '@nestjs/common';
 import { loadTickerAliases } from '../../../capabilities/news/news.aliases.js';
 import type { KnowledgeProvider } from '../../../capabilities/knowledge/index.js';
@@ -70,7 +71,8 @@ export const createClassifyNode = (
       ...(route.dataNeed ? { dataNeed: route.dataNeed } : { dataNeed: null }),
       routeSource: route.source,
       followUp: route.followUp === true,
-      ...(route.guard ? { guardAnswer: route.guard.answer } : { guardAnswer: null }),
+      // Ответ guardrail кладём сообщением: отдельный канал состояния не нужен.
+      ...(route.guard ? { messages: [new AIMessage(route.guard.answer)] } : {}),
       // Новый вопрос — новое согласие: в рамках одного прогона подтверждение одно.
       dataApproved: false,
       // Новый вопрос начинает прогон с чистого листа: иначе ответ возьмётся

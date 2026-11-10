@@ -52,8 +52,6 @@ export const AgentState = new StateSchema({
   routeSource: z.enum(['rule', 'model', 'fallback', 'guard']).optional(),
   /** Уточняющий вопрос: тема и область наследуются у предыдущего вопроса. */
   followUp: z.boolean().default(false),
-  /** Ответ guardrail: текст возвращается без обращения к модели. */
-  guardAnswer: z.string().nullable().optional(),
   /** Нужны данные состава портфеля: решает правило маршрутизации. */
   dataNeed: z.enum(['portfolio']).nullable().optional(),
   /**
@@ -77,7 +75,7 @@ export const AgentState = new StateSchema({
   collection: CollectionSchema.nullable().optional(),
   /** Идентификатор сохранённого отчёта для выгрузки. */
   reportId: z.string().nullable().optional(),
-  /** Версия шаблона, по которому собран отчёт. */
+  /** Версия шаблона, по которому собран отчёт: нужна при сохранении. */
   reportTemplateVersion: z.number().nullable().optional(),
   reportType: z
     .enum(['data_answer', 'portfolio_report', 'deep_review', 'market_news'])

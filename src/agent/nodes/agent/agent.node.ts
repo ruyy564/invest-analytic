@@ -564,6 +564,24 @@ export const createAgentNode =
     if (newsRequest) {
       return { messages: [newsRequest] };
     }
+    // База знаний: для анализа бумаги нужны принципы трактовки, а не надежда,
+    // что модель сама вызовет инструмент. Тема берётся из каталога по вопросу:
+    // если её нет — не зовём (инструмент вернул бы только список тем).
+    if (securityAnalysis && options.knowledge && !options.knowledge.isEmpty) {
+      const topic = options.knowledge.topicFor(question);
+      if (topic) {
+        const knowledgeRequest = instrumentCallFor(
+          'knowledge__explain',
+          { question },
+          run,
+          tools,
+          answered,
+        );
+        if (knowledgeRequest) {
+          return { messages: [knowledgeRequest] };
+        }
+      }
+    }
 
     // Точечный вопрос по готовым данным: отдаём отчёт как есть, без генерации и таймаутов.
     // Отчёт — ответ только для такого вопроса: «почему/стоит ли» требует трактовки.
@@ -605,8 +623,11 @@ export const createAgentNode =
                 question,
                 limit: 4,
                 maxChars: options.knowledgeMaxChars ?? 6_000,
-                // Решение по бумаге или портфелю — вместе с чек-листом.
-                ...(DECISION_PATTERN.test(question) ? { required: ['decision-checklist'] } : {}),
+                // Решение или анализ бумаги — вместе с чек-листом: без него
+                // модель пересказывает цифры вместо трактовки.
+                ...(securityAnalysis || DECISION_PATTERN.test(question)
+                  ? { required: ['decision-checklist'] }
+                  : {}),
               })
             : undefined,
       }),
