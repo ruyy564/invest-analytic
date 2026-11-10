@@ -8,6 +8,8 @@ export interface ToolCallEvent {
   tool: string;
   durationMs: number;
   ok: boolean;
+  /** Сколько попыток потребовалось: больше одной — был повтор после 429. */
+  attempts?: number;
 }
 
 export interface ToolWrapperOptions {
@@ -18,7 +20,21 @@ export interface ToolWrapperOptions {
   budgetFor?: (sessionId: string | undefined) => ToolBudget | undefined;
   /** Крючок для трейсинга и логов. */
   onCall?: (event: ToolCallEvent) => void;
+  /** Паузы перед повтором при ограничении частоты (429). */
+  rateLimitDelaysMs?: readonly number[];
+  /** Подмена паузы в тестах: иначе повтор делает тест медленным. */
+  sleep?: (ms: number) => Promise<void>;
 }
+
+/**
+ * Повтор при 429: лимит брокера — скользящее окно, короткая пауза обычно
+ * возвращает ответ. Две попытки, дальше честная ошибка: ждать дольше, чем
+ * идёт сам разбор, бессмысленно.
+ */
+export const RATE_LIMIT_DELAYS_MS: readonly number[] = [400, 1_200];
+
+const defaultSleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Имя инструмента для агента: `<server>__<tool>`. */
 export const namespaceTool = (server: string, toolName: string): string =>
@@ -79,21 +95,44 @@ export const wrapTool = (
     budget?.assertAvailable(wrappedName);
     budget?.registerCall();
     const startedAt = Date.now();
-    try {
-      const result = await withTimeout(
-        tool.invoke(input as never),
-        options.timeoutMs,
-        () =>
-          new McpUnavailableError(
-            `Инструмент ${wrappedName} не ответил за ${options.timeoutMs} мс`,
-          ),
-      );
-      options.onCall?.({ tool: wrappedName, durationMs: Date.now() - startedAt, ok: true });
-      return result;
-    } catch (error) {
-      const mapped = mapMcpError(error);
-      options.onCall?.({ tool: wrappedName, durationMs: Date.now() - startedAt, ok: false });
-      throw mapped;
+    const delays = options.rateLimitDelaysMs ?? RATE_LIMIT_DELAYS_MS;
+    const sleep = options.sleep ?? defaultSleep;
+    let attempts = 0;
+
+    // Повтор только на 429: остальные ошибки (таймаут, токен, неверный ответ)
+    // повтором не лечатся и только тратят дедлайн прогона.
+    for (;;) {
+      try {
+        const result = await withTimeout(
+          tool.invoke(input as never),
+          options.timeoutMs,
+          () =>
+            new McpUnavailableError(
+              `Инструмент ${wrappedName} не ответил за ${options.timeoutMs} мс`,
+            ),
+        );
+        options.onCall?.({
+          tool: wrappedName,
+          durationMs: Date.now() - startedAt,
+          ok: true,
+          attempts: attempts + 1,
+        });
+        return result;
+      } catch (error) {
+        const mapped = mapMcpError(error);
+        if (mapped.code === 'mcp_rate_limited' && attempts < delays.length) {
+          await sleep(delays[attempts] ?? 0);
+          attempts += 1;
+          continue;
+        }
+        options.onCall?.({
+          tool: wrappedName,
+          durationMs: Date.now() - startedAt,
+          ok: false,
+          attempts: attempts + 1,
+        });
+        throw mapped;
+      }
     }
   };
 

@@ -29,7 +29,17 @@ const tools = (overrides: Record<string, unknown> = {}) => {
 
   map.set('invest_find_instrument', impl('invest_find_instrument', findResponse));
   map.set('invest_get_market_values', impl('invest_get_market_values', marketValues));
-  map.set('invest_get_forecast', impl('invest_get_forecast', { targetPrice: 382, priceChange: 30.6 }));
+  map.set('invest_get_forecast', impl('invest_get_forecast', {
+    consensus: {
+      ticker: 'SBER',
+      recommendation: 'RECOMMENDATION_BUY',
+      currency: 'rub',
+      consensus: { value: '383.8' },
+      minTarget: { value: '320' },
+      maxTarget: { value: '430' },
+      priceChangeRel: { value: '30.67' },
+    },
+  }));
   map.set(
     'invest_get_share_dividends',
     impl('invest_get_share_dividends', { dividendNet: 33.3, lastBuyDate: '2026-12-09' }),
@@ -76,7 +86,9 @@ describe('доменные фасады бумаг', () => {
     const forecast = await byName(list, INSTRUMENT_TOOLS.forecast).invoke({ ticker: 'SBER' });
     const dividends = await byName(list, INSTRUMENT_TOOLS.dividends).invoke({ ticker: 'SBER' });
 
-    expect(String(forecast)).toContain('targetPrice: 382');
+    expect(String(forecast)).toContain('покупать');
+    expect(String(forecast)).toContain('цель аналитиков: 383.8');
+    expect(String(forecast)).toContain('потенциал: 30.67%');
     expect(String(dividends)).toContain('lastBuyDate: 2026-12-09');
     expect(String(dividends)).not.toContain('{');
   });

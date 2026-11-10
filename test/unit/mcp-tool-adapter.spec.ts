@@ -186,3 +186,85 @@ describe('маппинг ошибок MCP', () => {
     expect(mapMcpError(error)).toBe(error);
   });
 });
+
+describe('повтор вызова при ограничении частоты', () => {
+  const rateLimited = (): Error => Object.assign(new Error('429 Too Many Requests'), { status: 429 });
+
+  it('повторяет вызов после 429 и возвращает результат', async () => {
+    // Брокер отдаёт 429 на всплеск: короткая пауза возвращает ответ.
+    let calls = 0;
+    const tool = fakeTool('invest_get_market_values', async () => {
+      calls += 1;
+      if (calls < 3) {
+        throw rateLimited();
+      }
+      return 'цена 250.50';
+    });
+    const wrapped = wrapTool(tool, {
+      server: 'tinkoff',
+      timeoutMs: 1000,
+      sleep: async () => undefined,
+    });
+
+    await expect(wrapped.invoke({} as never)).resolves.toBe('цена 250.50');
+    expect(calls).toBe(3);
+  });
+
+  it('после исчерпания повторов отдаёт доменную ошибку', async () => {
+    let calls = 0;
+    const tool = fakeTool('invest_get_market_values', async () => {
+      calls += 1;
+      throw rateLimited();
+    });
+    const wrapped = wrapTool(tool, {
+      server: 'tinkoff',
+      timeoutMs: 1000,
+      sleep: async () => undefined,
+    });
+
+    await expect(wrapped.invoke({} as never)).rejects.toMatchObject({ code: 'mcp_rate_limited' });
+    // Одна попытка и две паузы из RATE_LIMIT_DELAYS_MS.
+    expect(calls).toBe(3);
+  });
+
+  it('не повторяет прочие ошибки: повтором они не лечатся', async () => {
+    let calls = 0;
+    const tool = fakeTool('invest_get_market_values', async () => {
+      calls += 1;
+      throw new Error('boom');
+    });
+    const wrapped = wrapTool(tool, {
+      server: 'tinkoff',
+      timeoutMs: 1000,
+      sleep: async () => undefined,
+    });
+
+    await expect(wrapped.invoke({} as never)).rejects.toMatchObject({
+      code: 'mcp_invalid_response',
+    });
+    expect(calls).toBe(1);
+  });
+
+  it('сообщает число попыток в событии вызова', async () => {
+    const events: { attempts?: number }[] = [];
+    let calls = 0;
+    const tool = fakeTool('invest_get_market_values', async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw rateLimited();
+      }
+      return 'ok';
+    });
+    const wrapped = wrapTool(tool, {
+      server: 'tinkoff',
+      timeoutMs: 1000,
+      sleep: async () => undefined,
+      onCall: (event) => events.push(event),
+    });
+
+    await wrapped.invoke({} as never);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.attempts).toBe(2);
+  });
+});

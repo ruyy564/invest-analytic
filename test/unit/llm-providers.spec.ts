@@ -44,9 +44,9 @@ describe('параметры провайдеров', () => {
       authUrl: 'https://auth.example.com/oauth',
       model: 'gpt-4o-mini',
       streaming: false,
-      // Жёсткие пределы: без них ответ «висит» десятки секунд.
-      timeout: 15_000,
-      maxTokens: 1_024,
+      // Пределы ответа: 1 024 токена обрезали разбор на середине, 15 с рвали транспорт.
+      timeout: 45_000,
+      maxTokens: 2_048,
       // Studio передаёт streaming-callbacks; без флага модель уходит в SSE.
       disableStreaming: true,
     });
