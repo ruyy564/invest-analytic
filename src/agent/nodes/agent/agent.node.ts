@@ -21,6 +21,7 @@ import { DECISION_PATTERN } from '../classify/prompt.js';
 import type { KnowledgeProvider } from '../../../capabilities/knowledge/index.js';
 import { detectInstruments } from '../../scope.js';
 import { FACTORS_TOOL } from '../../../capabilities/market/tools/factors/factors.service.js';
+import { INSTRUMENT_TOOLS } from '../../../capabilities/instruments/tools/instruments.tools.js';
 import {
   asksWhatWith,
   causeFactsAnswer,
@@ -103,6 +104,35 @@ const dynamicsCallFor = (
         args: { ticker, days: 180 },
       },
     ],
+  });
+};
+
+/**
+ * Готовый вызов фасада бумаги: анализ требует мнения аналитиков и дивидендов,
+ * а модель о них забывает и отвечает «без дополнительных исследований нельзя».
+ * Повтор уже выполненного вызова не делается: данные в прогоне есть.
+ */
+const instrumentCallFor = (
+  name: string,
+  args: Record<string, unknown>,
+  run: BaseMessage[],
+  tools: StructuredToolInterface[],
+  answered: Set<string>,
+): AIMessage | undefined => {
+  if (!tools.some((tool) => tool.name === name) || answered.has(callSignature(name, args))) {
+    return undefined;
+  }
+  const asked = run.some(
+    (message) =>
+      messageType(message) === 'ai' &&
+      ((message as AIMessage).tool_calls ?? []).some((call) => call.name === name),
+  );
+  if (asked) {
+    return undefined;
+  }
+  return new AIMessage({
+    content: '',
+    tool_calls: [{ id: `${name}-${Date.now()}`, name, args }],
   });
 };
 
@@ -488,20 +518,49 @@ export const createAgentNode =
     // «Почему упал/вырос X» — вопрос о причине: у брокера причин нет, они берутся
     // из публикаций. «Что с бумагой?» — тоже про движение, но не «что с ценой».
     const causeQuestion = asksForCause(question) || (asksWhatWith(question) && tickers.length > 0);
+    // Анализ бумаги («проанализируй», «оцени») требует того же набора фактов:
+    // динамика, мнение аналитиков, дивиденды, новости. Без детерминированного
+    // добора модель отвечает «без дополнительных исследований невозможно».
+    const securityAnalysis = state.intent === 'security_analysis';
+    const needsFacts = causeQuestion || securityAnalysis;
     // Вопрос требует трактовки («почему», «стоит ли»): сырой отчёт инструмента
     // на такой вопрос не отвечает — это легаси-ответ, его здесь не отдаём.
     const interpretationRequired = asksForInterpretation(state.intent, question);
     // Числа по рынку (нефть, курс, ставка) — аргументы, а не догадки.
-    const marketRequest = causeQuestion ? marketCallFor(run, tools) : undefined;
+    const marketRequest = needsFacts ? marketCallFor(run, tools) : undefined;
     if (marketRequest) {
       return { messages: [marketRequest] };
     }
     // Динамика цены: без неё ответ «что с бумагой» пуст, и модель может промолчать.
-    const dynamicsRequest = causeQuestion ? dynamicsCallFor(tickers, run, tools) : undefined;
+    const dynamicsRequest = needsFacts ? dynamicsCallFor(tickers, run, tools) : undefined;
     if (dynamicsRequest) {
       return { messages: [dynamicsRequest] };
     }
-    const newsRequest = causeQuestion ? newsCallFor(tickers, run, tools, question) : undefined;
+    // Прогноз и дивиденды: о них модель забывает, а без них разбор неполный.
+    const analysed = tickers[0];
+    if (securityAnalysis && analysed) {
+      const forecastRequest = instrumentCallFor(
+        INSTRUMENT_TOOLS.forecast,
+        { ticker: analysed },
+        run,
+        tools,
+        answered,
+      );
+      if (forecastRequest) {
+        return { messages: [forecastRequest] };
+      }
+      const dividendsRequest = instrumentCallFor(
+        INSTRUMENT_TOOLS.dividends,
+        { ticker: analysed },
+        run,
+        tools,
+        answered,
+      );
+      if (dividendsRequest) {
+        return { messages: [dividendsRequest] };
+      }
+    }
+    const newsRequest = needsFacts ? newsCallFor(tickers, run, tools, question) : undefined;
     if (newsRequest) {
       return { messages: [newsRequest] };
     }

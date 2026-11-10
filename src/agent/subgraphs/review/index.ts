@@ -40,4 +40,4 @@ export const buildReviewSubgraph = (deps: ReviewSubgraphDeps) =>
     .addEdge('plan', 'approve')
     .addEdge('collect', 'report')
     .addEdge('report', END)
-    .compile({ checkpointer: true });
+    .compile({ checkpointer: true, interruptBefore: ['approve'] });

@@ -103,7 +103,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
       .addEdge('help', END)
       .addEdge('knowledge', END)
       .addEdge('tools', 'agent')
-      .compile({ checkpointer: deps.checkpointer });
+      .compile({ checkpointer: deps.checkpointer, interruptBefore: ['approve'] });
   }
 
   const graph = base
@@ -141,7 +141,7 @@ export const buildAgentGraph = (deps: BuildAgentGraphDeps) => {
   // Узел `approve` сам выбирает ветку через `Command`: подтверждённые вызовы
   // инструментов идут в `tools`, отказ — в `agent`. План разбора подтверждается
   // внутри подграфа `review`.
-  return graph.compile({ checkpointer: deps.checkpointer });
+  return graph.compile({ checkpointer: deps.checkpointer, interruptBefore: ['approve'] });
 };
 
 export type CompiledAgentGraph = ReturnType<typeof buildAgentGraph>;

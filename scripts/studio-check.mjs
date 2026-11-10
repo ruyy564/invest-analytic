@@ -53,13 +53,12 @@ if (firstError) {
 }
 
 const state1 = await client.threads.getState(thread.thread_id);
-const interrupts = state1.tasks?.flatMap((task) => task.interrupts ?? []) ?? [];
-if (interrupts.length === 0) {
+// Пауза статическая: interrupt-задач нет, но прогон остановлен (`next` не пуст).
+if ((state1.next?.length ?? 0) === 0) {
   const last = [...first].reverse().find((event) => event.event === 'values')?.data;
   fail(`нет паузы подтверждения. Ответ: ${JSON.stringify(last?.messages?.at(-1)).slice(0, 400)}`);
 }
-const payload = interrupts[0].value;
-ok(`пауза подтверждения: «${payload.question}» (${payload.actions.map((a) => a.tool).join(', ')})`);
+ok(`пауза перед подтверждением: ждут ${state1.next.join(', ')}`);
 ok(`сообщений в треде: ${state1.values.messages.length}, intent: ${state1.values.intent}`);
 
 /**
@@ -107,21 +106,20 @@ if (secondError) {
   console.log('  (тред и история при этом сохранены — это ограничение GigaChat, не Studio)');
 }
 
-step('подтверждение из панели Interrupts: отклонить');
+step('подтверждение: пустой Resume');
 const resumeEvents = [];
 for await (const chunk of client.runs.stream(thread.thread_id, graphId, {
   input: null,
-  command: { resume: { approved: false } },
   streamMode: 'values',
 })) {
   resumeEvents.push(Array.isArray(chunk) ? { event: chunk[0], data: chunk[1] } : chunk);
 }
 const resumeError = isLlmFailure(resumeEvents);
 const state3 = await client.threads.getState(thread.thread_id);
-if (state3.tasks?.some((task) => (task.interrupts ?? []).length > 0)) {
-  fail('после решения подтверждение всё ещё висит');
+if ((state3.next?.length ?? 0) > 0) {
+  fail('после Resume подтверждение всё ещё висит');
 }
-ok('решение доставлено, пауза снята');
+ok('пустой Resume принят, пауза снята');
 if (resumeError) {
   console.log(`⚠ прогон прерван провайдером LLM: ${describeError(resumeError.data)}`);
 } else {

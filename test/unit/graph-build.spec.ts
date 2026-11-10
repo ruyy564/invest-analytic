@@ -94,34 +94,32 @@ describe('граф агента', () => {
   it('просьбу разобрать портфель уводит в подграф разбора и останавливает на подтверждении', async () => {
     const graph = buildGraph(['portfolio_review'], ['ответ агента не используется']);
 
-    const result = (await graph.invoke(
+    await graph.invoke(
       { messages: [new HumanMessage('проанализируй мой портфель')] },
       { configurable: { thread_id: 'unit-review' } },
-    )) as { __interrupt__?: { value?: { question?: string; actions?: unknown[] } }[] };
+    );
+    const snapshot = await graph.getState({ configurable: { thread_id: 'unit-review' } });
 
-    // План подтверждается внутри подграфа: снаружи видно payload подтверждения.
-    const approval = result.__interrupt__?.[0]?.value;
-    expect(approval?.question).toContain('разбора портфеля');
-    expect(approval?.actions?.length).toBeGreaterThan(0);
+    // Пауза статическая (breakpoint перед `approve`): payload не строится,
+    // важно, что прогон остановлен и ждёт решения. План лежит в состоянии подграфа.
+    expect(snapshot.next.length).toBeGreaterThan(0);
+    expect(snapshot.values.intent).toBe('portfolio_review');
   });
 
   it('при выключенной ветке разбора вопрос о портфеле идёт прежним путём', async () => {
     const graph = buildGraph(['portfolio_review'], ['Ответ по данным.'], false);
 
-    const result = (await graph.invoke(
+    await graph.invoke(
       { messages: [new HumanMessage('проанализируй мой портфель')] },
       { configurable: { thread_id: 'unit-review-off' } },
-    )) as {
-      readingPlan?: unknown[];
-      reportId?: string;
-      __interrupt__?: { value?: unknown }[];
-    };
+    );
+    const snapshot = await graph.getState({ configurable: { thread_id: 'unit-review-off' } });
 
     // Плана и отчёта нет: прогон просит подтверждение на чтение сводки, как раньше.
-    expect(result.readingPlan ?? []).toHaveLength(0);
+    expect(snapshot.values.readingPlan ?? []).toHaveLength(0);
     // Отказ: отчёт не собирался. `null` — явный сброс в `classify` нового прогона.
-    expect(result.reportId ?? undefined).toBeUndefined();
-    expect(result.__interrupt__?.length).toBe(1);
+    expect(snapshot.values.reportId ?? undefined).toBeUndefined();
+    expect(snapshot.next.length).toBeGreaterThan(0);
   });
 });
 

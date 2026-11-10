@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import type { Logger as PinoLogger } from 'pino';
 import { APP_LOGGER, createAppLogger, runLogger, withLogContext } from '../platform/logging/index.js';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { HumanMessage } from '@langchain/core/messages';
-import { Command, type BaseCheckpointSaver } from '@langchain/langgraph';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
+import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { AppConfigService } from '../platform/config/app-config.service.js';
 import { LLM_ANSWER_MODEL, LLM_ROUTER_MODEL } from '../platform/llm/llm.module.js';
 import { CHECKPOINTER } from '../platform/state/state.module.js';
@@ -14,6 +14,7 @@ import { withTimeout } from '../transports/mcp/mcp-tool.adapter.js';
 import {
   ApprovalFlowService,
   type ApproveDecision,
+  type ApprovePayload,
 } from './approval-flow.service.js';
 import { NotAwaitingApprovalError } from './approval.errors.js';
 import { NO_TOOLS_ANSWER } from './nodes/off-topic/prompt.js';
@@ -152,10 +153,17 @@ export class AgentRunnerService {
       this.registry.beginRun(sessionId);
 
       try {
-        const result = await graph.invoke(new Command({ resume: decision }), {
+        // Статический breakpoint перед `approve`: значение Resume не передаём,
+        // решение идёт конфигом. Так кнопка Resume в Studio работает пустой,
+        // а HTTP-путь различает согласие и отказ.
+        const result = await graph.invoke(null, {
           ...config,
+          configurable: {
+            ...config.configurable,
+            approvalDecision: decision.approved ? 'approve' : 'reject',
+          },
           metadata: { requestId, sessionId, runId },
-        });
+        } as typeof config);
         const mapped = await this.toResultAndTrack(graph, result as unknown, config, sessionId, runId);
         log.info({ intent: mapped.intent, partial: mapped.partial }, 'Прогон завершён');
         await this.appendFinished(journal, graph, config, mapped, startedAt, sessionId);
@@ -333,6 +341,8 @@ export class AgentRunnerService {
     const mapped = await this.toResult(graph, result, config, runId, sessionId);
     if (mapped.status === 'awaiting_approval') {
       this.flow.markPending(sessionId);
+      // Момент остановки: по нему проверяется TTL при подтверждении.
+      this.flow.markRequested(sessionId);
     } else {
       this.flow.clearPending(sessionId);
     }
@@ -401,6 +411,53 @@ export class AgentRunnerService {
     };
   }
 
+  /**
+   * Payload подтверждения по состоянию прогона.
+   *
+   * При статическом breakpoint LangGraph не возвращает `__interrupt__`, поэтому
+   * запрос для API строится из `readingPlan` (ветка разбора) или из последних
+   * `tool_calls` модели (свободная ветка).
+   */
+  private approvalPayloadFor(values: AgentStateType): ApprovePayload | undefined {
+    const plan = values.readingPlan ?? [];
+    // План строится внутри подграфа, и при паузе там обновления ещё не подняты
+    // наверх: ориентируемся на сценарий, а не на чтение состояния подграфа.
+    if (values.intent === 'portfolio_review' || plan.length > 0) {
+      const rule = this.policy.ruleFor('portfolio__review') ?? {
+        tool: 'portfolio__review',
+        label: 'Разбор портфеля',
+        question: 'Прочитать данные для разбора портфеля?',
+        requiresApproval: true,
+      };
+      const scopeLabel =
+        values.scopeLabel ??
+        (values.scopeTarget ? `бумаги ${values.scopeTarget}` : 'портфеля');
+      return this.flow.buildPayload(
+        [
+          {
+            rule: { ...rule, question: `Прочитать данные для разбора ${scopeLabel}?` },
+            args: { requests: plan.length, groups: [], accounts: [] },
+          },
+        ],
+        this.defaultAccount,
+      );
+    }
+
+    const calls = (values.messages.at(-1) as AIMessage | undefined)?.tool_calls ?? [];
+    const items = calls
+      .filter((call) => this.policy.requiresApproval(call.name))
+      .map((call) => ({
+        rule: this.policy.ruleFor(call.name) ?? {
+          tool: call.name,
+          label: call.name,
+          question: 'Подтвердить чтение данных?',
+          requiresApproval: true,
+        },
+        args: (call.args ?? {}) as Record<string, unknown>,
+      }));
+    return items.length > 0 ? this.flow.buildPayload(items, this.defaultAccount) : undefined;
+  }
+
   private async toResult(
     graph: CompiledAgentGraph,
     result: unknown,
@@ -408,10 +465,15 @@ export class AgentRunnerService {
     runId: string,
     sessionId: string,
   ): Promise<RunResult> {
+    const snapshot = await graph.getState(config);
     const inlineValues = (result as { values?: AgentStateType }).values;
     const values =
-      inlineValues && inlineValues.messages ? inlineValues : (await graph.getState(config)).values;
-    const approval = extractInterrupt(result);
+      inlineValues && inlineValues.messages ? inlineValues : snapshot.values;
+    // Пауза статическая (breakpoint перед `approve`), поэтому `__interrupt__`
+    // может отсутствовать: остановку видно по `next` в состоянии.
+    const stopped = (snapshot.next?.length ?? 0) > 0;
+    const approval =
+      extractInterrupt(result) ?? (stopped ? this.approvalPayloadFor(values) : undefined);
 
     if (approval) {
       return {

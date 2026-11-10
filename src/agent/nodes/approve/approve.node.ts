@@ -1,10 +1,6 @@
 ﻿import { AIMessage, ToolMessage } from '@langchain/core/messages';
-import { Command, END, interrupt, type LangGraphRunnableConfig } from '@langchain/langgraph';
-import type {
-  ApprovalFlowService,
-  ApproveDecision,
-  ApprovePayload,
-} from '../../approval-flow.service.js';
+import { Command, END, type LangGraphRunnableConfig } from '@langchain/langgraph';
+import type { ApprovalFlowService } from '../../approval-flow.service.js';
 import type { ApprovalPolicyService } from '../../approvals/approval-policy.service.js';
 import type { AgentStateType } from '../../graph/state.js';
 
@@ -23,33 +19,11 @@ const DECLINE_REPORT_TEXT =
   'Отчёт не сформирован: вы не подтвердили чтение данных, поэтому брокер не запрашивался. ' +
   'Подтвердите запрос, чтобы получить разбор портфеля.';
 
-/** Виды данных плана — их видит пользователь в запросе подтверждения. */
-const groupLabels: Record<string, string> = {
-  accounts: 'счета',
-  portfolio: 'состав и стоимость портфеля',
-  prices: 'текущие цены',
-  candles: 'история цен',
-  reference: 'справочники бумаг',
-  analytics: 'прогнозы аналитиков',
-  dividends: 'дивиденды',
-  fundamentals: 'фундаментальные показатели',
-  signals: 'сигналы и мнения',
-  news: 'новости',
-  marketnews: 'новости рынка',
-  tax: 'налоги',
-  macro: 'ключевая ставка',
-  indices: 'индексы',
-};
-
 /**
- * Решение приходит из разных источников: HTTP-API (`{ approved: true }`),
- * поле Resume в LangSmith Studio (объект, строка JSON или пустое значение),
- * голый boolean.
- *
- * Пустое значение — это нажатая кнопка Resume: пользователь согласился, но
- * ничего не ввёл, а Studio отправляет `""`. Поэтому согласием считаются
- * `""`, `null`, `undefined` и `{}`, а отказом — только явные `false`, «нет»,
- * `no`, `decline`, `reject` и `{ approved: false }`.
+ * Решение приходит из конфига прогона: HTTP-API передаёт `approve`/`reject`,
+ * а Studio при пустом Resume не передаёт ничего — это согласие. Так кнопка
+ * Resume работает без ввода значения: сервер LangGraph отклоняет пустой Command,
+ * а статический breakpoint перед узлом — нет.
  */
 export const isApprovedDecision = (decision: unknown): boolean => {
   if (typeof decision === 'boolean') {
@@ -98,43 +72,18 @@ export const isApprovedDecision = (decision: unknown): boolean => {
  */
 export const createApproveNode =
   (deps: ApproveNodeDeps) => async (state: AgentStateType, config?: LangGraphRunnableConfig) => {
+    // Зависимости сохранены в типе: payload для HTTP собирает прогон, а не узел.
+    void deps;
     const last = state.messages.at(-1) as AIMessage | undefined;
     const calls = last?.tool_calls ?? [];
-    const threadId = String(config?.configurable?.thread_id ?? '');
     const plan = state.readingPlan ?? [];
+    // Решение приходит конфигом: Studio при пустом Resume ничего не присылает —
+    // это согласие; HTTP присылает 'approve' или 'reject'.
+    const approved = isApprovedDecision(config?.configurable?.approvalDecision);
 
     // Ветка разбора: подтверждается весь план чтений одним запросом.
     if (plan.length > 0) {
-      const groups = [...new Set(plan.map((entry) => entry.group))];
-      const accounts = [...new Set(plan.map((entry) => entry.target).filter((id): id is string => Boolean(id)))];
-      const rule = deps.policy.ruleFor('portfolio__review') ?? {
-        tool: 'portfolio__review',
-        label: 'Разбор портфеля',
-        question: 'Прочитать данные для разбора портфеля?',
-        requiresApproval: true,
-      };
-
-      deps.flow.markRequested(threadId);
-      const scopeLabel = state.scopeLabel ?? 'портфеля';
-      const approved = interrupt<ApprovePayload, ApproveDecision>({
-        ...deps.flow.buildPayload(
-          [
-            {
-              rule: {
-                ...rule,
-                question:
-                  `Прочитать ${plan.length} видов данных для разбора ${scopeLabel}` +
-                  ` (${groups.map((group) => groupLabels[group] ?? group).join(', ')})?`,
-              },
-              args: { requests: plan.length, groups, accounts },
-            },
-          ],
-          deps.accountId,
-        ),
-      });
-      deps.flow.clear(threadId);
-
-      if (isApprovedDecision(approved)) {
+      if (approved) {
         // Согласие действует до конца прогона: сбор не спросит заново.
         return new Command({ goto: 'collect', update: { dataApproved: true } });
       }
@@ -144,25 +93,7 @@ export const createApproveNode =
       });
     }
 
-    const items = calls
-      .filter((call) => deps.policy.requiresApproval(call.name))
-      .map((call) => ({
-        rule: deps.policy.ruleFor(call.name) ?? {
-          tool: call.name,
-          label: call.name,
-          question: 'Подтвердить чтение данных?',
-          requiresApproval: true,
-        },
-        args: (call.args ?? {}) as Record<string, unknown>,
-      }));
-
-    deps.flow.markRequested(threadId);
-    const decision = interrupt<ApprovePayload, ApproveDecision>(
-      deps.flow.buildPayload(items, deps.accountId),
-    );
-    deps.flow.clear(threadId);
-
-    if (isApprovedDecision(decision)) {
+    if (approved) {
       // Согласие действует до конца прогона: следующие вызовы идут без паузы.
       return new Command({ goto: 'tools', update: { dataApproved: true } });
     }

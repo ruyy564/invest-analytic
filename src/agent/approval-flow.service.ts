@@ -24,11 +24,6 @@ export interface ApprovePayload {
   limits?: ApproveLimits;
   /** Когда согласие перестанет действовать. */
   expiresAt?: string;
-  /**
-   * Подсказка для UI: LangGraph-сервер отклоняет пустой `Command` (`EmptyInputError`),
-   * поэтому в Studio в поле Resume нужно значение, а не просто нажатая кнопка.
-   */
-  resumeHint?: string;
 }
 
 export interface ApproveDecision {
@@ -109,8 +104,6 @@ export class ApprovalFlowService {
         approvalTtlMinutes: ttlMinutes,
       },
       expiresAt: new Date(now.getTime() + ttlMinutes * 60_000).toISOString(),
-      // Пустая кнопка Resume не работает: сервер отклоняет пустой Command до узла approve.
-      resumeHint: 'В LangSmith Studio введите true (или {"approved": true}) и нажмите Resume',
     };
   }
 
